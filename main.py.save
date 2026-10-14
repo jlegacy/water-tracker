@@ -1,0 +1,22 @@
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.responses import HTMLResponse
+import json, time, uuid, secrets
+
+app = FastAPI()
+
+# group_code -> { rider_id -> {name, lat, lon, updated, ws} }
+groups = {}
+
+INDEX_HTML = r"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Water Tracker</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  html,body{margin:0;height:100%;font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#0b1d33;color:#e8eef7;overflow:hidden}
+  #map{height:100%}
+  #bar{position:absolute;top:0;left:0;right:0;z-index:1000;display:flex;gap:8px;align-items:center;padding:10px 12px;background:rgba(11,29,51,.88);backdrop-filter:blur(6px)}
+  #bar input{flex:1;min-width:0;padding:10px 12px;border-radius:10px;border:1px solid #2a4a6f;background:#132a45;
