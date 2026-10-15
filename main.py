@@ -58,6 +58,13 @@ let sharing = false;
 
 function status(t){ document.getElementById('status').textContent = t; }
 
+function clearAllMarkers(){
+  for (const id in riders){
+    map.removeLayer(riders[id]);
+  }
+  for (const id in riders) delete riders[id];
+}
+
 function centerOnMe(){
   if (myLatLng){
     map.panTo(myLatLng);
@@ -122,7 +129,10 @@ function upsert(r){
 }
 
 function remove(id){
-  if (riders[id]){ map.removeLayer(riders[id]); delete riders[id]; }
+  if (riders[id]){
+    map.removeLayer(riders[id]);
+    delete riders[id];
+  }
 }
 
 function toggle(){
@@ -130,6 +140,9 @@ function toggle(){
     const name = document.getElementById('name').value.trim();
     if (!name){ document.getElementById('name').focus(); status('Enter your name first.'); return; }
     if (!navigator.geolocation){ status('Geolocation not supported.'); return; }
+    clearAllMarkers();
+    me = null;
+    myLatLng = null;
     sharing = true;
     document.getElementById('go').textContent = 'Stop';
     document.getElementById('go').classList.add('stop');
