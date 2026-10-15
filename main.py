@@ -1,6 +1,6 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, FileResponse
-import json, time, uuid, secrets, pathlib
+import json, time, uuid, secrets, pathlib, asyncio
 
 app = FastAPI()
 
@@ -55,13 +55,12 @@ let myLatLng = null;
 let watchId = null;
 let ws = null;
 let sharing = false;
+let pingTimer = null;
 
 function status(t){ document.getElementById('status').textContent = t; }
 
 function clearAllMarkers(){
-  for (const id in riders){
-    map.removeLayer(riders[id]);
-  }
+  for (const id in riders) map.removeLayer(riders[id]);
   for (const id in riders) delete riders[id];
 }
 
@@ -86,7 +85,6 @@ function updateMyMarker(lat, lon){
     const icon = L.divIcon({className:'', html:`<div style="width:16px;height:16px;border-radius:50%;background:#2f9e6b;border:2px solid #fff;box-shadow:0 0 6px rgba(0,0,0,.6)"></div>`, iconSize:[16,16], iconAnchor:[8,8]});
     riders[me] = L.marker(myLatLng,{icon}).addTo(map).bindPopup((document.getElementById('name').value || 'You') + ' (you)');
   }
-  map.panTo(myLatLng);
 }
 
 function connect(){
@@ -95,6 +93,9 @@ function connect(){
   ws.onopen = () => {
     ws.send(JSON.stringify({type:'join', name: document.getElementById('name').value || 'Rider',
                            code: document.getElementById('code').value.trim()}));
+    pingTimer = setInterval(() => {
+      if (ws && ws.readyState === 1) ws.send(JSON.stringify({type:'ping'}));
+    }, 10000);
   };
   ws.onmessage = (ev) => {
     const m = JSON.parse(ev.data);
@@ -105,11 +106,20 @@ function connect(){
       if (myLatLng) updateMyMarker(myLatLng[0], myLatLng[1]);
     }
     else if (m.type === 'error'){ status(m.msg); toggle(); }
-    else if (m.type === 'riders') m.riders.forEach(upsert);
+    else if (m.type === 'riders'){
+      const seen = new Set();
+      m.riders.forEach(r => { upsert(r); seen.add(r.id); });
+      for (const id in riders){
+        if (id !== me && !seen.has(id)) remove(id);
+      }
+    }
     else if (m.type === 'pos') upsert(m);
     else if (m.type === 'leave') remove(m.id);
   };
-  ws.onclose = () => { if (sharing) setTimeout(connect, 1500); };
+  ws.onclose = () => {
+    if (pingTimer) clearInterval(pingTimer);
+    if (sharing) setTimeout(connect, 1500);
+  };
 }
 
 function upsert(r){
@@ -158,7 +168,7 @@ function toggle(){
       }
     }, e => {
       status('Location error: ' + e.message);
-    }, {enableHighAccuracy:true, maximumAge:2000, timeout:10000});
+    }, {enableHighAccuracy:true, maximumAge:3000, timeout:15000});
   } else {
     sharing = false;
     document.getElementById('go').textContent = 'Start Sharing';
@@ -168,6 +178,7 @@ function toggle(){
     document.getElementById('center').style.display = 'none';
     if (watchId !== null) navigator.geolocation.clearWatch(watchId);
     watchId = null;
+    if (pingTimer) clearInterval(pingTimer);
     if (ws) ws.close();
     status('Stopped.');
   }
@@ -185,6 +196,17 @@ async def index():
 @app.get("/manifest.json")
 async def manifest():
     return FileResponse(pathlib.Path(__file__).parent / "manifest.json")
+
+@app.on_event("startup")
+async def startup():
+    asyncio.create_task(periodic_broadcast())
+
+async def periodic_broadcast():
+    while True:
+        await asyncio.sleep(8)
+        for code in list(groups.keys()):
+            if groups.get(code):
+                await broadcast(code, {"type": "riders", "riders": public_list(code)})
 
 @app.websocket("/ws")
 async def ws_endpoint(ws: WebSocket):
@@ -238,6 +260,9 @@ def public_list(code):
     out = []
     for rid, r in groups.get(code, {}).items():
         if r["lat"] is None:
+            continue
+        # drop riders with no update in 60s
+        if now - r["updated"] > 60:
             continue
         out.append({"id": rid, "name": r["name"], "lat": r["lat"],
                     "lon": r["lon"], "age": round(now - r["updated"], 1)})
