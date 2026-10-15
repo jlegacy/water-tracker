@@ -75,6 +75,7 @@ let watchId = null;
 let ws = null;
 let sharing = false;
 let pingTimer = null;
+let refreshTimer = null;
 
 function status(t){ document.getElementById('status').textContent = t; }
 
@@ -177,6 +178,14 @@ function updateMyMarker(lat, lon){
   updateRiderList();
 }
 
+function forceReconnect(){
+  if (!sharing) return;
+  if (ws) {
+    try { ws.close(); } catch(e){}
+  }
+  setTimeout(connect, 200);
+}
+
 function connect(){
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   ws = new WebSocket(proto + '://' + location.host + '/ws');
@@ -191,6 +200,14 @@ function connect(){
     pingTimer = setInterval(() => {
       if (ws && ws.readyState === 1) ws.send(JSON.stringify({type:'ping'}));
     }, 8000);
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(p => {
+        updateMyMarker(p.coords.latitude, p.coords.longitude);
+        if (ws && ws.readyState === 1){
+          ws.send(JSON.stringify({type:'pos', lat:p.coords.latitude, lon:p.coords.longitude}));
+        }
+      }, ()=>{}, {enableHighAccuracy:true, timeout:10000});
+    }
   };
   ws.onmessage = (ev) => {
     const m = JSON.parse(ev.data);
@@ -217,7 +234,7 @@ function connect(){
   };
   ws.onclose = () => {
     if (pingTimer) clearInterval(pingTimer);
-    if (sharing) setTimeout(connect, 2000);
+    if (sharing) setTimeout(connect, 1500);
   };
 }
 
@@ -254,9 +271,15 @@ setInterval(() => {
   const now = Date.now();
   for (const id in lastSeen){
     if (id === me) continue;
-    if (now - lastSeen[id] > 60000) remove(id);
+    if (now - lastSeen[id] > 90000) remove(id);
   }
 }, 5000);
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && sharing) {
+    forceReconnect();
+  }
+});
 
 function toggle(){
   if (!sharing){
@@ -271,6 +294,8 @@ function toggle(){
     document.getElementById('name').disabled = true;
     document.getElementById('code').disabled = true;
     connect();
+    if (refreshTimer) clearInterval(refreshTimer);
+    refreshTimer = setInterval(forceReconnect, 30000);
     watchId = navigator.geolocation.watchPosition(p => {
       const lat = p.coords.latitude;
       const lon = p.coords.longitude;
@@ -280,7 +305,7 @@ function toggle(){
       }
     }, e => {
       status('Location error: ' + e.message);
-    }, {enableHighAccuracy:true, maximumAge:4000, timeout:15000});
+    }, {enableHighAccuracy:true, maximumAge:5000, timeout:20000});
   } else {
     sharing = false;
     document.getElementById('go').textContent = 'Start Sharing';
@@ -293,6 +318,7 @@ function toggle(){
     if (watchId !== null) navigator.geolocation.clearWatch(watchId);
     watchId = null;
     if (pingTimer) clearInterval(pingTimer);
+    if (refreshTimer) clearInterval(refreshTimer);
     if (ws) ws.close();
     status('Stopped.');
   }
@@ -391,7 +417,7 @@ def public_list(code):
     for rid, r in groups.get(code, {}).items():
         if r["lat"] is None:
             continue
-        if now - r["updated"] > 120:
+        if now - r["updated"] > 150:
             continue
         out.append({"id": rid, "name": r["name"], "lat": r["lat"],
                     "lon": r["lon"], "age": round(now - r["updated"], 1)})
