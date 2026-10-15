@@ -75,7 +75,6 @@ let watchId = null;
 let ws = null;
 let sharing = false;
 let pingTimer = null;
-let refreshTimer = null;
 
 function status(t){ document.getElementById('status').textContent = t; }
 
@@ -125,7 +124,6 @@ function sendMessage(){
     ws.send(JSON.stringify({type:'msg', to:to, text:text}));
     document.getElementById('msgText').value = '';
     status('Message sent');
-    setTimeout(() => status('Sharing. Your dot is green.'), 2000);
   }
 }
 
@@ -176,18 +174,11 @@ function updateMyMarker(lat, lon){
   updateRiderList();
 }
 
-function forceReconnect(){
-  if (!sharing) return;
-  if (ws) {
-    try { ws.close(); } catch(e){}
-  }
-  setTimeout(connect, 250);
-}
-
 function connect(){
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   ws = new WebSocket(proto + '://' + location.host + '/ws');
   ws.onopen = () => {
+    status('Connected, waiting for location...');
     ws.send(JSON.stringify({
       type: 'join',
       id: me,
@@ -197,15 +188,7 @@ function connect(){
     if (pingTimer) clearInterval(pingTimer);
     pingTimer = setInterval(() => {
       if (ws && ws.readyState === 1) ws.send(JSON.stringify({type:'ping'}));
-    }, 7000);
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(p => {
-        updateMyMarker(p.coords.latitude, p.coords.longitude);
-        if (ws && ws.readyState === 1){
-          ws.send(JSON.stringify({type:'pos', lat:p.coords.latitude, lon:p.coords.longitude}));
-        }
-      }, ()=>{}, {enableHighAccuracy:true, timeout:8000});
-    }
+    }, 10000);
   };
   ws.onmessage = (ev) => {
     const m = JSON.parse(ev.data);
@@ -216,7 +199,6 @@ function connect(){
     }
     else if (m.type === 'error'){ status(m.msg); toggle(); }
     else if (m.type === 'riders'){
-      // treat full list as source of truth for other riders
       const incoming = new Set();
       m.riders.forEach(r => {
         incoming.add(r.id);
@@ -226,6 +208,7 @@ function connect(){
         if (id !== me && !incoming.has(id)) remove(id);
       }
       updateRiderList();
+      status('Sharing — ' + (m.riders.length) + ' rider(s) online');
     }
     else if (m.type === 'pos') {
       upsert(m);
@@ -239,7 +222,10 @@ function connect(){
   };
   ws.onclose = () => {
     if (pingTimer) clearInterval(pingTimer);
-    if (sharing) setTimeout(connect, 1200);
+    if (sharing) {
+      status('Reconnecting...');
+      setTimeout(connect, 2000);
+    }
   };
 }
 
@@ -272,17 +258,10 @@ function remove(id){
   updateRiderList();
 }
 
-setInterval(() => {
-  const now = Date.now();
-  for (const id in lastSeen){
-    if (id === me) continue;
-    if (now - lastSeen[id] > 120000) remove(id);
-  }
-}, 4000);
-
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && sharing) {
-    forceReconnect();
+  if (document.visibilityState === 'visible' && sharing && (!ws || ws.readyState !== 1)) {
+    status('Tab visible — reconnecting...');
+    connect();
   }
 });
 
@@ -299,8 +278,6 @@ function toggle(){
     document.getElementById('name').disabled = true;
     document.getElementById('code').disabled = true;
     connect();
-    if (refreshTimer) clearInterval(refreshTimer);
-    refreshTimer = setInterval(forceReconnect, 20000);
     watchId = navigator.geolocation.watchPosition(p => {
       const lat = p.coords.latitude;
       const lon = p.coords.longitude;
@@ -310,7 +287,7 @@ function toggle(){
       }
     }, e => {
       status('Location error: ' + e.message);
-    }, {enableHighAccuracy:true, maximumAge:3000, timeout:15000});
+    }, {enableHighAccuracy:true, maximumAge:4000, timeout:15000});
   } else {
     sharing = false;
     document.getElementById('go').textContent = 'Start Sharing';
@@ -323,7 +300,6 @@ function toggle(){
     if (watchId !== null) navigator.geolocation.clearWatch(watchId);
     watchId = null;
     if (pingTimer) clearInterval(pingTimer);
-    if (refreshTimer) clearInterval(refreshTimer);
     if (ws) ws.close();
     status('Stopped.');
   }
@@ -348,7 +324,7 @@ async def startup():
 
 async def periodic_broadcast():
     while True:
-        await asyncio.sleep(4)
+        await asyncio.sleep(5)
         for code in list(groups.keys()):
             if groups.get(code):
                 await broadcast(code, {"type": "riders", "riders": public_list(code)})
