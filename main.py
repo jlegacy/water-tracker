@@ -32,7 +32,8 @@ INDEX_HTML = r"""<!DOCTYPE html>
   #bar button.msg{background:#8b5cf6}
   #bar button:disabled{opacity:.45}
   #status{position:absolute;bottom:12px;left:12px;right:12px;z-index:1000;padding:8px 12px;border-radius:10px;background:rgba(11,29,51,.85);font-size:13px;color:#9fb3c8;text-align:center}
-  #banner{position:absolute;top:70px;left:12px;right:12px;z-index:1001;padding:12px 16px;border-radius:10px;background:#8b5cf6;color:#fff;font-size:15px;display:none;text-align:center;box-shadow:0 4px 12px rgba(0,0,0,.3)}
+  #banner{position:absolute;top:70px;left:12px;right:12px;z-index:1001;padding:12px 16px;border-radius:10px;background:#8b5cf6;color:#fff;font-size:15px;display:none;text-align:center;box-shadow:0 4px 12px rgba(0,0,0,.3);flex-direction:column;gap:8px;align-items:center}
+  #banner button{padding:6px 14px;border-radius:8px;border:0;background:#fff;color:#8b5cf6;font-weight:600;font-size:14px}
   .leaflet-container{background:#0b1d33}
   #msgBox{display:none;gap:6px;align-items:center}
 </style>
@@ -77,17 +78,31 @@ let sharing = false;
 let pingTimer = null;
 let lastListKey = '';
 let hasCentered = false;
+let lastMsgFromId = null;
 
 function status(t){ 
   const el = document.getElementById('status');
   if (el.textContent !== t) el.textContent = t;
 }
 
-function showBanner(text){
+function showBanner(text, fromId){
+  lastMsgFromId = fromId;
   const b = document.getElementById('banner');
-  b.textContent = text;
-  b.style.display = 'block';
-  setTimeout(() => { b.style.display = 'none'; }, 8000);
+  b.innerHTML = text + '<br><button onclick="replyToLast()">Reply</button>';
+  b.style.display = 'flex';
+  setTimeout(() => { b.style.display = 'none'; }, 12000);
+}
+
+function replyToLast(){
+  if (!lastMsgFromId) return;
+  const sel = document.getElementById('riderList');
+  if (positions[lastMsgFromId]){
+    sel.value = lastMsgFromId;
+    document.getElementById('msgBox').style.display = 'flex';
+    document.getElementById('msgText').focus();
+    centerOnSelected();
+  }
+  document.getElementById('banner').style.display = 'none';
 }
 
 function clearAllMarkers(){
@@ -226,7 +241,7 @@ function connect(){
     else if (m.type === 'leave') remove(m.id);
     else if (m.type === 'msg'){
       const txt = (m.from || 'Someone') + ': ' + m.text;
-      showBanner(txt);
+      showBanner(txt, m.fromId);
     }
   };
   ws.onclose = () => {
@@ -395,6 +410,7 @@ async def ws_endpoint(ws: WebSocket):
                         await target["ws"].send_text(json.dumps({
                             "type": "msg",
                             "from": groups[code][rider_id]["name"],
+                            "fromId": rider_id,
                             "text": text
                         }))
                     except Exception:
