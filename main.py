@@ -32,11 +32,13 @@ INDEX_HTML = r"""<!DOCTYPE html>
   #bar button.msg{background:#8b5cf6}
   #bar button:disabled{opacity:.45}
   #status{position:absolute;bottom:12px;left:12px;right:12px;z-index:1000;padding:8px 12px;border-radius:10px;background:rgba(11,29,51,.85);font-size:13px;color:#9fb3c8;text-align:center}
+  #banner{position:absolute;top:70px;left:12px;right:12px;z-index:1001;padding:12px 16px;border-radius:10px;background:#8b5cf6;color:#fff;font-size:15px;display:none;text-align:center;box-shadow:0 4px 12px rgba(0,0,0,.3)}
   .leaflet-container{background:#0b1d33}
   #msgBox{display:none;gap:6px;align-items:center}
 </style>
 </head>
 <body>
+<div id="banner"></div>
 <div id="bar">
   <input id="name" placeholder="Your name" autocomplete="off" autocorrect="off">
   <input id="code" placeholder="Group code" autocomplete="off" autocorrect="off" style="max-width:110px">
@@ -75,6 +77,13 @@ let sharing = false;
 let pingTimer = null;
 
 function status(t){ document.getElementById('status').textContent = t; }
+
+function showBanner(text){
+  const b = document.getElementById('banner');
+  b.textContent = text;
+  b.style.display = 'block';
+  setTimeout(() => { b.style.display = 'none'; }, 8000);
+}
 
 function clearAllMarkers(){
   for (const id in riders) map.removeLayer(riders[id]);
@@ -115,7 +124,9 @@ function sendMessage(){
     ws.send(JSON.stringify({type:'msg', to:to, text:text}));
     document.getElementById('msgText').value = '';
     status('Message sent');
-    setTimeout(() => status('Sharing in group. Your dot is green.'), 2000);
+    setTimeout(() => status('Sharing. Your dot is green.'), 2000);
+  } else {
+    status('Not connected — try again');
   }
 }
 
@@ -199,7 +210,9 @@ function connect(){
     }
     else if (m.type === 'leave') remove(m.id);
     else if (m.type === 'msg'){
-      alert((m.from || 'Someone') + ': ' + m.text);
+      const txt = (m.from || 'Someone') + ': ' + m.text;
+      showBanner(txt);
+      alert(txt);
     }
   };
   ws.onclose = () => {
