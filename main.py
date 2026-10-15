@@ -41,7 +41,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
 <div id="banner"></div>
 <div id="bar">
   <input id="name" placeholder="Your name" autocomplete="off" autocorrect="off">
-  <input id="code" placeholder="Group code" autocomplete="off" autocorrect="off" style="max-width:110px">
+  <input id="code" value="ENCSR" placeholder="Group code" autocomplete="off" autocorrect="off" style="max-width:110px">
   <button id="go" onclick="toggle()">Start Sharing</button>
   <button id="center" class="center" onclick="centerOnMe()" style="display:none">Center on Me</button>
   <select id="riderList" onchange="centerOnSelected()" style="display:none">
@@ -76,6 +76,7 @@ let ws = null;
 let sharing = false;
 let pingTimer = null;
 let lastListKey = '';
+let hasCentered = false;
 
 function status(t){ 
   const el = document.getElementById('status');
@@ -95,6 +96,7 @@ function clearAllMarkers(){
   for (const id in lastSeen) delete lastSeen[id];
   for (const id in positions) delete positions[id];
   lastListKey = '';
+  hasCentered = false;
   updateRiderList();
 }
 
@@ -154,7 +156,7 @@ function updateRiderList(){
   }
   others.sort((a,b) => a.dist - b.dist);
   const key = others.map(o => o.id + ':' + Math.round(o.dist)).join('|');
-  if (key === lastListKey) return;  // nothing meaningful changed
+  if (key === lastListKey) return;
   lastListKey = key;
 
   const current = sel.value;
@@ -180,6 +182,11 @@ function updateMyMarker(lat, lon){
   } else {
     const icon = L.divIcon({className:'', html:`<div style="width:16px;height:16px;border-radius:50%;background:#2f9e6b;border:2px solid #fff;box-shadow:0 0 6px rgba(0,0,0,.6)"></div>`, iconSize:[16,16], iconAnchor:[8,8]});
     riders[me] = L.marker(myLatLng,{icon}).addTo(map).bindPopup((document.getElementById('name').value || 'You') + ' (you)');
+  }
+  if (!hasCentered){
+    map.panTo(myLatLng);
+    map.setZoom(15);
+    hasCentered = true;
   }
   updateRiderList();
 }
@@ -282,6 +289,7 @@ function toggle(){
     if (!navigator.geolocation){ status('Geolocation not supported.'); return; }
     clearAllMarkers();
     myLatLng = null;
+    hasCentered = false;
     sharing = true;
     document.getElementById('go').textContent = 'Stop';
     document.getElementById('go').classList.add('stop');
