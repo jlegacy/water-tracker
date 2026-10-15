@@ -75,8 +75,12 @@ let watchId = null;
 let ws = null;
 let sharing = false;
 let pingTimer = null;
+let lastListKey = '';
 
-function status(t){ document.getElementById('status').textContent = t; }
+function status(t){ 
+  const el = document.getElementById('status');
+  if (el.textContent !== t) el.textContent = t;
+}
 
 function showBanner(text){
   const b = document.getElementById('banner');
@@ -90,6 +94,7 @@ function clearAllMarkers(){
   for (const id in riders) delete riders[id];
   for (const id in lastSeen) delete lastSeen[id];
   for (const id in positions) delete positions[id];
+  lastListKey = '';
   updateRiderList();
 }
 
@@ -100,8 +105,6 @@ function centerOnMe(){
   } else if (riders[me]){
     map.panTo(riders[me].getLatLng());
     map.setZoom(15);
-  } else {
-    status('Waiting for your location...');
   }
 }
 
@@ -138,9 +141,10 @@ function haversine(lat1, lon1, lat2, lon2){
 
 function updateRiderList(){
   const sel = document.getElementById('riderList');
-  const current = sel.value;
-  sel.innerHTML = '<option value="">-- Riders by distance --</option>';
-  if (!myLatLng) return;
+  if (!myLatLng) {
+    if (sel.style.display !== 'none') sel.style.display = 'none';
+    return;
+  }
   const others = [];
   for (const id in positions){
     if (id === me) continue;
@@ -149,6 +153,12 @@ function updateRiderList(){
     others.push({id, name: p.name, dist});
   }
   others.sort((a,b) => a.dist - b.dist);
+  const key = others.map(o => o.id + ':' + Math.round(o.dist)).join('|');
+  if (key === lastListKey) return;  // nothing meaningful changed
+  lastListKey = key;
+
+  const current = sel.value;
+  sel.innerHTML = '<option value="">-- Riders by distance --</option>';
   others.forEach(o => {
     const opt = document.createElement('option');
     opt.value = o.id;
@@ -178,7 +188,7 @@ function connect(){
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   ws = new WebSocket(proto + '://' + location.host + '/ws');
   ws.onopen = () => {
-    status('Connected...');
+    status('Connected');
     ws.send(JSON.stringify({
       type: 'join',
       id: me,
@@ -201,8 +211,6 @@ function connect(){
     else if (m.type === 'riders'){
       m.riders.forEach(upsert);
       updateRiderList();
-      const count = Object.keys(positions).length;
-      status('Sharing — ' + count + ' rider(s)');
     }
     else if (m.type === 'pos') {
       upsert(m);
@@ -249,10 +257,10 @@ function remove(id){
     delete lastSeen[id];
     delete positions[id];
   }
+  lastListKey = '';
   updateRiderList();
 }
 
-// Only remove after 2 minutes of silence
 setInterval(() => {
   const now = Date.now();
   for (const id in lastSeen){
@@ -263,7 +271,6 @@ setInterval(() => {
 
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && sharing && (!ws || ws.readyState !== 1)) {
-    status('Reconnecting...');
     setTimeout(connect, 500);
   }
 });
