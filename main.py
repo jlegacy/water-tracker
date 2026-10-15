@@ -126,8 +126,6 @@ function sendMessage(){
     document.getElementById('msgText').value = '';
     status('Message sent');
     setTimeout(() => status('Sharing. Your dot is green.'), 2000);
-  } else {
-    status('Not connected — try again');
   }
 }
 
@@ -183,7 +181,7 @@ function forceReconnect(){
   if (ws) {
     try { ws.close(); } catch(e){}
   }
-  setTimeout(connect, 200);
+  setTimeout(connect, 250);
 }
 
 function connect(){
@@ -199,14 +197,14 @@ function connect(){
     if (pingTimer) clearInterval(pingTimer);
     pingTimer = setInterval(() => {
       if (ws && ws.readyState === 1) ws.send(JSON.stringify({type:'ping'}));
-    }, 8000);
+    }, 7000);
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(p => {
         updateMyMarker(p.coords.latitude, p.coords.longitude);
         if (ws && ws.readyState === 1){
           ws.send(JSON.stringify({type:'pos', lat:p.coords.latitude, lon:p.coords.longitude}));
         }
-      }, ()=>{}, {enableHighAccuracy:true, timeout:10000});
+      }, ()=>{}, {enableHighAccuracy:true, timeout:8000});
     }
   };
   ws.onmessage = (ev) => {
@@ -218,7 +216,15 @@ function connect(){
     }
     else if (m.type === 'error'){ status(m.msg); toggle(); }
     else if (m.type === 'riders'){
-      m.riders.forEach(upsert);
+      // treat full list as source of truth for other riders
+      const incoming = new Set();
+      m.riders.forEach(r => {
+        incoming.add(r.id);
+        upsert(r);
+      });
+      for (const id in riders){
+        if (id !== me && !incoming.has(id)) remove(id);
+      }
       updateRiderList();
     }
     else if (m.type === 'pos') {
@@ -229,12 +235,11 @@ function connect(){
     else if (m.type === 'msg'){
       const txt = (m.from || 'Someone') + ': ' + m.text;
       showBanner(txt);
-      alert(txt);
     }
   };
   ws.onclose = () => {
     if (pingTimer) clearInterval(pingTimer);
-    if (sharing) setTimeout(connect, 1500);
+    if (sharing) setTimeout(connect, 1200);
   };
 }
 
@@ -271,9 +276,9 @@ setInterval(() => {
   const now = Date.now();
   for (const id in lastSeen){
     if (id === me) continue;
-    if (now - lastSeen[id] > 90000) remove(id);
+    if (now - lastSeen[id] > 120000) remove(id);
   }
-}, 5000);
+}, 4000);
 
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && sharing) {
@@ -295,7 +300,7 @@ function toggle(){
     document.getElementById('code').disabled = true;
     connect();
     if (refreshTimer) clearInterval(refreshTimer);
-    refreshTimer = setInterval(forceReconnect, 30000);
+    refreshTimer = setInterval(forceReconnect, 20000);
     watchId = navigator.geolocation.watchPosition(p => {
       const lat = p.coords.latitude;
       const lon = p.coords.longitude;
@@ -305,7 +310,7 @@ function toggle(){
       }
     }, e => {
       status('Location error: ' + e.message);
-    }, {enableHighAccuracy:true, maximumAge:5000, timeout:20000});
+    }, {enableHighAccuracy:true, maximumAge:3000, timeout:15000});
   } else {
     sharing = false;
     document.getElementById('go').textContent = 'Start Sharing';
@@ -343,7 +348,7 @@ async def startup():
 
 async def periodic_broadcast():
     while True:
-        await asyncio.sleep(6)
+        await asyncio.sleep(4)
         for code in list(groups.keys()):
             if groups.get(code):
                 await broadcast(code, {"type": "riders", "riders": public_list(code)})
@@ -417,7 +422,7 @@ def public_list(code):
     for rid, r in groups.get(code, {}).items():
         if r["lat"] is None:
             continue
-        if now - r["updated"] > 150:
+        if now - r["updated"] > 180:
             continue
         out.append({"id": rid, "name": r["name"], "lat": r["lat"],
                     "lon": r["lon"], "age": round(now - r["updated"], 1)})
