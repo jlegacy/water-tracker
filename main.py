@@ -22,14 +22,18 @@ INDEX_HTML = r"""<!DOCTYPE html>
 <style>
   html,body{margin:0;height:100%;font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#0b1d33;color:#e8eef7;overflow:hidden}
   #map{height:100%}
-  #bar{position:absolute;top:0;left:0;right:0;z-index:1000;display:flex;gap:8px;align-items:center;padding:10px 12px;background:rgba(11,29,51,.88);backdrop-filter:blur(6px)}
-  #bar input{flex:1;min-width:0;padding:10px 12px;border-radius:10px;border:1px solid #2a4a6f;background:#132a45;color:#e8eef7;font-size:16px}
+  #bar{position:absolute;top:0;left:0;right:0;z-index:1000;display:flex;gap:8px;align-items:center;padding:10px 12px;background:rgba(11,29,51,.88);backdrop-filter:blur(6px);flex-wrap:wrap}
+  #bar input, #bar select{padding:10px 12px;border-radius:10px;border:1px solid #2a4a6f;background:#132a45;color:#e8eef7;font-size:16px}
+  #bar input{flex:1;min-width:120px}
+  #bar select{min-width:160px}
   #bar button{padding:10px 14px;border-radius:10px;border:0;background:#2f9e6b;color:#fff;font-weight:600;font-size:15px;white-space:nowrap}
   #bar button.stop{background:#c0392b}
   #bar button.center{background:#3b82f6}
+  #bar button.msg{background:#8b5cf6}
   #bar button:disabled{opacity:.45}
   #status{position:absolute;bottom:12px;left:12px;right:12px;z-index:1000;padding:8px 12px;border-radius:10px;background:rgba(11,29,51,.85);font-size:13px;color:#9fb3c8;text-align:center}
   .leaflet-container{background:#0b1d33}
+  #msgBox{display:none;gap:6px;align-items:center}
 </style>
 </head>
 <body>
@@ -38,6 +42,13 @@ INDEX_HTML = r"""<!DOCTYPE html>
   <input id="code" placeholder="Group code" autocomplete="off" autocorrect="off" style="max-width:110px">
   <button id="go" onclick="toggle()">Start Sharing</button>
   <button id="center" class="center" onclick="centerOnMe()" style="display:none">Center on Me</button>
+  <select id="riderList" onchange="centerOnSelected()" style="display:none">
+    <option value="">-- Riders by distance --</option>
+  </select>
+  <div id="msgBox">
+    <input id="msgText" placeholder="Message..." style="min-width:140px">
+    <button class="msg" onclick="sendMessage()">Send</button>
+  </div>
 </div>
 <div id="map"></div>
 <div id="status">Create or enter a group code. Allow location when prompted.</div>
@@ -51,6 +62,7 @@ L.control.zoom({position:'bottomright'}).addTo(map);
 
 const riders = {};
 const lastSeen = {};
+const positions = {};
 let me = localStorage.getItem('trackerId') || null;
 if (!me) {
   me = Math.random().toString(36).slice(2, 10);
@@ -68,6 +80,8 @@ function clearAllMarkers(){
   for (const id in riders) map.removeLayer(riders[id]);
   for (const id in riders) delete riders[id];
   for (const id in lastSeen) delete lastSeen[id];
+  for (const id in positions) delete positions[id];
+  updateRiderList();
 }
 
 function centerOnMe(){
@@ -82,15 +96,74 @@ function centerOnMe(){
   }
 }
 
+function centerOnSelected(){
+  const sel = document.getElementById('riderList');
+  const id = sel.value;
+  document.getElementById('msgBox').style.display = id ? 'flex' : 'none';
+  if (id && positions[id]){
+    map.panTo([positions[id].lat, positions[id].lon]);
+    map.setZoom(15);
+  }
+}
+
+function sendMessage(){
+  const sel = document.getElementById('riderList');
+  const to = sel.value;
+  const text = document.getElementById('msgText').value.trim();
+  if (!to || !text) return;
+  if (ws && ws.readyState === 1){
+    ws.send(JSON.stringify({type:'msg', to:to, text:text}));
+    document.getElementById('msgText').value = '';
+    status('Message sent');
+    setTimeout(() => status('Sharing in group. Your dot is green.'), 2000);
+  }
+}
+
+function haversine(lat1, lon1, lat2, lon2){
+  const R = 6371000;
+  const toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function updateRiderList(){
+  const sel = document.getElementById('riderList');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">-- Riders by distance --</option>';
+  if (!myLatLng) return;
+  const others = [];
+  for (const id in positions){
+    if (id === me) continue;
+    const p = positions[id];
+    const dist = haversine(myLatLng[0], myLatLng[1], p.lat, p.lon);
+    others.push({id, name: p.name, dist});
+  }
+  others.sort((a,b) => a.dist - b.dist);
+  others.forEach(o => {
+    const opt = document.createElement('option');
+    opt.value = o.id;
+    const miles = (o.dist / 1609.34).toFixed(2);
+    opt.textContent = `${o.name} (${miles} mi)`;
+    sel.appendChild(opt);
+  });
+  if (current && positions[current]) sel.value = current;
+  sel.style.display = others.length ? 'inline-block' : 'none';
+  document.getElementById('msgBox').style.display = (sel.value && others.length) ? 'flex' : 'none';
+}
+
 function updateMyMarker(lat, lon){
   myLatLng = [lat, lon];
   lastSeen[me] = Date.now();
+  positions[me] = {lat, lon, name: document.getElementById('name').value || 'You'};
   if (riders[me]){
     riders[me].setLatLng(myLatLng);
   } else {
     const icon = L.divIcon({className:'', html:`<div style="width:16px;height:16px;border-radius:50%;background:#2f9e6b;border:2px solid #fff;box-shadow:0 0 6px rgba(0,0,0,.6)"></div>`, iconSize:[16,16], iconAnchor:[8,8]});
     riders[me] = L.marker(myLatLng,{icon}).addTo(map).bindPopup((document.getElementById('name').value || 'You') + ' (you)');
   }
+  updateRiderList();
 }
 
 function connect(){
@@ -118,9 +191,16 @@ function connect(){
     else if (m.type === 'error'){ status(m.msg); toggle(); }
     else if (m.type === 'riders'){
       m.riders.forEach(upsert);
+      updateRiderList();
     }
-    else if (m.type === 'pos') upsert(m);
+    else if (m.type === 'pos') {
+      upsert(m);
+      updateRiderList();
+    }
     else if (m.type === 'leave') remove(m.id);
+    else if (m.type === 'msg'){
+      alert((m.from || 'Someone') + ': ' + m.text);
+    }
   };
   ws.onclose = () => {
     if (pingTimer) clearInterval(pingTimer);
@@ -132,6 +212,7 @@ function upsert(r){
   if (!r.lat && r.lat !== 0) return;
   const name = r.name || 'Rider';
   lastSeen[r.id] = Date.now();
+  positions[r.id] = {lat: r.lat, lon: r.lon, name};
   if (r.id === me){
     updateMyMarker(r.lat, r.lon);
     return;
@@ -151,7 +232,9 @@ function remove(id){
     map.removeLayer(riders[id]);
     delete riders[id];
     delete lastSeen[id];
+    delete positions[id];
   }
+  updateRiderList();
 }
 
 setInterval(() => {
@@ -192,6 +275,8 @@ function toggle(){
     document.getElementById('name').disabled = false;
     document.getElementById('code').disabled = false;
     document.getElementById('center').style.display = 'none';
+    document.getElementById('riderList').style.display = 'none';
+    document.getElementById('msgBox').style.display = 'none';
     if (watchId !== null) navigator.geolocation.clearWatch(watchId);
     watchId = null;
     if (pingTimer) clearInterval(pingTimer);
@@ -228,6 +313,7 @@ async def periodic_broadcast():
 async def ws_endpoint(ws: WebSocket):
     await ws.accept()
     rider_id = None
+    code = None
     try:
         raw = await ws.receive_text()
         msg = json.loads(raw)
@@ -262,16 +348,29 @@ async def ws_endpoint(ws: WebSocket):
                                     "lon": g[rider_id]["lon"]})
             elif t == "ping":
                 await ws.send_text(json.dumps({"type": "pong"}))
+            elif t == "msg":
+                to_id = msg.get("to")
+                text = (msg.get("text") or "").strip()[:200]
+                if to_id and text and code in groups and to_id in groups[code]:
+                    target = groups[code][to_id]
+                    try:
+                        await target["ws"].send_text(json.dumps({
+                            "type": "msg",
+                            "from": groups[code][rider_id]["name"],
+                            "text": text
+                        }))
+                    except Exception:
+                        pass
     except WebSocketDisconnect:
         pass
     finally:
-        if rider_id:
-            for code, g in list(groups.items()):
-                if rider_id in g:
-                    g.pop(rider_id, None)
-                    await broadcast(code, {"type": "leave", "id": rider_id})
-                    if not g:
-                        groups.pop(code, None)
+        if rider_id and code:
+            g = groups.get(code, {})
+            if rider_id in g:
+                g.pop(rider_id, None)
+                await broadcast(code, {"type": "leave", "id": rider_id})
+                if not g:
+                    groups.pop(code, None)
 
 def public_list(code):
     now = time.time()
