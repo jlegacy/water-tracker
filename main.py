@@ -178,7 +178,7 @@ function connect(){
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   ws = new WebSocket(proto + '://' + location.host + '/ws');
   ws.onopen = () => {
-    status('Connected, waiting for location...');
+    status('Connected...');
     ws.send(JSON.stringify({
       type: 'join',
       id: me,
@@ -188,27 +188,21 @@ function connect(){
     if (pingTimer) clearInterval(pingTimer);
     pingTimer = setInterval(() => {
       if (ws && ws.readyState === 1) ws.send(JSON.stringify({type:'ping'}));
-    }, 10000);
+    }, 15000);
   };
   ws.onmessage = (ev) => {
     const m = JSON.parse(ev.data);
     if (m.type === 'joined'){
-      status('Sharing in group ' + m.code + '. Your dot is green.');
+      status('Sharing in group ' + m.code);
       document.getElementById('center').style.display = 'inline-block';
       if (myLatLng) updateMyMarker(myLatLng[0], myLatLng[1]);
     }
     else if (m.type === 'error'){ status(m.msg); toggle(); }
     else if (m.type === 'riders'){
-      const incoming = new Set();
-      m.riders.forEach(r => {
-        incoming.add(r.id);
-        upsert(r);
-      });
-      for (const id in riders){
-        if (id !== me && !incoming.has(id)) remove(id);
-      }
+      m.riders.forEach(upsert);
       updateRiderList();
-      status('Sharing — ' + (m.riders.length) + ' rider(s) online');
+      const count = Object.keys(positions).length;
+      status('Sharing — ' + count + ' rider(s)');
     }
     else if (m.type === 'pos') {
       upsert(m);
@@ -224,7 +218,7 @@ function connect(){
     if (pingTimer) clearInterval(pingTimer);
     if (sharing) {
       status('Reconnecting...');
-      setTimeout(connect, 2000);
+      setTimeout(connect, 3000);
     }
   };
 }
@@ -258,10 +252,19 @@ function remove(id){
   updateRiderList();
 }
 
+// Only remove after 2 minutes of silence
+setInterval(() => {
+  const now = Date.now();
+  for (const id in lastSeen){
+    if (id === me) continue;
+    if (now - lastSeen[id] > 120000) remove(id);
+  }
+}, 10000);
+
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && sharing && (!ws || ws.readyState !== 1)) {
-    status('Tab visible — reconnecting...');
-    connect();
+    status('Reconnecting...');
+    setTimeout(connect, 500);
   }
 });
 
@@ -287,7 +290,7 @@ function toggle(){
       }
     }, e => {
       status('Location error: ' + e.message);
-    }, {enableHighAccuracy:true, maximumAge:4000, timeout:15000});
+    }, {enableHighAccuracy:true, maximumAge:5000, timeout:20000});
   } else {
     sharing = false;
     document.getElementById('go').textContent = 'Start Sharing';
@@ -324,7 +327,7 @@ async def startup():
 
 async def periodic_broadcast():
     while True:
-        await asyncio.sleep(5)
+        await asyncio.sleep(8)
         for code in list(groups.keys()):
             if groups.get(code):
                 await broadcast(code, {"type": "riders", "riders": public_list(code)})
