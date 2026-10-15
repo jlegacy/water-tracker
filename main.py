@@ -50,7 +50,12 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 L.control.zoom({position:'bottomright'}).addTo(map);
 
 const riders = {};
-let me = null;
+const lastSeen = {};
+let me = localStorage.getItem('trackerId') || null;
+if (!me) {
+  me = Math.random().toString(36).slice(2, 10);
+  localStorage.setItem('trackerId', me);
+}
 let myLatLng = null;
 let watchId = null;
 let ws = null;
@@ -62,13 +67,14 @@ function status(t){ document.getElementById('status').textContent = t; }
 function clearAllMarkers(){
   for (const id in riders) map.removeLayer(riders[id]);
   for (const id in riders) delete riders[id];
+  for (const id in lastSeen) delete lastSeen[id];
 }
 
 function centerOnMe(){
   if (myLatLng){
     map.panTo(myLatLng);
     map.setZoom(15);
-  } else if (me && riders[me]){
+  } else if (riders[me]){
     map.panTo(riders[me].getLatLng());
     map.setZoom(15);
   } else {
@@ -78,7 +84,7 @@ function centerOnMe(){
 
 function updateMyMarker(lat, lon){
   myLatLng = [lat, lon];
-  if (!me) return;
+  lastSeen[me] = Date.now();
   if (riders[me]){
     riders[me].setLatLng(myLatLng);
   } else {
@@ -91,40 +97,41 @@ function connect(){
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   ws = new WebSocket(proto + '://' + location.host + '/ws');
   ws.onopen = () => {
-    ws.send(JSON.stringify({type:'join', name: document.getElementById('name').value || 'Rider',
-                           code: document.getElementById('code').value.trim()}));
+    ws.send(JSON.stringify({
+      type: 'join',
+      id: me,
+      name: document.getElementById('name').value || 'Rider',
+      code: document.getElementById('code').value.trim()
+    }));
+    if (pingTimer) clearInterval(pingTimer);
     pingTimer = setInterval(() => {
       if (ws && ws.readyState === 1) ws.send(JSON.stringify({type:'ping'}));
-    }, 10000);
+    }, 8000);
   };
   ws.onmessage = (ev) => {
     const m = JSON.parse(ev.data);
     if (m.type === 'joined'){
-      me = m.id;
       status('Sharing in group ' + m.code + '. Your dot is green.');
       document.getElementById('center').style.display = 'inline-block';
       if (myLatLng) updateMyMarker(myLatLng[0], myLatLng[1]);
     }
     else if (m.type === 'error'){ status(m.msg); toggle(); }
     else if (m.type === 'riders'){
-      const seen = new Set();
-      m.riders.forEach(r => { upsert(r); seen.add(r.id); });
-      for (const id in riders){
-        if (id !== me && !seen.has(id)) remove(id);
-      }
+      m.riders.forEach(upsert);
     }
     else if (m.type === 'pos') upsert(m);
     else if (m.type === 'leave') remove(m.id);
   };
   ws.onclose = () => {
     if (pingTimer) clearInterval(pingTimer);
-    if (sharing) setTimeout(connect, 1500);
+    if (sharing) setTimeout(connect, 2000);
   };
 }
 
 function upsert(r){
   if (!r.lat && r.lat !== 0) return;
   const name = r.name || 'Rider';
+  lastSeen[r.id] = Date.now();
   if (r.id === me){
     updateMyMarker(r.lat, r.lon);
     return;
@@ -139,11 +146,21 @@ function upsert(r){
 }
 
 function remove(id){
+  if (id === me) return;
   if (riders[id]){
     map.removeLayer(riders[id]);
     delete riders[id];
+    delete lastSeen[id];
   }
 }
+
+setInterval(() => {
+  const now = Date.now();
+  for (const id in lastSeen){
+    if (id === me) continue;
+    if (now - lastSeen[id] > 60000) remove(id);
+  }
+}, 5000);
 
 function toggle(){
   if (!sharing){
@@ -151,7 +168,6 @@ function toggle(){
     if (!name){ document.getElementById('name').focus(); status('Enter your name first.'); return; }
     if (!navigator.geolocation){ status('Geolocation not supported.'); return; }
     clearAllMarkers();
-    me = null;
     myLatLng = null;
     sharing = true;
     document.getElementById('go').textContent = 'Stop';
@@ -168,7 +184,7 @@ function toggle(){
       }
     }, e => {
       status('Location error: ' + e.message);
-    }, {enableHighAccuracy:true, maximumAge:3000, timeout:15000});
+    }, {enableHighAccuracy:true, maximumAge:4000, timeout:15000});
   } else {
     sharing = false;
     document.getElementById('go').textContent = 'Start Sharing';
@@ -203,7 +219,7 @@ async def startup():
 
 async def periodic_broadcast():
     while True:
-        await asyncio.sleep(8)
+        await asyncio.sleep(6)
         for code in list(groups.keys()):
             if groups.get(code):
                 await broadcast(code, {"type": "riders", "riders": public_list(code)})
@@ -211,13 +227,14 @@ async def periodic_broadcast():
 @app.websocket("/ws")
 async def ws_endpoint(ws: WebSocket):
     await ws.accept()
-    rider_id = str(uuid.uuid4())[:8]
+    rider_id = None
     try:
         raw = await ws.receive_text()
         msg = json.loads(raw)
         if msg.get("type") != "join":
             await ws.close()
             return
+        rider_id = msg.get("id") or str(uuid.uuid4())[:8]
         name = (msg.get("name") or "Rider").strip()[:20] or "Rider"
         code = (msg.get("code") or "").strip().upper()
         if not code:
@@ -248,12 +265,13 @@ async def ws_endpoint(ws: WebSocket):
     except WebSocketDisconnect:
         pass
     finally:
-        for code, g in list(groups.items()):
-            if rider_id in g:
-                g.pop(rider_id, None)
-                await broadcast(code, {"type": "leave", "id": rider_id})
-                if not g:
-                    groups.pop(code, None)
+        if rider_id:
+            for code, g in list(groups.items()):
+                if rider_id in g:
+                    g.pop(rider_id, None)
+                    await broadcast(code, {"type": "leave", "id": rider_id})
+                    if not g:
+                        groups.pop(code, None)
 
 def public_list(code):
     now = time.time()
@@ -261,8 +279,7 @@ def public_list(code):
     for rid, r in groups.get(code, {}).items():
         if r["lat"] is None:
             continue
-        # drop riders with no update in 60s
-        if now - r["updated"] > 60:
+        if now - r["updated"] > 120:
             continue
         out.append({"id": rid, "name": r["name"], "lat": r["lat"],
                     "lon": r["lon"], "age": round(now - r["updated"], 1)})
@@ -271,7 +288,7 @@ def public_list(code):
 async def broadcast(code, msg):
     payload = json.dumps(msg)
     dead = []
-    for rid, r in groups.get(code, {}).items():
+    for rid, r in list(groups.get(code, {}).items()):
         try:
             await r["ws"].send_text(payload)
         except Exception:
