@@ -30,6 +30,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
   #bar button.stop{background:#c0392b}
   #bar button.center{background:#3b82f6}
   #bar button.msg{background:#8b5cf6}
+  #bar button.broadcast{background:#ec4899}
   #bar button:disabled{opacity:.45}
   #status{position:absolute;bottom:12px;left:12px;right:12px;z-index:1000;padding:8px 12px;border-radius:10px;background:rgba(11,29,51,.85);font-size:13px;color:#9fb3c8;text-align:center}
   #banner{position:absolute;top:70px;left:12px;right:12px;z-index:1001;padding:12px 16px;border-radius:10px;background:#8b5cf6;color:#fff;font-size:15px;display:none;text-align:center;box-shadow:0 4px 12px rgba(0,0,0,.3);flex-direction:column;gap:8px;align-items:center}
@@ -51,6 +52,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
   <div id="msgBox">
     <input id="msgText" placeholder="Message..." style="min-width:140px">
     <button class="msg" onclick="sendMessage()">Send</button>
+    <button class="broadcast" onclick="broadcastMessage()">Broadcast to All</button>
   </div>
 </div>
 <div id="map"></div>
@@ -88,7 +90,7 @@ function status(t){
 function showBanner(text, fromId){
   lastMsgFromId = fromId;
   const b = document.getElementById('banner');
-  b.innerHTML = text + '<br><button onclick="replyToLast()">Reply</button>';
+  b.innerHTML = text + (fromId ? '<br><button onclick="replyToLast()">Reply</button>' : '');
   b.style.display = 'flex';
   setTimeout(() => { b.style.display = 'none'; }, 12000);
 }
@@ -147,6 +149,16 @@ function sendMessage(){
   }
 }
 
+function broadcastMessage(){
+  const text = document.getElementById('msgText').value.trim();
+  if (!text) return;
+  if (ws && ws.readyState === 1){
+    ws.send(JSON.stringify({type:'broadcast', text:text}));
+    document.getElementById('msgText').value = '';
+    status('Broadcast sent');
+  }
+}
+
 function haversine(lat1, lon1, lat2, lon2){
   const R = 6371000;
   const toRad = d => d * Math.PI / 180;
@@ -185,7 +197,7 @@ function updateRiderList(){
   });
   if (current && positions[current]) sel.value = current;
   sel.style.display = others.length ? 'inline-block' : 'none';
-  document.getElementById('msgBox').style.display = (sel.value && others.length) ? 'flex' : 'none';
+  document.getElementById('msgBox').style.display = others.length ? 'flex' : 'none';
 }
 
 function updateMyMarker(lat, lon){
@@ -415,6 +427,22 @@ async def ws_endpoint(ws: WebSocket):
                         }))
                     except Exception:
                         pass
+            elif t == "broadcast":
+                text = (msg.get("text") or "").strip()[:200]
+                if text and code in groups:
+                    payload = json.dumps({
+                        "type": "msg",
+                        "from": groups[code][rider_id]["name"] + " (all)",
+                        "fromId": None,
+                        "text": text
+                    })
+                    for rid, r in list(groups[code].items()):
+                        if rid == rider_id:
+                            continue
+                        try:
+                            await r["ws"].send_text(payload)
+                        except Exception:
+                            pass
     except WebSocketDisconnect:
         pass
     finally:
