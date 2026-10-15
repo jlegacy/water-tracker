@@ -1,6 +1,6 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse
-import json, time, uuid, secrets
+from fastapi.responses import HTMLResponse, FileResponse
+import json, time, uuid, secrets, pathlib
 
 app = FastAPI()
 
@@ -13,6 +13,10 @@ INDEX_HTML = r"""<!DOCTYPE html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Water Tracker</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Tracker">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
@@ -103,15 +107,17 @@ function connect(){
 
 function upsert(r){
   if (!r.lat && r.lat !== 0) return;
+  const name = r.name || 'Rider';
   if (r.id === me){
     updateMyMarker(r.lat, r.lon);
     return;
   }
   if (riders[r.id]){
     riders[r.id].setLatLng([r.lat, r.lon]);
+    riders[r.id].setPopupContent(name);
   } else {
     const icon = L.divIcon({className:'', html:`<div style="width:16px;height:16px;border-radius:50%;background:#4aa3ff;border:2px solid #fff;box-shadow:0 0 6px rgba(0,0,0,.6)"></div>`, iconSize:[16,16], iconAnchor:[8,8]});
-    riders[r.id] = L.marker([r.lat,r.lon],{icon}).addTo(map).bindPopup(r.name || 'Rider');
+    riders[r.id] = L.marker([r.lat,r.lon],{icon}).addTo(map).bindPopup(name);
   }
 }
 
@@ -163,6 +169,10 @@ if ('wakeLock' in navigator){ navigator.wakeLock.request('screen').catch(()=>{})
 async def index():
     return HTMLResponse(INDEX_HTML)
 
+@app.get("/manifest.json")
+async def manifest():
+    return FileResponse(pathlib.Path(__file__).parent / "manifest.json")
+
 @app.websocket("/ws")
 async def ws_endpoint(ws: WebSocket):
     await ws.accept()
@@ -195,6 +205,7 @@ async def ws_endpoint(ws: WebSocket):
                     g[rider_id]["lon"] = float(msg["lon"])
                     g[rider_id]["updated"] = time.time()
                     await broadcast(code, {"type": "pos", "id": rider_id,
+                                    "name": g[rider_id]["name"],
                                     "lat": g[rider_id]["lat"],
                                     "lon": g[rider_id]["lon"]})
             elif t == "ping":
