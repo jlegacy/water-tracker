@@ -11,7 +11,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Water Tracker</title>
 <link rel="manifest" href="/manifest.json">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -21,42 +21,82 @@ INDEX_HTML = r"""<!DOCTYPE html>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
   html,body{margin:0;height:100%;font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#0b1d33;color:#e8eef7;overflow:hidden}
-  #map{height:100%}
-  #bar{position:absolute;top:0;left:0;right:0;z-index:1000;display:flex;gap:8px;align-items:center;padding:10px 12px;background:rgba(11,29,51,.88);backdrop-filter:blur(6px);flex-wrap:wrap}
-  #bar input, #bar select{padding:10px 12px;border-radius:10px;border:1px solid #2a4a6f;background:#132a45;color:#e8eef7;font-size:16px}
-  #bar input{flex:1;min-width:120px}
-  #bar select{min-width:160px}
-  #bar button{padding:10px 14px;border-radius:10px;border:0;background:#2f9e6b;color:#fff;font-weight:600;font-size:15px;white-space:nowrap}
-  #bar button.stop{background:#c0392b}
+  #map{height:100%;display:none}
+  #bar{
+    position:absolute;top:0;left:0;right:0;z-index:1000;
+    display:none;flex-direction:column;gap:6px;
+    padding:8px 10px env(safe-area-inset-top, 8px) 10px;
+    background:rgba(11,29,51,.92);backdrop-filter:blur(6px);
+  }
+  .row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  #bar input, #bar select{
+    padding:10px 12px;border-radius:10px;border:1px solid #2a4a6f;
+    background:#132a45;color:#e8eef7;font-size:16px;min-width:0;
+  }
+  #bar select{flex:1;min-width:140px}
+  #bar button{
+    padding:10px 12px;border-radius:10px;border:0;
+    background:#2f9e6b;color:#fff;font-weight:600;font-size:14px;
+    white-space:nowrap;
+  }
   #bar button.center{background:#3b82f6}
+  #bar button.find{background:#f59e0b}
   #bar button.msg{background:#8b5cf6}
   #bar button.broadcast{background:#ec4899}
-  #bar button:disabled{opacity:.45}
-  #status{position:absolute;bottom:12px;left:12px;right:12px;z-index:1000;padding:8px 12px;border-radius:10px;background:rgba(11,29,51,.85);font-size:13px;color:#9fb3c8;text-align:center}
-  #banner{position:absolute;top:70px;left:12px;right:12px;z-index:1001;padding:12px 16px;border-radius:10px;background:#8b5cf6;color:#fff;font-size:15px;display:none;text-align:center;box-shadow:0 4px 12px rgba(0,0,0,.3);flex-direction:column;gap:8px;align-items:center}
+  #status{
+    position:absolute;bottom:12px;left:12px;right:12px;z-index:1000;
+    padding:8px 12px;border-radius:10px;background:rgba(11,29,51,.85);
+    font-size:13px;color:#9fb3c8;text-align:center;display:none;
+  }
+  #banner{
+    position:absolute;top:120px;left:12px;right:12px;z-index:1001;
+    padding:12px 16px;border-radius:10px;background:#8b5cf6;color:#fff;
+    font-size:15px;display:none;text-align:center;
+    box-shadow:0 4px 12px rgba(0,0,0,.3);flex-direction:column;gap:8px;align-items:center;
+  }
   #banner button{padding:6px 14px;border-radius:8px;border:0;background:#fff;color:#8b5cf6;font-weight:600;font-size:14px}
   .leaflet-container{background:#0b1d33}
-  #msgBox{display:none;gap:6px;align-items:center}
+  #msgBox{display:none;gap:6px;align-items:center;flex-wrap:wrap}
+  #msgBox input{flex:1;min-width:120px}
+  #nameScreen{
+    position:absolute;inset:0;z-index:2000;background:#0b1d33;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:16px;padding:20px;
+  }
+  #nameScreen h1{margin:0;font-size:28px}
+  #nameScreen input{
+    padding:14px 16px;border-radius:12px;border:1px solid #2a4a6f;
+    background:#132a45;color:#e8eef7;font-size:18px;width:100%;max-width:280px;text-align:center;
+  }
+  #nameScreen button{
+    padding:14px 28px;border-radius:12px;border:0;background:#2f9e6b;
+    color:#fff;font-weight:600;font-size:18px;
+  }
 </style>
 </head>
 <body>
+<div id="nameScreen">
+  <h1>Water Tracker</h1>
+  <input id="startName" placeholder="Enter your name" autocomplete="off" autocorrect="off">
+  <button onclick="startApp()">Start</button>
+</div>
 <div id="banner"></div>
 <div id="bar">
-  <input id="name" placeholder="Your name" autocomplete="off" autocorrect="off">
-  <input id="code" value="ENCSR" placeholder="Group code" autocomplete="off" autocorrect="off" style="max-width:110px">
-  <button id="go" onclick="toggle()">Start Sharing</button>
-  <button id="center" class="center" onclick="centerOnMe()" style="display:none">Center on Me</button>
-  <select id="riderList" onchange="centerOnSelected()" style="display:none">
-    <option value="">-- Riders by distance --</option>
-  </select>
-  <div id="msgBox">
-    <input id="msgText" placeholder="Message..." style="min-width:140px">
+  <div class="row">
+    <button id="center" class="center" onclick="centerOnMe()">Center</button>
+    <select id="riderList" onchange="onRiderSelect()">
+      <option value="">-- Riders --</option>
+    </select>
+    <button id="findBtn" class="find" onclick="toggleFind()" style="display:none">Find</button>
+  </div>
+  <div class="row" id="msgBox">
+    <input id="msgText" placeholder="Message...">
     <button class="msg" onclick="sendMessage()">Send</button>
-    <button class="broadcast" onclick="broadcastMessage()">Broadcast to All</button>
+    <button class="broadcast" onclick="broadcastMessage()">All</button>
   </div>
 </div>
 <div id="map"></div>
-<div id="status">Create or enter a group code. Allow location when prompted.</div>
+<div id="status"></div>
 <script>
 const map = L.map('map', {zoomControl:false}).setView([35.5,-77.0], 12);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -73,14 +113,15 @@ if (!me) {
   me = Math.random().toString(36).slice(2, 10);
   localStorage.setItem('trackerId', me);
 }
+let myName = '';
 let myLatLng = null;
 let watchId = null;
 let ws = null;
 let sharing = false;
 let pingTimer = null;
 let lastListKey = '';
-let hasCentered = false;
-let lastMsgFromId = null;
+let findTarget = null;
+let findLine = null;
 
 function status(t){ 
   const el = document.getElementById('status');
@@ -88,21 +129,19 @@ function status(t){
 }
 
 function showBanner(text, fromId){
-  lastMsgFromId = fromId;
   const b = document.getElementById('banner');
-  b.innerHTML = text + (fromId ? '<br><button onclick="replyToLast()">Reply</button>' : '');
+  b.innerHTML = text + (fromId ? '<br><button onclick="replyToLast(\'' + fromId + '\')">Reply</button>' : '');
   b.style.display = 'flex';
   setTimeout(() => { b.style.display = 'none'; }, 12000);
 }
 
-function replyToLast(){
-  if (!lastMsgFromId) return;
+function replyToLast(fromId){
   const sel = document.getElementById('riderList');
-  if (positions[lastMsgFromId]){
-    sel.value = lastMsgFromId;
+  if (positions[fromId]){
+    sel.value = fromId;
     document.getElementById('msgBox').style.display = 'flex';
     document.getElementById('msgText').focus();
-    centerOnSelected();
+    onRiderSelect();
   }
   document.getElementById('banner').style.display = 'none';
 }
@@ -113,27 +152,60 @@ function clearAllMarkers(){
   for (const id in lastSeen) delete lastSeen[id];
   for (const id in positions) delete positions[id];
   lastListKey = '';
-  hasCentered = false;
+  clearFindLine();
   updateRiderList();
+}
+
+function clearFindLine(){
+  if (findLine){
+    map.removeLayer(findLine);
+    findLine = null;
+  }
+  findTarget = null;
+  document.getElementById('findBtn').textContent = 'Find';
 }
 
 function centerOnMe(){
   if (myLatLng){
     map.panTo(myLatLng);
-    map.setZoom(15);
-  } else if (riders[me]){
-    map.panTo(riders[me].getLatLng());
-    map.setZoom(15);
+    map.setZoom(16);
   }
 }
 
-function centerOnSelected(){
+function onRiderSelect(){
   const sel = document.getElementById('riderList');
   const id = sel.value;
   document.getElementById('msgBox').style.display = id ? 'flex' : 'none';
+  document.getElementById('findBtn').style.display = id ? 'inline-block' : 'none';
   if (id && positions[id]){
     map.panTo([positions[id].lat, positions[id].lon]);
-    map.setZoom(15);
+  }
+  if (findTarget && findTarget !== id) clearFindLine();
+}
+
+function toggleFind(){
+  const sel = document.getElementById('riderList');
+  const id = sel.value;
+  if (!id || !myLatLng || !positions[id]) return;
+  if (findTarget === id){
+    clearFindLine();
+    return;
+  }
+  findTarget = id;
+  document.getElementById('findBtn').textContent = 'Stop';
+  updateFindLine();
+}
+
+function updateFindLine(){
+  if (!findTarget || !myLatLng || !positions[findTarget]) {
+    clearFindLine();
+    return;
+  }
+  const target = [positions[findTarget].lat, positions[findTarget].lon];
+  if (findLine){
+    findLine.setLatLngs([myLatLng, target]);
+  } else {
+    findLine = L.polyline([myLatLng, target], {color:'#f59e0b', weight:4, opacity:0.85}).addTo(map);
   }
 }
 
@@ -170,10 +242,7 @@ function haversine(lat1, lon1, lat2, lon2){
 
 function updateRiderList(){
   const sel = document.getElementById('riderList');
-  if (!myLatLng) {
-    if (sel.style.display !== 'none') sel.style.display = 'none';
-    return;
-  }
+  if (!myLatLng) return;
   const others = [];
   for (const id in positions){
     if (id === me) continue;
@@ -187,7 +256,7 @@ function updateRiderList(){
   lastListKey = key;
 
   const current = sel.value;
-  sel.innerHTML = '<option value="">-- Riders by distance --</option>';
+  sel.innerHTML = '<option value="">-- Riders --</option>';
   others.forEach(o => {
     const opt = document.createElement('option');
     opt.value = o.id;
@@ -196,25 +265,22 @@ function updateRiderList(){
     sel.appendChild(opt);
   });
   if (current && positions[current]) sel.value = current;
-  sel.style.display = others.length ? 'inline-block' : 'none';
   document.getElementById('msgBox').style.display = others.length ? 'flex' : 'none';
+  document.getElementById('findBtn').style.display = (sel.value && others.length) ? 'inline-block' : 'none';
 }
 
 function updateMyMarker(lat, lon){
   myLatLng = [lat, lon];
   lastSeen[me] = Date.now();
-  positions[me] = {lat, lon, name: document.getElementById('name').value || 'You'};
+  positions[me] = {lat, lon, name: myName};
   if (riders[me]){
     riders[me].setLatLng(myLatLng);
   } else {
     const icon = L.divIcon({className:'', html:`<div style="width:16px;height:16px;border-radius:50%;background:#2f9e6b;border:2px solid #fff;box-shadow:0 0 6px rgba(0,0,0,.6)"></div>`, iconSize:[16,16], iconAnchor:[8,8]});
-    riders[me] = L.marker(myLatLng,{icon}).addTo(map).bindPopup((document.getElementById('name').value || 'You') + ' (you)');
+    riders[me] = L.marker(myLatLng,{icon}).addTo(map).bindPopup(myName + ' (you)');
   }
-  if (!hasCentered){
-    map.panTo(myLatLng);
-    map.setZoom(15);
-    hasCentered = true;
-  }
+  map.panTo(myLatLng);
+  updateFindLine();
   updateRiderList();
 }
 
@@ -226,8 +292,8 @@ function connect(){
     ws.send(JSON.stringify({
       type: 'join',
       id: me,
-      name: document.getElementById('name').value || 'Rider',
-      code: document.getElementById('code').value.trim()
+      name: myName,
+      code: 'ENCSR'
     }));
     if (pingTimer) clearInterval(pingTimer);
     pingTimer = setInterval(() => {
@@ -237,11 +303,10 @@ function connect(){
   ws.onmessage = (ev) => {
     const m = JSON.parse(ev.data);
     if (m.type === 'joined'){
-      status('Sharing in group ' + m.code);
-      document.getElementById('center').style.display = 'inline-block';
+      status('Sharing — ENCSR');
       if (myLatLng) updateMyMarker(myLatLng[0], myLatLng[1]);
     }
-    else if (m.type === 'error'){ status(m.msg); toggle(); }
+    else if (m.type === 'error'){ status(m.msg); }
     else if (m.type === 'riders'){
       m.riders.forEach(upsert);
       updateRiderList();
@@ -281,6 +346,7 @@ function upsert(r){
     const icon = L.divIcon({className:'', html:`<div style="width:16px;height:16px;border-radius:50%;background:#4aa3ff;border:2px solid #fff;box-shadow:0 0 6px rgba(0,0,0,.6)"></div>`, iconSize:[16,16], iconAnchor:[8,8]});
     riders[r.id] = L.marker([r.lat,r.lon],{icon}).addTo(map).bindPopup(name);
   }
+  if (findTarget === r.id) updateFindLine();
 }
 
 function remove(id){
@@ -291,6 +357,7 @@ function remove(id){
     delete lastSeen[id];
     delete positions[id];
   }
+  if (findTarget === id) clearFindLine();
   lastListKey = '';
   updateRiderList();
 }
@@ -309,45 +376,29 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
-function toggle(){
-  if (!sharing){
-    const name = document.getElementById('name').value.trim();
-    if (!name){ document.getElementById('name').focus(); status('Enter your name first.'); return; }
-    if (!navigator.geolocation){ status('Geolocation not supported.'); return; }
-    clearAllMarkers();
-    myLatLng = null;
-    hasCentered = false;
-    sharing = true;
-    document.getElementById('go').textContent = 'Stop';
-    document.getElementById('go').classList.add('stop');
-    document.getElementById('name').disabled = true;
-    document.getElementById('code').disabled = true;
-    connect();
-    watchId = navigator.geolocation.watchPosition(p => {
-      const lat = p.coords.latitude;
-      const lon = p.coords.longitude;
-      updateMyMarker(lat, lon);
-      if (ws && ws.readyState === 1){
-        ws.send(JSON.stringify({type:'pos', lat:lat, lon:lon}));
-      }
-    }, e => {
-      status('Location error: ' + e.message);
-    }, {enableHighAccuracy:true, maximumAge:5000, timeout:20000});
-  } else {
-    sharing = false;
-    document.getElementById('go').textContent = 'Start Sharing';
-    document.getElementById('go').classList.remove('stop');
-    document.getElementById('name').disabled = false;
-    document.getElementById('code').disabled = false;
-    document.getElementById('center').style.display = 'none';
-    document.getElementById('riderList').style.display = 'none';
-    document.getElementById('msgBox').style.display = 'none';
-    if (watchId !== null) navigator.geolocation.clearWatch(watchId);
-    watchId = null;
-    if (pingTimer) clearInterval(pingTimer);
-    if (ws) ws.close();
-    status('Stopped.');
+function startApp(){
+  const name = document.getElementById('startName').value.trim();
+  if (!name){
+    document.getElementById('startName').focus();
+    return;
   }
+  myName = name;
+  document.getElementById('nameScreen').style.display = 'none';
+  document.getElementById('map').style.display = 'block';
+  document.getElementById('bar').style.display = 'flex';
+  document.getElementById('status').style.display = 'block';
+  sharing = true;
+  connect();
+  watchId = navigator.geolocation.watchPosition(p => {
+    const lat = p.coords.latitude;
+    const lon = p.coords.longitude;
+    updateMyMarker(lat, lon);
+    if (ws && ws.readyState === 1){
+      ws.send(JSON.stringify({type:'pos', lat:lat, lon:lon}));
+    }
+  }, e => {
+    status('Location error: ' + e.message);
+  }, {enableHighAccuracy:true, maximumAge:3000, timeout:15000});
 }
 
 if ('wakeLock' in navigator){ navigator.wakeLock.request('screen').catch(()=>{}); }
@@ -387,9 +438,7 @@ async def ws_endpoint(ws: WebSocket):
             return
         rider_id = msg.get("id") or str(uuid.uuid4())[:8]
         name = (msg.get("name") or "Rider").strip()[:20] or "Rider"
-        code = (msg.get("code") or "").strip().upper()
-        if not code:
-            code = secrets.token_hex(3).upper()
+        code = (msg.get("code") or "ENCSR").strip().upper()
         if code not in groups:
             groups[code] = {}
         groups[code][rider_id] = {"name": name, "lat": None, "lon": None,
