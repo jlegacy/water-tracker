@@ -1,0 +1,14 @@
+{
+  "appId": "com.encsr.watertracker",
+  "appName": "Water Tracker",
+  "webDir": "www",
+  "server": {
+    "url": "https://water-tracker-1600d5e07140.herokuapp.com",
+    "cleartext": true
+  },
+  "plugins": {
+    "Geolocation": {
+      "permissions": ["location"]
+    }
+  }
+}
