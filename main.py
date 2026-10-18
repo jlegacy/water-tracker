@@ -385,6 +385,7 @@ function startApp(){
   myName = name;
   document.getElementById('nameScreen').style.display = 'none';
   document.getElementById('map').style.display = 'block';
+  setTimeout(() => map.invalidateSize(), 100);
   document.getElementById('bar').style.display = 'flex';
   document.getElementById('status').style.display = 'block';
   sharing = true;
