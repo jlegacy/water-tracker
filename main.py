@@ -275,17 +275,25 @@ function updateMyMarker(lat, lon){
     const icon = L.divIcon({
       className: '',
       html: `<div style="
-        width:28px;height:28px;border-radius:50%;
-        background:#2f9e6b;
-        border:4px solid #fff;
-        box-shadow:0 0 10px rgba(47,158,107,.8);
+        width:44px;height:44px;border-radius:50%;
+        background:#22c55e;
+        border:5px solid #fff;
+        box-shadow:0 0 0 6px rgba(34,197,94,.4), 0 0 20px rgba(34,197,94,.9);
         display:flex;align-items:center;justify-content:center;
-        color:#fff;font-weight:700;font-size:10px;
-      ">YOU</div>`,
-      iconSize:[28,28],
-      iconAnchor:[14,14]
+        color:#fff;font-weight:800;font-size:13px;
+        animation:pulse 1.5s infinite;
+      ">YOU</div>
+      <style>
+        @keyframes pulse {
+          0% { box-shadow:0 0 0 0 rgba(34,197,94,.7); }
+          70% { box-shadow:0 0 0 14px rgba(34,197,94,0); }
+          100% { box-shadow:0 0 0 0 rgba(34,197,94,0); }
+        }
+      </style>`,
+      iconSize:[44,44],
+      iconAnchor:[22,22]
     });
-    riders[me] = L.marker(myLatLng,{icon, zIndexOffset:1000}).addTo(map).bindPopup(myName + ' (you)');
+    riders[me] = L.marker(myLatLng,{icon, zIndexOffset:2000}).addTo(map).bindPopup(myName + ' (you)');
   }
   map.panTo(myLatLng);
   updateFindLine();
