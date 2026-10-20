@@ -276,22 +276,22 @@ function updateMyMarker(lat, lon){
       className: '',
       html: `<div style="
         width:0;height:0;
-        border-left:12px solid transparent;
-        border-right:12px solid transparent;
-        border-bottom:28px solid #22c55e;
-        filter:drop-shadow(0 0 4px rgba(34,197,94,.8));
+        border-left:18px solid transparent;
+        border-right:18px solid transparent;
+        border-bottom:40px solid #22c55e;
+        filter:drop-shadow(0 0 6px #fff) drop-shadow(0 0 10px #22c55e);
         position:relative;
       ">
         <div style="
           position:absolute;
-          top:6px;left:-14px;
-          width:28px;text-align:center;
-          color:#fff;font-weight:800;font-size:9px;
-          text-shadow:0 0 3px #000;
+          top:8px;left:-20px;
+          width:40px;text-align:center;
+          color:#fff;font-weight:900;font-size:11px;
+          text-shadow:0 0 4px #000, 0 0 6px #000;
         ">YOU</div>
       </div>`,
-      iconSize:[24,28],
-      iconAnchor:[12,28]
+      iconSize:[36,40],
+      iconAnchor:[18,40]
     });
     riders[me] = L.marker(myLatLng,{icon, zIndexOffset:2000}).addTo(map).bindPopup(myName + ' (you)');
   }
