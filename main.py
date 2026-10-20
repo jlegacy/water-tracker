@@ -42,6 +42,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
     flex:1;min-width:0;padding:8px 10px;border-radius:8px;
     border:1px solid #2a4a6f;background:#132a45;color:#e8eef7;font-size:15px;
   }
+  #bar input[readonly]{background:#0f2038;color:#9fb3c8;cursor:default}
   #bar button{
     padding:8px 12px;border-radius:8px;border:0;
     background:#2f9e6b;color:#fff;font-weight:600;font-size:14px;
@@ -67,28 +68,34 @@ INDEX_HTML = r"""<!DOCTYPE html>
   #nameScreen{
     position:absolute;inset:0;z-index:2000;background:#0b1d33;
     display:flex;flex-direction:column;align-items:center;justify-content:center;
-    gap:16px;padding:20px;
+    gap:14px;padding:20px;
   }
   #nameScreen h1{margin:0;font-size:26px}
   #nameScreen input{
     padding:14px;border-radius:12px;border:1px solid #2a4a6f;
     background:#132a45;color:#e8eef7;font-size:18px;width:100%;max-width:260px;text-align:center;
   }
+  #nameScreen input[readonly]{background:#0f2038;color:#9fb3c8}
   #nameScreen button{
     padding:14px 32px;border-radius:12px;border:0;background:#2f9e6b;
     color:#fff;font-weight:600;font-size:18px;
   }
+  .groupLabel{font-size:13px;color:#9fb3c8;margin-bottom:-6px}
 </style>
 </head>
 <body>
 <div id="nameScreen">
   <h1>Water Tracker</h1>
+  <div class="groupLabel">Group</div>
+  <input id="startGroup" value="ENCSR" readonly>
+  <div class="groupLabel">Your Name</div>
   <input id="startName" placeholder="Enter your name" autocomplete="off" autocorrect="off">
   <button onclick="startApp()">Start</button>
 </div>
 <div id="banner"></div>
 <div id="bar">
   <div class="row">
+    <input id="groupDisplay" value="ENCSR" readonly style="max-width:90px;text-align:center;font-weight:600">
     <button class="center" onclick="centerOnMe()">Center</button>
     <select id="riderList" onchange="onRiderSelect()">
       <option value="">-- Riders --</option>
