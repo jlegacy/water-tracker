@@ -269,32 +269,32 @@ function updateMyMarker(lat, lon){
   myLatLng = [lat, lon];
   lastSeen[me] = Date.now();
   positions[me] = {lat, lon, name: myName};
-  if (riders[me]){
-    riders[me].setLatLng(myLatLng);
-  } else {
-    const icon = L.divIcon({
-      className: '',
-      html: `<div style="
-        width:44px;height:44px;border-radius:50%;
-        background:#22c55e;
-        border:5px solid #fff;
-        box-shadow:0 0 0 6px rgba(34,197,94,.4), 0 0 20px rgba(34,197,94,.9);
-        display:flex;align-items:center;justify-content:center;
-        color:#fff;font-weight:800;font-size:13px;
-        animation:pulse 1.5s infinite;
-      ">YOU</div>
-      <style>
-        @keyframes pulse {
-          0% { box-shadow:0 0 0 0 rgba(34,197,94,.7); }
-          70% { box-shadow:0 0 0 14px rgba(34,197,94,0); }
-          100% { box-shadow:0 0 0 0 rgba(34,197,94,0); }
-        }
-      </style>`,
-      iconSize:[44,44],
-      iconAnchor:[22,22]
-    });
-    riders[me] = L.marker(myLatLng,{icon, zIndexOffset:2000}).addTo(map).bindPopup(myName + ' (you)');
-  }
+  f (riders[me]){
+  riders[me].setLatLng(myLatLng);
+} else {
+  const icon = L.divIcon({
+    className: '',
+    html: `<div style="
+      width:28px;height:28px;border-radius:50%;
+      background:#22c55e;
+      border:3px solid #fff;
+      box-shadow:0 0 0 4px rgba(34,197,94,.35), 0 0 12px rgba(34,197,94,.8);
+      display:flex;align-items:center;justify-content:center;
+      color:#fff;font-weight:800;font-size:10px;
+      animation:pulse 1.5s infinite;
+    ">YOU</div>
+    <style>
+      @keyframes pulse {
+        0% { box-shadow:0 0 0 0 rgba(34,197,94,.6); }
+        70% { box-shadow:0 0 0 10px rgba(34,197,94,0); }
+        100% { box-shadow:0 0 0 0 rgba(34,197,94,0); }
+      }
+    </style>`,
+    iconSize:[28,28],
+    iconAnchor:[14,14]
+  });
+  riders[me] = L.marker(myLatLng,{icon, zIndexOffset:2000}).addTo(map).bindPopup(myName + ' (you)');
+}
   map.panTo(myLatLng);
   updateFindLine();
   updateRiderList();
