@@ -272,8 +272,20 @@ function updateMyMarker(lat, lon){
   if (riders[me]){
     riders[me].setLatLng(myLatLng);
   } else {
-    const icon = L.divIcon({className:'', html:`<div style="width:16px;height:16px;border-radius:50%;background:#2f9e6b;border:2px solid #fff;box-shadow:0 0 6px rgba(0,0,0,.6)"></div>`, iconSize:[16,16], iconAnchor:[8,8]});
-    riders[me] = L.marker(myLatLng,{icon}).addTo(map).bindPopup(myName + ' (you)');
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="
+        width:28px;height:28px;border-radius:50%;
+        background:#2f9e6b;
+        border:4px solid #fff;
+        box-shadow:0 0 10px rgba(47,158,107,.8);
+        display:flex;align-items:center;justify-content:center;
+        color:#fff;font-weight:700;font-size:10px;
+      ">YOU</div>`,
+      iconSize:[28,28],
+      iconAnchor:[14,14]
+    });
+    riders[me] = L.marker(myLatLng,{icon, zIndexOffset:1000}).addTo(map).bindPopup(myName + ' (you)');
   }
   map.panTo(myLatLng);
   updateFindLine();
@@ -339,7 +351,17 @@ function upsert(r){
     riders[r.id].setLatLng([r.lat, r.lon]);
     riders[r.id].setPopupContent(name);
   } else {
-    const icon = L.divIcon({className:'', html:`<div style="width:16px;height:16px;border-radius:50%;background:#4aa3ff;border:2px solid #fff;box-shadow:0 0 6px rgba(0,0,0,.6)"></div>`, iconSize:[16,16], iconAnchor:[8,8]});
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="
+        width:16px;height:16px;border-radius:50%;
+        background:#4aa3ff;
+        border:2px solid #fff;
+        box-shadow:0 0 4px rgba(0,0,0,.5);
+      "></div>`,
+      iconSize:[16,16],
+      iconAnchor:[8,8]
+    });
     riders[r.id] = L.marker([r.lat, r.lon],{icon}).addTo(map).bindPopup(name);
   }
   if (findTarget === r.id) updateFindLine();
