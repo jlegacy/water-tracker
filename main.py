@@ -4,7 +4,6 @@ import json, time, uuid, secrets, pathlib, asyncio
 
 app = FastAPI()
 
-# group_code -> { rider_id -> {name, lat, lon, updated, ws} }
 groups = {}
 
 INDEX_HTML = r"""<!DOCTYPE html>
@@ -21,21 +20,30 @@ INDEX_HTML = r"""<!DOCTYPE html>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
   html,body{margin:0;height:100%;font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#0b1d33;color:#e8eef7;overflow:hidden}
-  #map{height:100%;display:none}
+  #map{
+    position:absolute;
+    top:160px;
+    left:0;right:0;bottom:0;
+    display:none;
+  }
   #bar{
-    position:absolute;top:0;left:0;right:0;z-index:1000;
-    display:none;flex-direction:column;gap:6px;
-    padding:8px 10px env(safe-area-inset-top, 8px) 10px;
-    background:rgba(11,29,51,.92);backdrop-filter:blur(6px);
+    position:absolute;
+    top:0;left:0;right:0;
+    z-index:1000;
+    display:none;
+    flex-direction:column;
+    gap:6px;
+    padding: calc(env(safe-area-inset-top, 20px) + 12px) 8px 10px 8px;
+    background:rgba(11,29,51,.95);
+    box-sizing:border-box;
   }
-  .row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .row{display:flex;gap:6px;align-items:center}
   #bar input, #bar select{
-    padding:10px 12px;border-radius:10px;border:1px solid #2a4a6f;
-    background:#132a45;color:#e8eef7;font-size:16px;min-width:0;
+    flex:1;min-width:0;padding:8px 10px;border-radius:8px;
+    border:1px solid #2a4a6f;background:#132a45;color:#e8eef7;font-size:15px;
   }
-  #bar select{flex:1;min-width:140px}
   #bar button{
-    padding:10px 12px;border-radius:10px;border:0;
+    padding:8px 12px;border-radius:8px;border:0;
     background:#2f9e6b;color:#fff;font-weight:600;font-size:14px;
     white-space:nowrap;
   }
@@ -44,32 +52,30 @@ INDEX_HTML = r"""<!DOCTYPE html>
   #bar button.msg{background:#8b5cf6}
   #bar button.broadcast{background:#ec4899}
   #status{
-    position:absolute;bottom:12px;left:12px;right:12px;z-index:1000;
-    padding:8px 12px;border-radius:10px;background:rgba(11,29,51,.85);
-    font-size:13px;color:#9fb3c8;text-align:center;display:none;
+    position:absolute;bottom:8px;left:8px;right:8px;z-index:1000;
+    padding:6px 10px;border-radius:8px;background:rgba(11,29,51,.9);
+    font-size:12px;color:#9fb3c8;text-align:center;display:none;
   }
   #banner{
-    position:absolute;top:120px;left:12px;right:12px;z-index:1001;
-    padding:12px 16px;border-radius:10px;background:#8b5cf6;color:#fff;
-    font-size:15px;display:none;text-align:center;
-    box-shadow:0 4px 12px rgba(0,0,0,.3);flex-direction:column;gap:8px;align-items:center;
+    position:absolute;top:170px;left:8px;right:8px;z-index:1001;
+    padding:10px 12px;border-radius:8px;background:#8b5cf6;color:#fff;
+    font-size:14px;display:none;text-align:center;
   }
-  #banner button{padding:6px 14px;border-radius:8px;border:0;background:#fff;color:#8b5cf6;font-weight:600;font-size:14px}
+  #banner button{margin-top:6px;padding:6px 12px;border-radius:6px;border:0;background:#fff;color:#8b5cf6;font-weight:600}
   .leaflet-container{background:#0b1d33}
-  #msgBox{display:none;gap:6px;align-items:center;flex-wrap:wrap}
-  #msgBox input{flex:1;min-width:120px}
+  #msgBox{display:none}
   #nameScreen{
     position:absolute;inset:0;z-index:2000;background:#0b1d33;
     display:flex;flex-direction:column;align-items:center;justify-content:center;
     gap:16px;padding:20px;
   }
-  #nameScreen h1{margin:0;font-size:28px}
+  #nameScreen h1{margin:0;font-size:26px}
   #nameScreen input{
-    padding:14px 16px;border-radius:12px;border:1px solid #2a4a6f;
-    background:#132a45;color:#e8eef7;font-size:18px;width:100%;max-width:280px;text-align:center;
+    padding:14px;border-radius:12px;border:1px solid #2a4a6f;
+    background:#132a45;color:#e8eef7;font-size:18px;width:100%;max-width:260px;text-align:center;
   }
   #nameScreen button{
-    padding:14px 28px;border-radius:12px;border:0;background:#2f9e6b;
+    padding:14px 32px;border-radius:12px;border:0;background:#2f9e6b;
     color:#fff;font-weight:600;font-size:18px;
   }
 </style>
@@ -83,7 +89,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
 <div id="banner"></div>
 <div id="bar">
   <div class="row">
-    <button id="center" class="center" onclick="centerOnMe()">Center</button>
+    <button class="center" onclick="centerOnMe()">Center</button>
     <select id="riderList" onchange="onRiderSelect()">
       <option value="">-- Riders --</option>
     </select>
@@ -131,7 +137,7 @@ function status(t){
 function showBanner(text, fromId){
   const b = document.getElementById('banner');
   b.innerHTML = text + (fromId ? '<br><button onclick="replyToLast(\'' + fromId + '\')">Reply</button>' : '');
-  b.style.display = 'flex';
+  b.style.display = 'block';
   setTimeout(() => { b.style.display = 'none'; }, 12000);
 }
 
@@ -144,16 +150,6 @@ function replyToLast(fromId){
     onRiderSelect();
   }
   document.getElementById('banner').style.display = 'none';
-}
-
-function clearAllMarkers(){
-  for (const id in riders) map.removeLayer(riders[id]);
-  for (const id in riders) delete riders[id];
-  for (const id in lastSeen) delete lastSeen[id];
-  for (const id in positions) delete positions[id];
-  lastListKey = '';
-  clearFindLine();
-  updateRiderList();
 }
 
 function clearFindLine(){
@@ -308,7 +304,7 @@ function connect(){
     }
     else if (m.type === 'error'){ status(m.msg); }
     else if (m.type === 'riders'){
-      m.riders.forEach(upsert);
+      m.riders.forEach(r => upsert(r));
       updateRiderList();
     }
     else if (m.type === 'pos') {
@@ -331,7 +327,7 @@ function connect(){
 }
 
 function upsert(r){
-  if (!r.lat && r.lat !== 0) return;
+  if (r.lat == null && r.lon == null) return;
   const name = r.name || 'Rider';
   lastSeen[r.id] = Date.now();
   positions[r.id] = {lat: r.lat, lon: r.lon, name};
@@ -344,7 +340,7 @@ function upsert(r){
     riders[r.id].setPopupContent(name);
   } else {
     const icon = L.divIcon({className:'', html:`<div style="width:16px;height:16px;border-radius:50%;background:#4aa3ff;border:2px solid #fff;box-shadow:0 0 6px rgba(0,0,0,.6)"></div>`, iconSize:[16,16], iconAnchor:[8,8]});
-    riders[r.id] = L.marker([r.lat,r.lon],{icon}).addTo(map).bindPopup(name);
+    riders[r.id] = L.marker([r.lat, r.lon],{icon}).addTo(map).bindPopup(name);
   }
   if (findTarget === r.id) updateFindLine();
 }
@@ -385,9 +381,11 @@ function startApp(){
   myName = name;
   document.getElementById('nameScreen').style.display = 'none';
   document.getElementById('map').style.display = 'block';
-  setTimeout(() => map.invalidateSize(), 100);
   document.getElementById('bar').style.display = 'flex';
   document.getElementById('status').style.display = 'block';
+  setTimeout(() => {
+    map.invalidateSize();
+  }, 300);
   sharing = true;
   connect();
   watchId = navigator.geolocation.watchPosition(p => {
@@ -421,7 +419,7 @@ async def startup():
 
 async def periodic_broadcast():
     while True:
-        await asyncio.sleep(8)
+        await asyncio.sleep(6)
         for code in list(groups.keys()):
             if groups.get(code):
                 await broadcast(code, {"type": "riders", "riders": public_list(code)})
