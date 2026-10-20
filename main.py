@@ -275,23 +275,23 @@ function updateMyMarker(lat, lon){
     const icon = L.divIcon({
       className: '',
       html: `<div style="
-        width:28px;height:28px;border-radius:50%;
-        background:#22c55e;
-        border:3px solid #fff;
-        box-shadow:0 0 0 4px rgba(34,197,94,.35), 0 0 12px rgba(34,197,94,.8);
-        display:flex;align-items:center;justify-content:center;
-        color:#fff;font-weight:800;font-size:10px;
-        animation:pulse 1.5s infinite;
-      ">YOU</div>
-      <style>
-        @keyframes pulse {
-          0% { box-shadow:0 0 0 0 rgba(34,197,94,.6); }
-          70% { box-shadow:0 0 0 10px rgba(34,197,94,0); }
-          100% { box-shadow:0 0 0 0 rgba(34,197,94,0); }
-        }
-      </style>`,
-      iconSize:[28,28],
-      iconAnchor:[14,14]
+        width:0;height:0;
+        border-left:12px solid transparent;
+        border-right:12px solid transparent;
+        border-bottom:28px solid #22c55e;
+        filter:drop-shadow(0 0 4px rgba(34,197,94,.8));
+        position:relative;
+      ">
+        <div style="
+          position:absolute;
+          top:6px;left:-14px;
+          width:28px;text-align:center;
+          color:#fff;font-weight:800;font-size:9px;
+          text-shadow:0 0 3px #000;
+        ">YOU</div>
+      </div>`,
+      iconSize:[24,28],
+      iconAnchor:[12,28]
     });
     riders[me] = L.marker(myLatLng,{icon, zIndexOffset:2000}).addTo(map).bindPopup(myName + ' (you)');
   }
