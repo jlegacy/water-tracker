@@ -145,6 +145,11 @@ let lastListKey = '';
 let findTarget = null;
 let findLine = null;
 
+// Breadcrumb trail
+let breadcrumb = [];
+let breadcrumbLine = null;
+const MAX_BREADCRUMB = 500; // keep last ~500 points
+
 function status(t){ 
   const el = document.getElementById('status');
   if (el.textContent !== t) el.textContent = t;
@@ -285,6 +290,22 @@ function updateMyMarker(lat, lon, heading, speed){
   myLatLng = [lat, lon];
   lastSeen[me] = Date.now();
   positions[me] = {lat, lon, name: myName};
+
+  // Add to breadcrumb trail
+  breadcrumb.push([lat, lon]);
+  if (breadcrumb.length > MAX_BREADCRUMB){
+    breadcrumb.shift();
+  }
+  if (breadcrumbLine){
+    breadcrumbLine.setLatLngs(breadcrumb);
+  } else if (breadcrumb.length > 1){
+    breadcrumbLine = L.polyline(breadcrumb, {
+      color: '#22c55e',
+      weight: 4,
+      opacity: 0.7
+    }).addTo(map);
+  }
+
   if (riders[me]){
     riders[me].setLatLng(myLatLng);
   } else {
@@ -578,3 +599,6 @@ async def broadcast(code, msg):
             dead.append(rid)
     for rid in dead:
         groups.get(code, {}).pop(rid, None)
+```
+
+Save, commit, and push. After it redeploys, a green line will trail behind you as you move (up to the last 500 points). The heading-up rotation is still included when you’re moving.
