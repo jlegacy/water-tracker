@@ -116,9 +116,8 @@ const map = L.map('map', {
   zoomControl: false,
   rotate: true,
   bearing: 0,
-  zoomSnap: 0.25,
+  zoomSnap: 0.5,
   zoomDelta: 0.5,
-  wheelPxPerZoomLevel: 60,
   touchZoom: true,
   bounceAtZoomLimits: false
 }).setView([35.5,-77.0], 12);
@@ -128,18 +127,8 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 }).addTo(map);
 L.control.zoom({position:'bottomright'}).addTo(map);
 
-// Force-enable two-finger rotation
-if (map.touchRotate) {
-  map.touchRotate.enable();
-} else if (map.rotate) {
-  map.rotate.enable();
-}
-
-// Improve mobile pinch-zoom feel
-map.touchZoom.enable();
-if (L.Browser.touch) {
-  map.dragging.enable();
-}
+// Enable two-finger spin
+if (map.touchRotate) map.touchRotate.enable();
 
 const riders = {};
 const lastSeen = {};
@@ -158,7 +147,6 @@ let pingTimer = null;
 let lastListKey = '';
 let findTarget = null;
 let findLine = null;
-let lastHeading = 0;
 
 function status(t){ 
   const el = document.getElementById('status');
@@ -296,7 +284,7 @@ function updateRiderList(){
   document.getElementById('findBtn').style.display = (sel.value && others.length) ? 'inline-block' : 'none';
 }
 
-function updateMyMarker(lat, lon, heading, speed){
+function updateMyMarker(lat, lon){
   myLatLng = [lat, lon];
   lastSeen[me] = Date.now();
   positions[me] = {lat, lon, name: myName};
@@ -327,13 +315,6 @@ function updateMyMarker(lat, lon, heading, speed){
     riders[me] = L.marker(myLatLng,{icon, zIndexOffset:2000}).addTo(map).bindPopup(myName + ' (you)');
   }
   map.panTo(myLatLng);
-  // Only auto-rotate when moving faster than ~1 mph so finger spin works when still
-  if (heading != null && !isNaN(heading) && heading >= 0 && (speed || 0) > 0.5){
-    lastHeading = heading;
-    if (typeof map.setBearing === 'function'){
-      map.setBearing(heading);
-    }
-  }
   updateFindLine();
   updateRiderList();
 }
@@ -358,7 +339,7 @@ function connect(){
     const m = JSON.parse(ev.data);
     if (m.type === 'joined'){
       status('Sharing — ENCSR');
-      if (myLatLng) updateMyMarker(myLatLng[0], myLatLng[1], lastHeading, 0);
+      if (myLatLng) updateMyMarker(myLatLng[0], myLatLng[1]);
     }
     else if (m.type === 'error'){ status(m.msg); }
     else if (m.type === 'riders'){
@@ -390,7 +371,7 @@ function upsert(r){
   lastSeen[r.id] = Date.now();
   positions[r.id] = {lat: r.lat, lon: r.lon, name};
   if (r.id === me){
-    updateMyMarker(r.lat, r.lon, lastHeading, 0);
+    updateMyMarker(r.lat, r.lon);
     return;
   }
   if (riders[r.id]){
@@ -459,9 +440,7 @@ function startApp(){
   watchId = navigator.geolocation.watchPosition(p => {
     const lat = p.coords.latitude;
     const lon = p.coords.longitude;
-    const heading = p.coords.heading;
-    const speed = p.coords.speed || 0;
-    updateMyMarker(lat, lon, heading, speed);
+    updateMyMarker(lat, lon);
     if (ws && ws.readyState === 1){
       ws.send(JSON.stringify({type:'pos', lat:lat, lon:lon}));
     }
