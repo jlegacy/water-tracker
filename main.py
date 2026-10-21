@@ -316,22 +316,29 @@ function updateMyMarker(lat, lon){
       className: '',
       html: `<div style="
         width:0;height:0;
-        border-left:18px solid transparent;
-        border-right:18px solid transparent;
-        border-bottom:40px solid #22c55e;
-        filter:drop-shadow(0 0 6px #fff) drop-shadow(0 0 10px #22c55e);
+        border-left:11px solid transparent;
+        border-right:11px solid transparent;
+        border-bottom:22px solid #000;
         position:relative;
       ">
         <div style="
           position:absolute;
-          top:8px;left:-20px;
-          width:40px;text-align:center;
-          color:#fff;font-weight:900;font-size:11px;
-          text-shadow:0 0 4px #000, 0 0 6px #000;
+          top:2px;left:-9px;
+          width:0;height:0;
+          border-left:9px solid transparent;
+          border-right:9px solid transparent;
+          border-bottom:18px solid #e11d48;
+        "></div>
+        <div style="
+          position:absolute;
+          top:4px;left:-12px;
+          width:24px;text-align:center;
+          color:#fff;font-weight:900;font-size:8px;
+          text-shadow:0 0 2px #000;
         ">YOU</div>
       </div>`,
-      iconSize:[36,40],
-      iconAnchor:[18,40]
+      iconSize:[22,22],
+      iconAnchor:[11,22]
     });
     riders[me] = L.marker(myLatLng,{icon, zIndexOffset:2000}).addTo(map).bindPopup(myName + ' (you)');
   }
@@ -458,16 +465,48 @@ function startApp(){
   }, 300);
   sharing = true;
   connect();
-  watchId = navigator.geolocation.watchPosition(p => {
-    const lat = p.coords.latitude;
-    const lon = p.coords.longitude;
-    updateMyMarker(lat, lon);
-    if (ws && ws.readyState === 1){
-      ws.send(JSON.stringify({type:'pos', lat:lat, lon:lon}));
-    }
-  }, e => {
-    status('Location error: ' + e.message);
-  }, {enableHighAccuracy:true, maximumAge:3000, timeout:15000});
+
+  // Prefer native background geolocation when running inside Capacitor
+  if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.BackgroundGeolocation){
+    const BackgroundGeolocation = window.Capacitor.Plugins.BackgroundGeolocation;
+    BackgroundGeolocation.addWatcher(
+      {
+        backgroundMessage: "Tracking your location for ENCSR",
+        backgroundTitle: "Water Tracker",
+        requestPermissions: true,
+        stale: false,
+        distanceFilter: 5
+      },
+      function callback(location, error){
+        if (error){
+          if (error.code === "NOT_AUTHORIZED"){
+            status("Location permission denied");
+          }
+          return;
+        }
+        const lat = location.latitude;
+        const lon = location.longitude;
+        updateMyMarker(lat, lon);
+        if (ws && ws.readyState === 1){
+          ws.send(JSON.stringify({type:'pos', lat:lat, lon:lon}));
+        }
+      }
+    ).then(function(id){
+      watchId = id;
+    });
+  } else {
+    // Fallback for browser / non-Capacitor
+    watchId = navigator.geolocation.watchPosition(p => {
+      const lat = p.coords.latitude;
+      const lon = p.coords.longitude;
+      updateMyMarker(lat, lon);
+      if (ws && ws.readyState === 1){
+        ws.send(JSON.stringify({type:'pos', lat:lat, lon:lon}));
+      }
+    }, e => {
+      status('Location error: ' + e.message);
+    }, {enableHighAccuracy:true, maximumAge:3000, timeout:15000});
+  }
 }
 
 if ('wakeLock' in navigator){ navigator.wakeLock.request('screen').catch(()=>{}); }
