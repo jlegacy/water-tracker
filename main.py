@@ -112,12 +112,27 @@ INDEX_HTML = r"""<!DOCTYPE html>
 <div id="map"></div>
 <div id="status"></div>
 <script>
-const map = L.map('map', {zoomControl:false, rotate: true, bearing: 0}).setView([35.5,-77.0], 12);
+const map = L.map('map', {
+  zoomControl: false,
+  rotate: true,
+  bearing: 0,
+  zoomSnap: 0.25,
+  zoomDelta: 0.5,
+  wheelPxPerZoomLevel: 60,
+  touchZoom: true,
+  bounceAtZoomLimits: false
+}).setView([35.5,-77.0], 12);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 19,
   attribution: '&copy; OpenStreetMap'
 }).addTo(map);
 L.control.zoom({position:'bottomright'}).addTo(map);
+
+// Improve mobile pinch-zoom feel
+map.touchZoom.enable();
+if (L.Browser.touch) {
+  map.dragging.enable();
+}
 
 const riders = {};
 const lastSeen = {};
@@ -305,7 +320,6 @@ function updateMyMarker(lat, lon, heading){
     riders[me] = L.marker(myLatLng,{icon, zIndexOffset:2000}).addTo(map).bindPopup(myName + ' (you)');
   }
   map.panTo(myLatLng);
-  // Rotate map so direction of travel is up (heading-up)
   if (heading != null && !isNaN(heading) && heading >= 0){
     lastHeading = heading;
     if (typeof map.setBearing === 'function'){
