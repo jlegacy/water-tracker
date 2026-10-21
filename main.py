@@ -450,16 +450,17 @@ function startApp(){
   sharing = true;
   connect();
   watchId = navigator.geolocation.watchPosition(p => {
-    const lat = p.coords.latitude;
-    const lon = p.coords.longitude;
-    const heading = p.coords.heading;
-    updateMyMarker(lat, lon, heading);
-    if (ws && ws.readyState === 1){
-      ws.send(JSON.stringify({type:'pos', lat:lat, lon:lon}));
-    }
-  }, e => {
-    status('Location error: ' + e.message);
-  }, {enableHighAccuracy:true, maximumAge:3000, timeout:15000});
+  const lat = p.coords.latitude;
+  const lon = p.coords.longitude;
+  const heading = p.coords.heading;
+  const speed = p.coords.speed || 0;
+  updateMyMarker(lat, lon, heading, speed);
+  if (ws && ws.readyState === 1){
+    ws.send(JSON.stringify({type:'pos', lat:lat, lon:lon}));
+  }
+}, e => {
+  status('Location error: ' + e.message);
+}, {enableHighAccuracy:true, maximumAge:3000, timeout:15000});
 }
 
 if ('wakeLock' in navigator){ navigator.wakeLock.request('screen').catch(()=>{}); }
