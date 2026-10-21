@@ -289,7 +289,7 @@ function updateRiderList(){
   document.getElementById('findBtn').style.display = (sel.value && others.length) ? 'inline-block' : 'none';
 }
 
-function updateMyMarker(lat, lon, heading){
+function updateMyMarker(lat, lon, heading, speed){
   myLatLng = [lat, lon];
   lastSeen[me] = Date.now();
   positions[me] = {lat, lon, name: myName};
@@ -320,7 +320,8 @@ function updateMyMarker(lat, lon, heading){
     riders[me] = L.marker(myLatLng,{icon, zIndexOffset:2000}).addTo(map).bindPopup(myName + ' (you)');
   }
   map.panTo(myLatLng);
-  if (heading != null && !isNaN(heading) && heading >= 0){
+  // Only auto-rotate when moving faster than ~1 mph
+  if (heading != null && !isNaN(heading) && heading >= 0 && speed > 0.5){
     lastHeading = heading;
     if (typeof map.setBearing === 'function'){
       map.setBearing(heading);
