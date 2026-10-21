@@ -127,9 +127,6 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 }).addTo(map);
 L.control.zoom({position:'bottomright'}).addTo(map);
 
-// Enable two-finger spin
-if (map.touchRotate) map.touchRotate.enable();
-
 const riders = {};
 const lastSeen = {};
 const positions = {};
@@ -284,7 +281,7 @@ function updateRiderList(){
   document.getElementById('findBtn').style.display = (sel.value && others.length) ? 'inline-block' : 'none';
 }
 
-function updateMyMarker(lat, lon){
+function updateMyMarker(lat, lon, heading, speed){
   myLatLng = [lat, lon];
   lastSeen[me] = Date.now();
   positions[me] = {lat, lon, name: myName};
@@ -315,6 +312,12 @@ function updateMyMarker(lat, lon){
     riders[me] = L.marker(myLatLng,{icon, zIndexOffset:2000}).addTo(map).bindPopup(myName + ' (you)');
   }
   map.panTo(myLatLng);
+  // Rotate map so direction of travel is up (only when moving)
+  if (heading != null && !isNaN(heading) && heading >= 0 && (speed || 0) > 0.4){
+    if (typeof map.setBearing === 'function'){
+      map.setBearing(heading);
+    }
+  }
   updateFindLine();
   updateRiderList();
 }
@@ -339,7 +342,7 @@ function connect(){
     const m = JSON.parse(ev.data);
     if (m.type === 'joined'){
       status('Sharing — ENCSR');
-      if (myLatLng) updateMyMarker(myLatLng[0], myLatLng[1]);
+      if (myLatLng) updateMyMarker(myLatLng[0], myLatLng[1], null, 0);
     }
     else if (m.type === 'error'){ status(m.msg); }
     else if (m.type === 'riders'){
@@ -371,7 +374,7 @@ function upsert(r){
   lastSeen[r.id] = Date.now();
   positions[r.id] = {lat: r.lat, lon: r.lon, name};
   if (r.id === me){
-    updateMyMarker(r.lat, r.lon);
+    updateMyMarker(r.lat, r.lon, null, 0);
     return;
   }
   if (riders[r.id]){
@@ -440,7 +443,9 @@ function startApp(){
   watchId = navigator.geolocation.watchPosition(p => {
     const lat = p.coords.latitude;
     const lon = p.coords.longitude;
-    updateMyMarker(lat, lon);
+    const heading = p.coords.heading;
+    const speed = p.coords.speed || 0;
+    updateMyMarker(lat, lon, heading, speed);
     if (ws && ws.readyState === 1){
       ws.send(JSON.stringify({type:'pos', lat:lat, lon:lon}));
     }
