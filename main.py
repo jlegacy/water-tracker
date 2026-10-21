@@ -127,6 +127,9 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 }).addTo(map);
 L.control.zoom({position:'bottomright'}).addTo(map);
 
+// Enable two-finger spin
+if (map.touchRotate) map.touchRotate.enable();
+
 const riders = {};
 const lastSeen = {};
 const positions = {};
@@ -148,7 +151,7 @@ let findLine = null;
 // Breadcrumb trail
 let breadcrumb = [];
 let breadcrumbLine = null;
-const MAX_BREADCRUMB = 500; // keep last ~500 points
+const MAX_BREADCRUMB = 500;
 
 function status(t){ 
   const el = document.getElementById('status');
@@ -286,12 +289,12 @@ function updateRiderList(){
   document.getElementById('findBtn').style.display = (sel.value && others.length) ? 'inline-block' : 'none';
 }
 
-function updateMyMarker(lat, lon, heading, speed){
+function updateMyMarker(lat, lon){
   myLatLng = [lat, lon];
   lastSeen[me] = Date.now();
   positions[me] = {lat, lon, name: myName};
 
-  // Add to breadcrumb trail
+  // Breadcrumb trail
   breadcrumb.push([lat, lon]);
   if (breadcrumb.length > MAX_BREADCRUMB){
     breadcrumb.shift();
@@ -333,12 +336,6 @@ function updateMyMarker(lat, lon, heading, speed){
     riders[me] = L.marker(myLatLng,{icon, zIndexOffset:2000}).addTo(map).bindPopup(myName + ' (you)');
   }
   map.panTo(myLatLng);
-  // Rotate map so direction of travel is up (only when moving)
-  if (heading != null && !isNaN(heading) && heading >= 0 && (speed || 0) > 0.4){
-    if (typeof map.setBearing === 'function'){
-      map.setBearing(heading);
-    }
-  }
   updateFindLine();
   updateRiderList();
 }
@@ -363,7 +360,7 @@ function connect(){
     const m = JSON.parse(ev.data);
     if (m.type === 'joined'){
       status('Sharing — ENCSR');
-      if (myLatLng) updateMyMarker(myLatLng[0], myLatLng[1], null, 0);
+      if (myLatLng) updateMyMarker(myLatLng[0], myLatLng[1]);
     }
     else if (m.type === 'error'){ status(m.msg); }
     else if (m.type === 'riders'){
@@ -395,7 +392,7 @@ function upsert(r){
   lastSeen[r.id] = Date.now();
   positions[r.id] = {lat: r.lat, lon: r.lon, name};
   if (r.id === me){
-    updateMyMarker(r.lat, r.lon, null, 0);
+    updateMyMarker(r.lat, r.lon);
     return;
   }
   if (riders[r.id]){
@@ -464,9 +461,7 @@ function startApp(){
   watchId = navigator.geolocation.watchPosition(p => {
     const lat = p.coords.latitude;
     const lon = p.coords.longitude;
-    const heading = p.coords.heading;
-    const speed = p.coords.speed || 0;
-    updateMyMarker(lat, lon, heading, speed);
+    updateMyMarker(lat, lon);
     if (ws && ws.readyState === 1){
       ws.send(JSON.stringify({type:'pos', lat:lat, lon:lon}));
     }
@@ -599,6 +594,3 @@ async def broadcast(code, msg):
             dead.append(rid)
     for rid in dead:
         groups.get(code, {}).pop(rid, None)
-```
-
-Save, commit, and push. After it redeploys, a green line will trail behind you as you move (up to the last 500 points). The heading-up rotation is still included when you’re moving.
