@@ -18,6 +18,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
 <meta name="apple-mobile-web-app-title" content="Tracker">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate.js"></script>
 <style>
   html,body{margin:0;height:100%;font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#0b1d33;color:#e8eef7;overflow:hidden}
   #map{
@@ -111,7 +112,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
 <div id="map"></div>
 <div id="status"></div>
 <script>
-const map = L.map('map', {zoomControl:false}).setView([35.5,-77.0], 12);
+const map = L.map('map', {zoomControl:false, rotate: true, bearing: 0}).setView([35.5,-77.0], 12);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 19,
   attribution: '&copy; OpenStreetMap'
@@ -135,6 +136,7 @@ let pingTimer = null;
 let lastListKey = '';
 let findTarget = null;
 let findLine = null;
+let lastHeading = 0;
 
 function status(t){ 
   const el = document.getElementById('status');
@@ -272,7 +274,7 @@ function updateRiderList(){
   document.getElementById('findBtn').style.display = (sel.value && others.length) ? 'inline-block' : 'none';
 }
 
-function updateMyMarker(lat, lon){
+function updateMyMarker(lat, lon, heading){
   myLatLng = [lat, lon];
   lastSeen[me] = Date.now();
   positions[me] = {lat, lon, name: myName};
@@ -303,6 +305,13 @@ function updateMyMarker(lat, lon){
     riders[me] = L.marker(myLatLng,{icon, zIndexOffset:2000}).addTo(map).bindPopup(myName + ' (you)');
   }
   map.panTo(myLatLng);
+  // Rotate map so direction of travel is up (heading-up)
+  if (heading != null && !isNaN(heading) && heading >= 0){
+    lastHeading = heading;
+    if (typeof map.setBearing === 'function'){
+      map.setBearing(heading);
+    }
+  }
   updateFindLine();
   updateRiderList();
 }
@@ -327,7 +336,7 @@ function connect(){
     const m = JSON.parse(ev.data);
     if (m.type === 'joined'){
       status('Sharing — ENCSR');
-      if (myLatLng) updateMyMarker(myLatLng[0], myLatLng[1]);
+      if (myLatLng) updateMyMarker(myLatLng[0], myLatLng[1], lastHeading);
     }
     else if (m.type === 'error'){ status(m.msg); }
     else if (m.type === 'riders'){
@@ -359,7 +368,7 @@ function upsert(r){
   lastSeen[r.id] = Date.now();
   positions[r.id] = {lat: r.lat, lon: r.lon, name};
   if (r.id === me){
-    updateMyMarker(r.lat, r.lon);
+    updateMyMarker(r.lat, r.lon, lastHeading);
     return;
   }
   if (riders[r.id]){
@@ -428,7 +437,8 @@ function startApp(){
   watchId = navigator.geolocation.watchPosition(p => {
     const lat = p.coords.latitude;
     const lon = p.coords.longitude;
-    updateMyMarker(lat, lon);
+    const heading = p.coords.heading;
+    updateMyMarker(lat, lon, heading);
     if (ws && ws.readyState === 1){
       ws.send(JSON.stringify({type:'pos', lat:lat, lon:lon}));
     }
