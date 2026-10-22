@@ -7,7 +7,7 @@ app = FastAPI()
 groups = {}
 
 # Allowed group codes (first is default). Each code is its own isolated group.
-GROUP_CODES = ["ENCSR", "FSR", "NFLSR", "GLSR", "GCJSR", "CTJSC", "SDXPR", "TCJP", "NGC"]
+GROUP_CODES = ["ENCSR", "FLSR", "NFLSR", "GLSR", "GCJSR", "CTJSC", "SDXPR", "TCJP", "NGC", "GEN1", "GEN2", "GEN3", "GEN4", "GEN5"]
 
 INDEX_HTML = r"""<!DOCTYPE html>
 <html lang="en">
@@ -101,7 +101,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
   <div class="groupLabel">Group</div>
   <select id="startGroup">
     <option value="ENCSR" title="ENCSR">ENCSR</option>
-    <option value="FSR" title="Florida Ski Riders">FSR</option>
+    <option value="FLSR" title="Florida Ski Riders">FLSR</option>
     <option value="NFLSR" title="North Florida Ski Riders">NFLSR</option>
     <option value="GLSR" title="Great Lakes Ski Riders">GLSR</option>
     <option value="GCJSR" title="Gulf Coast Jet Ski Riders">GCJSR</option>
@@ -109,6 +109,11 @@ INDEX_HTML = r"""<!DOCTYPE html>
     <option value="SDXPR" title="Sea-Doo XP Riders">SDXPR</option>
     <option value="TCJP" title="Twin Cities JetPilots">TCJP</option>
     <option value="NGC" title="Nauti Girl Crew - Jet Ski Group">NGC</option>
+    <option value="GEN1" title="Generic Channel 1">GEN1</option>
+    <option value="GEN2" title="Generic Channel 2">GEN2</option>
+    <option value="GEN3" title="Generic Channel 3">GEN3</option>
+    <option value="GEN4" title="Generic Channel 4">GEN4</option>
+    <option value="GEN5" title="Generic Channel 5">GEN5</option>
   </select>
   <div class="groupLabel">Your Name</div>
   <input id="startName" placeholder="Enter your name" autocomplete="off" autocorrect="off">
