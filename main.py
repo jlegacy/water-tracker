@@ -81,6 +81,13 @@ INDEX_HTML = r"""<!DOCTYPE html>
     padding:14px 32px;border-radius:12px;border:0;background:#2f9e6b;
     color:#fff;font-weight:600;font-size:18px;
   }
+  .mapBtn{
+    position:absolute;right:10px;z-index:1000;
+    min-width:96px;min-height:48px;padding:10px 14px;border-radius:12px;border:2px solid #fff;
+    color:#fff;font-weight:700;font-size:16px;box-shadow:0 2px 6px rgba(0,0,0,.5);display:none;
+  }
+  #headingBtn{top:172px;background:#0f766e}
+  #recenterBtn{top:230px;background:#3b82f6}
   .groupLabel{font-size:13px;color:#9fb3c8;margin-bottom:-6px}
 </style>
 </head>
@@ -111,6 +118,8 @@ INDEX_HTML = r"""<!DOCTYPE html>
 </div>
 <div id="map"></div>
 <div id="status"></div>
+<button id="headingBtn" class="mapBtn" onclick="toggleHeadingMode()">North Up</button>
+<button id="recenterBtn" class="mapBtn" onclick="recenter()">Re-center</button>
 <script>
 const map = L.map('map', {
   zoomControl: false,
@@ -125,10 +134,18 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 19,
   attribution: '&copy; OpenStreetMap'
 }).addTo(map);
-L.control.zoom({position:'bottomright'}).addTo(map);
+const zoomCtl = L.control.zoom({position:'bottomright'}).addTo(map);
+zoomCtl.getContainer().addEventListener('click', () => setFollow(false));
 
 // Enable two-finger spin
 if (map.touchRotate) map.touchRotate.enable();
+
+// Any user pan/zoom turns off follow-me (programmatic moves don't fire these)
+map.on('dragstart', () => setFollow(false));
+const mapEl = document.getElementById('map');
+mapEl.addEventListener('wheel', () => setFollow(false), {passive:true});
+mapEl.addEventListener('touchstart', e => { if (e.touches.length > 1) setFollow(false); }, {passive:true});
+mapEl.addEventListener('dblclick', () => setFollow(false));
 
 const riders = {};
 const lastSeen = {};
@@ -147,6 +164,15 @@ let pingTimer = null;
 let lastListKey = '';
 let findTarget = null;
 let findLine = null;
+
+// Map orientation: 'north' (default) or 'heading'
+let headingMode = localStorage.getItem('headingMode') === 'heading' ? 'heading' : 'north';
+let lastHeading = null;   // last good course in degrees (0 = north)
+let lastFix = null;       // previous fix, used to compute course when GPS gives none
+const MIN_SPEED = 1;      // m/s; below this, hold the last heading
+
+// Follow-me: map tracks my position until the user drags/zooms
+let followMe = true;
 
 // Breadcrumb trail
 let breadcrumb = [];
@@ -186,10 +212,77 @@ function clearFindLine(){
 }
 
 function centerOnMe(){
-  if (myLatLng){
-    map.panTo(myLatLng);
-    map.setZoom(16);
+  recenter();
+}
+
+function setFollow(on){
+  followMe = on;
+  document.getElementById('recenterBtn').style.display = on ? 'none' : 'block';
+}
+
+function recenter(){
+  setFollow(true);
+  if (myLatLng) map.setView(myLatLng, Math.max(map.getZoom(), 16));
+  applyBearing();
+}
+
+function updateHeadingBtn(){
+  document.getElementById('headingBtn').textContent = headingMode === 'heading' ? 'Heading Up' : 'North Up';
+}
+
+function toggleHeadingMode(){
+  headingMode = headingMode === 'heading' ? 'north' : 'heading';
+  localStorage.setItem('headingMode', headingMode);
+  updateHeadingBtn();
+  applyBearing();
+}
+
+function applyBearing(){
+  if (!map.setBearing) return;
+  if (headingMode === 'heading' && lastHeading != null){
+    // Rotate map so direction of travel points up
+    map.setBearing(-lastHeading);
+  } else {
+    map.setBearing(0);
   }
+}
+
+// Update lastHeading from a fix. heading in degrees (may be null/NaN), speed in m/s (may be null)
+function updateHeading(lat, lon, heading, speed){
+  let course = null;
+  let spd = speed;
+  if (lastFix){
+    const d = haversine(lastFix.lat, lastFix.lon, lat, lon);
+    const dt = (Date.now() - lastFix.t) / 1000;
+    if (spd == null && dt > 0) spd = d / dt;
+    if ((heading == null || isNaN(heading)) && d > 5){
+      const toRad = x => x * Math.PI / 180;
+      const y = Math.sin(toRad(lon - lastFix.lon)) * Math.cos(toRad(lat));
+      const x = Math.cos(toRad(lastFix.lat)) * Math.sin(toRad(lat)) -
+                Math.sin(toRad(lastFix.lat)) * Math.cos(toRad(lat)) * Math.cos(toRad(lon - lastFix.lon));
+      heading = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+    }
+  }
+  if (!lastFix || haversine(lastFix.lat, lastFix.lon, lat, lon) > 5){
+    lastFix = {lat, lon, t: Date.now()};
+  }
+  if (heading != null && !isNaN(heading) && heading >= 0 && spd != null && spd > MIN_SPEED){
+    course = heading;
+  }
+  if (course == null) return; // stationary or no course: hold last heading
+  if (lastHeading == null){
+    lastHeading = course;
+  } else {
+    // Smooth jitter, handling wrap-around at 0/360
+    const diff = ((course - lastHeading + 540) % 360) - 180;
+    lastHeading = (lastHeading + diff * 0.3 + 360) % 360;
+  }
+}
+
+function onFix(lat, lon, heading, speed){
+  updateHeading(lat, lon, heading, speed);
+  updateMyMarker(lat, lon);
+  applyBearing();
 }
 
 function onRiderSelect(){
@@ -198,6 +291,7 @@ function onRiderSelect(){
   document.getElementById('msgBox').style.display = id ? 'flex' : 'none';
   document.getElementById('findBtn').style.display = id ? 'inline-block' : 'none';
   if (id && positions[id]){
+    setFollow(false);
     map.panTo([positions[id].lat, positions[id].lon]);
   }
   if (findTarget && findTarget !== id) clearFindLine();
@@ -342,7 +436,7 @@ function updateMyMarker(lat, lon){
     });
     riders[me] = L.marker(myLatLng,{icon, zIndexOffset:2000}).addTo(map).bindPopup(myName + ' (you)');
   }
-  map.panTo(myLatLng);
+  if (followMe) map.panTo(myLatLng);
   updateFindLine();
   updateRiderList();
 }
@@ -460,6 +554,9 @@ function startApp(){
   document.getElementById('map').style.display = 'block';
   document.getElementById('bar').style.display = 'flex';
   document.getElementById('status').style.display = 'block';
+  document.getElementById('headingBtn').style.display = 'block';
+  updateHeadingBtn();
+  setFollow(true);
   setTimeout(() => {
     map.invalidateSize();
   }, 300);
@@ -486,7 +583,7 @@ function startApp(){
         }
         const lat = location.latitude;
         const lon = location.longitude;
-        updateMyMarker(lat, lon);
+        onFix(lat, lon, location.bearing, location.speed);
         if (ws && ws.readyState === 1){
           ws.send(JSON.stringify({type:'pos', lat:lat, lon:lon}));
         }
@@ -499,7 +596,7 @@ function startApp(){
     watchId = navigator.geolocation.watchPosition(p => {
       const lat = p.coords.latitude;
       const lon = p.coords.longitude;
-      updateMyMarker(lat, lon);
+      onFix(lat, lon, p.coords.heading, p.coords.speed);
       if (ws && ws.readyState === 1){
         ws.send(JSON.stringify({type:'pos', lat:lat, lon:lon}));
       }
