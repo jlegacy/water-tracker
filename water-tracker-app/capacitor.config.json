@@ -3,7 +3,7 @@
   "appName": "Water Tracker",
   "webDir": "www",
   "server": {
-    "url": "https://water-tracker-1600d5e07140.herokuapp.com",
+    "url": "https://water-tracker-yz68.onrender.com",
     "cleartext": true
   },
   "plugins": {
