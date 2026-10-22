@@ -781,6 +781,32 @@ setInterval(() => {
   }
 }, 15000);
 
+// Browser location watch (non-Capacitor): restartable, since iPhone Safari
+// can stop delivering watchPosition after the page is backgrounded.
+let lastFixAt = 0, lastWebRestart = 0, webRestartTimer = null;
+function webFix(p){
+  lastFixAt = Date.now();
+  onFix(p.coords.latitude, p.coords.longitude, p.coords.heading, p.coords.speed); // throttled send happens in onFix
+}
+function startWebWatch(){
+  if (isNativeApp() || !navigator.geolocation) return;
+  if (watchId !== null){ try { navigator.geolocation.clearWatch(watchId); } catch(_){} }
+  lastWebRestart = Date.now();
+  lastFixAt = Date.now(); // grace period before the watchdog fires again
+  watchId = navigator.geolocation.watchPosition(webFix, e => {
+    status('Location error: ' + e.message);
+    if (e.code === 2 || e.code === 3) scheduleWebRestart();
+  }, {enableHighAccuracy:true, maximumAge:10000, timeout:20000});
+}
+function scheduleWebRestart(){
+  if (webRestartTimer) return;
+  const wait = Math.max(2000, 5000 - (Date.now() - lastWebRestart));
+  webRestartTimer = setTimeout(() => { webRestartTimer = null; if (sharing) startWebWatch(); }, wait);
+}
+setInterval(() => {
+  if (sharing && !isNativeApp() && document.visibilityState === 'visible' && Date.now() - lastFixAt > 30000) startWebWatch();
+}, 10000);
+
 document.addEventListener('visibilitychange', () => {
   if (!sharing) return;
   if (document.visibilityState === 'visible') {
@@ -794,6 +820,10 @@ document.addEventListener('visibilitychange', () => {
     renderMe();
     applyBearing();
     requestWakeLock();
+    if (!isNativeApp() && navigator.geolocation){
+      startWebWatch();
+      navigator.geolocation.getCurrentPosition(webFix, () => {}, {enableHighAccuracy:true, maximumAge:0, timeout:15000});
+    }
   }
 });
 
@@ -881,13 +911,7 @@ function startApp(){
     });
   } else {
     // Fallback for browser / non-Capacitor
-    watchId = navigator.geolocation.watchPosition(p => {
-      const lat = p.coords.latitude;
-      const lon = p.coords.longitude;
-      onFix(lat, lon, p.coords.heading, p.coords.speed); // throttled send happens in onFix
-    }, e => {
-      status('Location error: ' + e.message);
-    }, {enableHighAccuracy:true, maximumAge:10000, timeout:20000});
+    startWebWatch();
   }
 }
 
