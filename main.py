@@ -458,16 +458,15 @@ function haversine(lat1, lon1, lat2, lon2){
 
 function updateRiderList(){
   const sel = document.getElementById('riderList');
-  if (!myLatLng) return;
   const others = [];
   for (const id in positions){
     if (id === me) continue;
     const p = positions[id];
-    const dist = haversine(myLatLng[0], myLatLng[1], p.lat, p.lon);
+    const dist = myLatLng ? haversine(myLatLng[0], myLatLng[1], p.lat, p.lon) : null;
     others.push({id, name: p.name, dist});
   }
-  others.sort((a,b) => a.dist - b.dist);
-  const key = others.map(o => o.id + ':' + Math.round(o.dist)).join('|');
+  others.sort((a,b) => (a.dist == null || b.dist == null) ? a.name.localeCompare(b.name) : a.dist - b.dist);
+  const key = others.map(o => o.id + ':' + (o.dist == null ? '-' : Math.round(o.dist))).join('|');
   if (key === lastListKey) return;
   lastListKey = key;
 
@@ -476,8 +475,7 @@ function updateRiderList(){
   others.forEach(o => {
     const opt = document.createElement('option');
     opt.value = o.id;
-    const miles = (o.dist / 1609.34).toFixed(2);
-    opt.textContent = `${o.name} (${miles} mi)`;
+    opt.textContent = o.dist == null ? o.name : `${o.name} (${(o.dist / 1609.34).toFixed(2)} mi)`;
     sel.appendChild(opt);
   });
   if (current && positions[current]) sel.value = current;
