@@ -12,6 +12,8 @@ PURGE_SECS = float(os.environ.get("PURGE_SECS", "1800"))        # forget a silen
 # then send a push from stale_monitor() alongside the WebSocket 'alert'. See README-push.md.
 
 app = FastAPI()
+from fastapi.staticfiles import StaticFiles
+app.mount("/static", StaticFiles(directory=pathlib.Path(__file__).parent / "static"), name="static")
 
 groups = {}
 
@@ -32,9 +34,9 @@ INDEX_HTML = r"""<!DOCTYPE html>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Tracker">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate.js"></script>
+<link rel="stylesheet" href="/static/leaflet/leaflet.css"/>
+<script src="/static/leaflet/leaflet.js"></script>
+<script src="/static/leaflet-rotate/leaflet-rotate.js"></script>
 <style>
   html,body{margin:0;height:100%;font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#0b1d33;color:#e8eef7;overflow:hidden}
   #map{
@@ -159,6 +161,14 @@ INDEX_HTML = r"""<!DOCTYPE html>
 <button id="headingBtn" class="mapBtn" onclick="toggleHeadingMode()">North Up</button>
 <button id="recenterBtn" class="mapBtn" onclick="recenter()">Re-center</button>
 <script>
+if (!window.L) {
+  const ns = document.getElementById('nameScreen');
+  const msg = document.createElement('div');
+  msg.style.cssText = 'margin-top:16px;color:#fca5a5;font-size:15px;text-align:center;padding:0 16px';
+  msg.textContent = "Couldn't load the map. Check your signal and reload the page.";
+  if (ns) ns.appendChild(msg);
+  throw new Error('Leaflet failed to load');
+}
 const map = L.map('map', {
   zoomControl: false,
   rotate: true,
@@ -911,6 +921,24 @@ function releaseWakeLock(){
 }
 updateLeaderBtn();
 
+// Keep the map sized and placed under the header bar
+function fixMapLayout(){
+  const bar = document.getElementById('bar');
+  const mapDiv = document.getElementById('map');
+  if (bar && mapDiv && bar.style.display !== 'none' && bar.offsetHeight > 0){
+    mapDiv.style.top = bar.offsetHeight + 'px';
+  }
+  map.invalidateSize();
+}
+let layoutTimer = null;
+function scheduleMapLayout(){
+  clearTimeout(layoutTimer);
+  layoutTimer = setTimeout(fixMapLayout, 150);
+}
+window.addEventListener('resize', scheduleMapLayout);
+window.addEventListener('orientationchange', scheduleMapLayout);
+if (window.visualViewport) window.visualViewport.addEventListener('resize', scheduleMapLayout);
+
 let myGroup = '';
 function startApp(){
   const name = document.getElementById('startName').value.trim();
@@ -927,6 +955,7 @@ function startApp(){
   myName = name;
   myGroup = grp;
   document.getElementById('groupDisplay').value = myGroup;
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   document.getElementById('nameScreen').style.display = 'none';
   document.getElementById('map').style.display = 'block';
   document.getElementById('bar').style.display = 'flex';
@@ -934,9 +963,10 @@ function startApp(){
   document.getElementById('headingBtn').style.display = 'block';
   updateHeadingBtn();
   setFollow(true);
-  setTimeout(() => {
-    map.invalidateSize();
-  }, 300);
+  fixMapLayout();
+  requestAnimationFrame(fixMapLayout);
+  setTimeout(fixMapLayout, 300);
+  setTimeout(fixMapLayout, 1000);
   sharing = true;
   connect();
   requestWakeLock();
