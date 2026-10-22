@@ -538,10 +538,10 @@ function updateRiderList(){
     if (id === me) continue;
     const p = positions[id];
     const dist = myLatLng ? haversine(myLatLng[0], myLatLng[1], p.lat, p.lon) : null;
-    others.push({id, name: p.leader ? '★ ' + p.name + ' (Leader)' : p.name, dist});
+    others.push({id, name: p.leader ? '★ ' + p.name + ' (Leader)' : p.name, dist, stale: !!p.stale});
   }
   others.sort((a,b) => (a.dist == null || b.dist == null) ? a.name.localeCompare(b.name) : a.dist - b.dist);
-  const key = (leader ? 'L|' : '') + others.map(o => o.id + ':' + o.name + ':' + (o.dist == null ? '-' : Math.round(o.dist))).join('|');
+  const key = (leader ? 'L|' : '') + others.map(o => o.id + ':' + o.name + ':' + (o.dist == null ? '-' : Math.round(o.dist)) + (o.stale ? ':q' : '')).join('|');
   if (key === lastListKey) return;
   lastListKey = key;
 
@@ -550,7 +550,9 @@ function updateRiderList(){
   others.forEach(o => {
     const opt = document.createElement('option');
     opt.value = o.id;
-    opt.textContent = o.dist == null ? o.name : `${o.name} (${(o.dist / 1609.34).toFixed(2)} mi)`;
+    // Status dot like the map: blue active, gray-ish white quiet (native <select> can't color options on iOS)
+    const label = (o.stale ? '⚪ ' : '🔵 ') + o.name;
+    opt.textContent = o.dist == null ? label : `${label} (${(o.dist / 1609.34).toFixed(2)} mi)`;
     sel.appendChild(opt);
   });
   if (current && positions[current]) sel.value = current;
@@ -783,6 +785,7 @@ function setRiderStale(id, stale){
   if (!riders[id] || id === me) return;
   riders[id].setIcon(riderIcon(stale, positions[id] && positions[id].leader, positions[id] && positions[id].name));
   riders[id].setPopupContent(riderPopup(id));
+  updateRiderList();
 }
 
 // Render loop: apply batched rider updates at most once a second, never while hidden
