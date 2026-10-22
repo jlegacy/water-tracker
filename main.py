@@ -184,17 +184,17 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
 const zoomCtl = L.control.zoom({position:'bottomright'}).addTo(map);
-zoomCtl.getContainer().addEventListener('click', () => setFollow(false));
+zoomCtl.getContainer().addEventListener('click', () => userMovedMap());
 
 // Enable two-finger spin
 if (map.touchRotate) map.touchRotate.enable();
 
 // Any user pan/zoom turns off follow-me (programmatic moves don't fire these)
-map.on('dragstart', () => setFollow(false));
+map.on('dragstart', () => userMovedMap());
 const mapEl = document.getElementById('map');
-mapEl.addEventListener('wheel', () => setFollow(false), {passive:true});
-mapEl.addEventListener('touchstart', e => { if (e.touches.length > 1) setFollow(false); }, {passive:true});
-mapEl.addEventListener('dblclick', () => setFollow(false));
+mapEl.addEventListener('wheel', () => userMovedMap(), {passive:true});
+mapEl.addEventListener('touchstart', e => { if (e.touches.length > 1) userMovedMap(); }, {passive:true});
+mapEl.addEventListener('dblclick', () => userMovedMap());
 
 const riders = {};
 const lastSeen = {};
@@ -240,6 +240,31 @@ const MIN_SPEED = 1;      // m/s; below this, hold the last heading
 
 // Follow-me: map tracks my position until the user drags/zooms
 let followMe = true;
+// Motion-aware follow: parked = free pan until Center/Re-center; moving = always follow
+// (a user pan while moving gets a short grace, then snaps back on the next fix).
+const MOVE_START_MS = 1.34;   // > ~3 mph counts as moving
+const MOVE_STOP_MS = 0.89;    // < ~2 mph counts as stopped
+const FOLLOW_GRACE_MS = 5000;
+let isMoving = false;
+let lastUserPanAt = 0;
+const motionFixes = [];       // recent {lat, lon, t, spd}
+function userMovedMap(){ lastUserPanAt = Date.now(); setFollow(false); }
+function updateMotion(lat, lon, speed){
+  const now = Date.now();
+  motionFixes.push({lat, lon, t: now, spd: (speed != null && speed >= 0 && isFinite(speed)) ? speed : null});
+  while (motionFixes.length > 6 || (motionFixes.length > 2 && now - motionFixes[0].t > 20000)) motionFixes.shift();
+  let v = null;
+  const gps = motionFixes.slice(-3).map(f => f.spd).filter(x => x != null);
+  if (gps.length) v = gps.reduce((a, b) => a + b, 0) / gps.length;
+  else if (motionFixes.length >= 2){
+    const a = motionFixes[0], b = motionFixes[motionFixes.length - 1];
+    const dt = (b.t - a.t) / 1000;
+    if (dt >= 1) v = haversine(a.lat, a.lon, b.lat, b.lon) / dt;
+  }
+  if (v == null) return;
+  if (!isMoving && v > MOVE_START_MS){ isMoving = true; setFollow(true); }
+  else if (isMoving && v < MOVE_STOP_MS){ isMoving = false; }
+}
 
 // Breadcrumb trail
 let breadcrumb = [];
@@ -399,6 +424,7 @@ function updateHeading(lat, lon, heading, speed){
 }
 
 function onFix(lat, lon, heading, speed){
+  updateMotion(lat, lon, speed);
   if (!isHidden()) updateHeading(lat, lon, heading, speed);
   updateMyMarker(lat, lon);
   if (!isHidden()) applyBearing();
@@ -466,7 +492,7 @@ function onRiderSelect(){
   setMsgControls(true);
   document.getElementById('findBtn').style.display = 'inline-block';
   if (id && positions[id]){
-    setFollow(false);
+    userMovedMap();
     map.panTo([positions[id].lat, positions[id].lon]);
   }
   if (findTarget && findTarget !== id) clearFindLine();
@@ -633,6 +659,7 @@ function renderMe(){
     riders[me].on('click', () => clearRiderSelection());
     rotateMe();
   }
+  if (isMoving && !followMe && Date.now() - lastUserPanAt >= FOLLOW_GRACE_MS) setFollow(true);
   if (followMe) map.panTo(myLatLng);
   rotateMe();
   updateFindLine();
