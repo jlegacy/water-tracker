@@ -7,7 +7,7 @@ app = FastAPI()
 groups = {}
 
 # Allowed group codes (first is default). Each code is its own isolated group.
-GROUP_CODES = ["ENCSR", "FSR", "NFSR", "GLSR", "GCJSR", "CTJSC", "SDXPR", "TCJP", "NGC"]
+GROUP_CODES = ["ENCSR", "FSR", "NFLSR", "GLSR", "GCJSR", "CTJSC", "SDXPR", "TCJP", "NGC"]
 
 INDEX_HTML = r"""<!DOCTYPE html>
 <html lang="en">
@@ -102,7 +102,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
   <select id="startGroup">
     <option value="ENCSR" title="ENCSR">ENCSR</option>
     <option value="FSR" title="Florida Ski Riders">FSR</option>
-    <option value="NFSR" title="North Florida Ski Riders">NFSR</option>
+    <option value="NFLSR" title="North Florida Ski Riders">NFLSR</option>
     <option value="GLSR" title="Great Lakes Ski Riders">GLSR</option>
     <option value="GCJSR" title="Gulf Coast Jet Ski Riders">GCJSR</option>
     <option value="CTJSC" title="Connecticut Jet Ski Club">CTJSC</option>
