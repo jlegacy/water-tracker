@@ -920,8 +920,10 @@ async function toggleRamps(){
   if (rampsLoading) return;
   const c = myLatLng || [map.getCenter().lat, map.getCenter().lng];
   rampsLoading = true; btn.textContent = 'Loading…'; btn.disabled = true;
+  const ctrl = new AbortController();
+  const rampTimer = setTimeout(() => ctrl.abort(), 20000);
   try {
-    const r = await fetch('/api/ramps?lat=' + c[0].toFixed(5) + '&lon=' + c[1].toFixed(5));
+    const r = await fetch('/api/ramps?lat=' + c[0].toFixed(5) + '&lon=' + c[1].toFixed(5), {signal: ctrl.signal});
     if (!r.ok) throw new Error('http ' + r.status);
     const data = await r.json();
     const items = data.results || [];
@@ -946,6 +948,7 @@ async function toggleRamps(){
   } catch (e) {
     rampToast("Couldn't reach map data, check cell signal");
   } finally {
+    clearTimeout(rampTimer);
     rampsLoading = false; btn.disabled = false; btn.textContent = rampsOn ? 'Hide Ramps' : 'Ramps';
   }
 }
