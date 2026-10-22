@@ -27,19 +27,15 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>This app needs your location to show your position on the water tracker map.</string>
+	<string>Water Tracker uses your location to show you and your group on the map.</string>
 	
-<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-<string>Needed to track your position on the water even when the app is in the background.</string>
-<key>NSLocationWhenInUseUsageDescription</key>
-<string>Needed to track your position on the water.</string>
 <key>UIBackgroundModes</key>
 <array>
   <string>location</string>
   <string>fetch</string>
 </array>
-<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>This app needs your location in the background to keep your position updated while tracking.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Water Tracker keeps sharing your position with your group while the app is in the background, so riders can find each other on the water.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
