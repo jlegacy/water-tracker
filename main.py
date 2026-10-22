@@ -236,6 +236,13 @@ function toggleHeadingMode(){
   applyBearing();
 }
 
+// Point the YOU triangle in the real direction of travel on screen
+function rotateMe(){
+  const el = document.querySelector('.me-arrow');
+  if (!el || lastHeading == null) return;
+  const b = map.getBearing ? map.getBearing() : 0;
+  el.style.transform = 'rotate(' + (lastHeading + b) + 'deg)';
+}
 function applyBearing(){
   if (!map.setBearing) return;
   if (headingMode === 'heading' && lastHeading != null){
@@ -244,6 +251,7 @@ function applyBearing(){
   } else {
     map.setBearing(0);
   }
+  rotateMe();
 }
 
 // Update lastHeading from a fix. heading in degrees (may be null/NaN), speed in m/s (may be null)
@@ -407,7 +415,7 @@ function updateMyMarker(lat, lon){
   } else {
     const icon = L.divIcon({
       className: '',
-      html: `<div style="
+      html: `<div class="me-arrow" style="width:22px;height:22px;transform-origin:50% 50%;"><div style="
         width:0;height:0;
         border-left:11px solid transparent;
         border-right:11px solid transparent;
@@ -429,13 +437,15 @@ function updateMyMarker(lat, lon){
           color:#fff;font-weight:900;font-size:8px;
           text-shadow:0 0 2px #000;
         ">YOU</div>
-      </div>`,
+      </div></div>`,
       iconSize:[22,22],
-      iconAnchor:[11,22]
+      iconAnchor:[11,11]
     });
     riders[me] = L.marker(myLatLng,{icon, zIndexOffset:2000}).addTo(map).bindPopup(myName + ' (you)');
+    rotateMe();
   }
   if (followMe) map.panTo(myLatLng);
+  rotateMe();
   updateFindLine();
   updateRiderList();
 }
