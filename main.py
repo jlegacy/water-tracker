@@ -959,15 +959,16 @@ def _overpass_fetch(lat, lon, radius_m):
     q = (f"[out:json][timeout:25];(nwr[leisure=slipway](around:{radius_m},{lat},{lon});"
          f"nwr[leisure=marina](around:{radius_m},{lat},{lon}););out center tags;")
     body = urllib.parse.urlencode({"data": q}).encode()
-    last = None
+    errs = []
     for url, tmo in OVERPASS_URLS:
         try:
-            req = urllib.request.Request(url, data=body, headers={"User-Agent": "WaterTracker/1.0 (github.com/jlegacy/water-tracker)"})
+            req = urllib.request.Request(url, data=body, headers={"User-Agent": "WaterTracker/1.0 (github.com/jlegacy/water-tracker)", "Accept": "application/json", "Content-Type": "application/x-www-form-urlencoded"})
             with urllib.request.urlopen(req, timeout=tmo) as r:
                 return json.loads(r.read().decode()).get("elements", [])
         except Exception as e:
-            last = e
-    raise RuntimeError(f"overpass failed: {last}")
+            errs.append(f"{url.split('/')[2]}: {type(e).__name__} {e}"[:200])
+    print("overpass failed:", errs, flush=True)
+    raise RuntimeError("; ".join(errs))
 
 @app.get("/api/ramps")
 async def api_ramps(lat: float, lon: float, radius_km: float = 40):
@@ -985,11 +986,12 @@ async def api_ramps(lat: float, lon: float, radius_km: float = 40):
         try:
             elements = await asyncio.to_thread(_overpass_fetch, clat, clon, int(radius_km * 1000))
             ramp_cache[key] = (now, elements)
-        except Exception:
+        except Exception as e:
+            last_err = str(e)
             if hit:
                 elements, stale = hit[1], True
             else:
-                return JSONResponse({"error": "Couldn't reach map data right now. Check cell signal and try again."}, status_code=503)
+                return JSONResponse({"error": "Couldn't reach map data right now. Check cell signal and try again.", "detail": last_err}, status_code=503)
     out, seen = [], set()
     for el in elements:
         t = el.get("tags", {})
