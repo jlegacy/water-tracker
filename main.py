@@ -463,10 +463,10 @@ function updateRiderList(){
     if (id === me) continue;
     const p = positions[id];
     const dist = myLatLng ? haversine(myLatLng[0], myLatLng[1], p.lat, p.lon) : null;
-    others.push({id, name: p.name, dist});
+    others.push({id, name: p.leader ? '★ ' + p.name + ' (Leader)' : p.name, dist});
   }
   others.sort((a,b) => (a.dist == null || b.dist == null) ? a.name.localeCompare(b.name) : a.dist - b.dist);
-  const key = others.map(o => o.id + ':' + (o.dist == null ? '-' : Math.round(o.dist))).join('|');
+  const key = (leader ? 'L|' : '') + others.map(o => o.id + ':' + o.name + ':' + (o.dist == null ? '-' : Math.round(o.dist))).join('|');
   if (key === lastListKey) return;
   lastListKey = key;
 
@@ -562,7 +562,8 @@ function connect(){
       type: 'join',
       id: me,
       name: myName,
-      code: myGroup
+      code: myGroup,
+      leader: leader
     }));
     lastSendAt = Date.now();
     // Keep-alive only when nothing else has been sent for a while; positions double as keep-alive
@@ -607,6 +608,12 @@ function connect(){
       if (positions[m.id]){ positions[m.id].stale = false; setRiderStale(m.id, false); }
       if (!isHidden()) status((m.name || 'Rider') + ' is back');
     }
+    else if (m.type === 'leader'){
+      if (m.id === me) return;
+      if (positions[m.id]){ positions[m.id].leader = !!m.on; setRiderStale(m.id, positions[m.id].stale); }
+      if (pendingRiders[m.id]) pendingRiders[m.id].leader = !!m.on;
+      lastListKey = ''; updateRiderList();
+    }
     else if (m.type === 'leave') remove(m.id);
     else if (m.type === 'msg'){
       const txt = (m.from || 'Someone') + ': ' + m.text;
@@ -635,7 +642,24 @@ function showAlert(text){
   if (navigator.vibrate) { try { navigator.vibrate([300, 150, 300]); } catch(e){} }
 }
 
-function riderIcon(stale){
+// Leader = purple dot (#8b5cf6) with dark outline and a star; stale leader stays grey
+// but keeps the purple outline + star so it is still identifiable
+function riderIcon(stale, isLeader){
+  if (isLeader){
+    return L.divIcon({
+      className: '',
+      html: `<div style="
+        width:20px;height:20px;border-radius:50%;
+        background:${stale ? '#9ca3af' : '#8b5cf6'};
+        opacity:${stale ? 0.75 : 1};
+        border:3px solid ${stale ? '#8b5cf6' : '#1e1b4b'};
+        box-shadow:0 0 6px rgba(0,0,0,.6);
+        color:#fff;font-size:12px;line-height:14px;text-align:center;font-weight:bold;
+      ">★</div>`,
+      iconSize:[26,26],
+      iconAnchor:[13,13]
+    });
+  }
   return L.divIcon({
     className: '',
     html: `<div style="
@@ -652,15 +676,16 @@ function riderIcon(stale){
 function riderPopup(id){
   const p = positions[id];
   if (!p) return '';
+  const nm = p.leader ? '★ ' + p.name + ' (Leader)' : p.name;
   if (p.stale) {
     const mins = Math.max(1, Math.round((Date.now() - (lastSeen[id] || Date.now())) / 60000));
-    return p.name + ' (last seen ' + mins + ' min ago)';
+    return nm + ' (last seen ' + mins + ' min ago)';
   }
-  return p.name;
+  return nm;
 }
 function setRiderStale(id, stale){
   if (!riders[id] || id === me) return;
-  riders[id].setIcon(riderIcon(stale));
+  riders[id].setIcon(riderIcon(stale, positions[id] && positions[id].leader));
   riders[id].setPopupContent(riderPopup(id));
 }
 
@@ -683,13 +708,15 @@ function upsert(r){
   lastSeen[r.id] = Date.now() - age;
   const stale = !!r.stale || age > STALE_MS;
   const wasStale = positions[r.id] && positions[r.id].stale;
-  positions[r.id] = {lat: r.lat, lon: r.lon, name, stale};
+  const wasLeader = positions[r.id] && positions[r.id].leader;
+  const isLeader = !!r.leader;
+  positions[r.id] = {lat: r.lat, lon: r.lon, name, stale, leader: isLeader};
   if (riders[r.id]){
     riders[r.id].setLatLng([r.lat, r.lon]);
-    if (wasStale !== stale) riders[r.id].setIcon(riderIcon(stale));
+    if (wasStale !== stale || wasLeader !== isLeader) riders[r.id].setIcon(riderIcon(stale, isLeader));
     riders[r.id].setPopupContent(riderPopup(r.id));
   } else {
-    riders[r.id] = L.marker([r.lat, r.lon],{icon: riderIcon(stale)}).addTo(map).bindPopup(riderPopup(r.id));
+    riders[r.id] = L.marker([r.lat, r.lon],{icon: riderIcon(stale, isLeader), zIndexOffset: isLeader ? 1000 : 0}).addTo(map).bindPopup(riderPopup(r.id));
   }
   if (findTarget === r.id) updateFindLine();
 }
@@ -750,6 +777,7 @@ function toggleLeader(){
   leader = !leader;
   localStorage.setItem('trackerLeader', leader ? '1' : '0');
   updateLeaderBtn();
+  if (ws && ws.readyState === 1 && joined) wsSend({type:'leader', on: leader}); // tell the group in real time
   if (leader) requestWakeLock(); else releaseWakeLock();
   if (leader && !isNativeApp()) status('Leader on (screen stays awake only in the app)');
 }
@@ -923,10 +951,11 @@ async def ws_endpoint(ws: WebSocket):
             groups[code] = {}
         prev = groups[code].get(rider_id)
         if prev:  # rejoin after a drop: keep last known position
-            prev.update({"name": name, "ws": ws})
+            prev.update({"name": name, "ws": ws, "leader": bool(msg.get("leader"))})
         else:
             groups[code][rider_id] = {"name": name, "lat": None, "lon": None, "ts": None,
-                                      "updated": time.time(), "ws": ws, "stale": False}
+                                      "updated": time.time(), "ws": ws, "stale": False,
+                                      "leader": bool(msg.get("leader"))}
         await ws.send_text(json.dumps({"type": "joined", "id": rider_id, "code": code}))
         await broadcast(code, {"type": "riders", "riders": public_list(code)})
 
@@ -953,7 +982,12 @@ async def ws_endpoint(ws: WebSocket):
                     if changed:
                         await broadcast(code, {"type": "pos", "id": rider_id,
                                         "name": r["name"], "lat": r["lat"], "lon": r["lon"],
-                                        "ts": r.get("ts")})
+                                        "ts": r.get("ts"), "leader": bool(r.get("leader"))})
+            elif t == "leader":
+                if rider_id in g:
+                    g[rider_id]["leader"] = bool(msg.get("on"))
+                    await broadcast(code, {"type": "leader", "id": rider_id,
+                                           "on": g[rider_id]["leader"]})
             elif t == "ping":
                 await ws.send_text(json.dumps({"type": "pong"}))
             elif t == "sync":
@@ -1017,7 +1051,7 @@ def public_list(code):
             continue
         out.append({"id": rid, "name": r["name"], "lat": r["lat"],
                     "lon": r["lon"], "age": round(now - r["updated"], 1),
-                    "stale": bool(r.get("stale"))})
+                    "stale": bool(r.get("stale")), "leader": bool(r.get("leader"))})
     return out
 
 async def broadcast(code, msg):
