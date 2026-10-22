@@ -227,7 +227,7 @@ let renderDirty = false;
 const STALE_MS = 90000;          // grey out riders silent this long
 const REMOVE_MS = 30 * 60000;    // forget riders silent for 30 min
 function isHidden(){ return document.visibilityState === 'hidden'; }
-let lastListKey = '';
+let lastListKey = null;
 let findTarget = null;
 let findLine = null;
 
@@ -635,8 +635,10 @@ function connect(){
   if (ws && (ws.readyState === 0 || ws.readyState === 1)) return;
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   joined = false;
-  ws = new WebSocket(proto + '://' + location.host + '/ws');
+  const sock = new WebSocket(proto + '://' + location.host + '/ws');
+  ws = sock;
   ws.onopen = () => {
+    if (ws !== sock){ try { sock.close(); } catch(e){} return; } // superseded by a group switch
     status('Connected');
     ws.send(JSON.stringify({
       type: 'join',
@@ -653,6 +655,7 @@ function connect(){
     }, 5000);
   };
   ws.onmessage = (ev) => {
+    if (ws !== sock) return; // stale socket from the previous group
     const m = JSON.parse(ev.data);
     if (m.type === 'joined'){
       joined = true;
@@ -699,7 +702,7 @@ function connect(){
       if (m.id === me) return;
       if (positions[m.id]){ positions[m.id].leader = !!m.on; setRiderStale(m.id, positions[m.id].stale); }
       if (pendingRiders[m.id]) pendingRiders[m.id].leader = !!m.on;
-      lastListKey = ''; updateRiderList();
+      lastListKey = null; updateRiderList();
     }
     else if (m.type === 'leave') remove(m.id);
     else if (m.type === 'msg'){
@@ -708,6 +711,7 @@ function connect(){
     }
   };
   ws.onclose = () => {
+    if (ws !== sock) return;
     joined = false;
     if (pingTimer) clearInterval(pingTimer);
     if (sharing) scheduleReconnect();
@@ -841,7 +845,7 @@ function remove(id){
   }
   delete pendingRiders[id];
   if (findTarget === id) clearFindLine();
-  lastListKey = '';
+  lastListKey = null;
   updateRiderList();
 }
 
@@ -991,7 +995,7 @@ function resetGroupState(){
   clearFindLine(); clearRampRoute();
   const sel = document.getElementById('riderList');
   sel.value = '';
-  lastListKey = ''; updateRiderList(); clearRiderSelection();
+  lastListKey = null; updateRiderList(); clearRiderSelection();
   const b = document.getElementById('banner');
   if (bannerTimer){ clearTimeout(bannerTimer); bannerTimer = null; }
   b.style.display = 'none'; b.classList.remove('alert');
