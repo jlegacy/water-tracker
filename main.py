@@ -68,7 +68,6 @@ INDEX_HTML = r"""<!DOCTYPE html>
   #bar button.center{background:#3b82f6}
   #bar button.find{background:#f59e0b}
   #bar button.msg{background:#8b5cf6}
-  #bar button.broadcast{background:#ec4899}
   #bar button.ramps{background:#0891b2}
   #bar button.ramps.on{background:#0e7490;box-shadow:inset 0 0 0 2px #67e8f9}
   .rampIcon{display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;background:#fff;border:2px solid #0891b2;font-size:15px;box-shadow:0 1px 3px rgba(0,0,0,.4)}
@@ -149,9 +148,8 @@ INDEX_HTML = r"""<!DOCTYPE html>
     <button id="leaderBtn" class="leader" onclick="toggleLeader()">Leader</button>
   </div>
   <div class="row" id="msgBox">
-    <input id="msgText" placeholder="Message...">
+    <input id="msgText" placeholder="Message everyone">
     <button class="msg" onclick="sendMessage()">Send</button>
-    <button class="broadcast" onclick="broadcastMessage()">All</button>
     <button id="rampsBtn" class="ramps" onclick="toggleRamps()">Ramps</button>
   </div>
 </div>
@@ -438,6 +436,7 @@ function clearRiderSelection(){
   const hasOthers = Object.keys(positions).some(k => k !== me);
   document.getElementById('msgBox').style.display = hasOthers ? 'flex' : 'none';
   for (const k in riders){ if (k !== me && riders[k].closePopup) riders[k].closePopup(); }
+  updateMsgPlaceholder();
 }
 
 function onRiderSelect(){
@@ -452,6 +451,7 @@ function onRiderSelect(){
   }
   if (findTarget && findTarget !== id) clearFindLine();
   clearRampRoute();
+  updateMsgPlaceholder();
 }
 
 function toggleFind(){
@@ -481,11 +481,20 @@ function updateFindLine(){
   }
 }
 
+function updateMsgPlaceholder(){
+  const sel = document.getElementById('riderList');
+  const box = document.getElementById('msgText');
+  if (!sel || !box) return;
+  const id = sel.value;
+  box.placeholder = (id && positions[id]) ? 'Message ' + positions[id].name : 'Message everyone';
+}
+
 function sendMessage(){
   const sel = document.getElementById('riderList');
   const to = sel.value;
   const text = document.getElementById('msgText').value.trim();
-  if (!to || !text) return;
+  if (!to){ broadcastMessage(); return; }
+  if (!text) return;
   if (ws && ws.readyState === 1){
     ws.send(JSON.stringify({type:'msg', to:to, text:text}));
     document.getElementById('msgText').value = '';
@@ -537,6 +546,7 @@ function updateRiderList(){
   if (current && positions[current]) sel.value = current;
   document.getElementById('msgBox').style.display = others.length ? 'flex' : 'none';
   document.getElementById('findBtn').style.display = (sel.value && others.length) ? 'inline-block' : 'none';
+  updateMsgPlaceholder();
 }
 
 function updateMyMarker(lat, lon){
