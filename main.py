@@ -166,7 +166,7 @@ let findTarget = null;
 let findLine = null;
 
 // Map orientation: 'north' (default) or 'heading'
-let headingMode = localStorage.getItem('headingMode') === 'heading' ? 'heading' : 'north';
+let headingMode = 'north'; // always start north-up on load
 let lastHeading = null;   // last good course in degrees (0 = north)
 let lastFix = null;       // previous fix, used to compute course when GPS gives none
 const MIN_SPEED = 1;      // m/s; below this, hold the last heading
@@ -232,7 +232,6 @@ function updateHeadingBtn(){
 
 function toggleHeadingMode(){
   headingMode = headingMode === 'heading' ? 'north' : 'heading';
-  localStorage.setItem('headingMode', headingMode);
   updateHeadingBtn();
   applyBearing();
 }
