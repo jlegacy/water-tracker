@@ -1,4 +1,4 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.responses import HTMLResponse, FileResponse
 import json, time, uuid, secrets, pathlib, asyncio, os
 
@@ -829,6 +829,7 @@ function remove(id){
     delete lastSeen[id];
     delete positions[id];
   }
+  delete pendingRiders[id];
   if (findTarget === id) clearFindLine();
   lastListKey = '';
   updateRiderList();
@@ -897,6 +898,25 @@ document.addEventListener('visibilitychange', () => {
 // Screen wake lock: only for the group leader, and only inside the native app
 let leader = localStorage.getItem('trackerLeader') === '1';
 let wakeLock = null;
+// Closing the tab is a real leave: tell the server so the group drops us at once
+// (no ghost rider, no false 'gone quiet'). Hiding/app-switching/screen lock is NOT a leave.
+let leftPage = false;
+function leaveOnClose(){
+  if (!sharing || leftPage || isNativeApp()) return;
+  leftPage = true;
+  try { if (ws && ws.readyState === 1) ws.send(JSON.stringify({type:'leave'})); } catch(e){}
+  try {
+    if (navigator.sendBeacon && myGroup) navigator.sendBeacon('/api/leave',
+      new Blob([JSON.stringify({group: myGroup, id: me})], {type:'application/json'}));
+  } catch(e){}
+}
+window.addEventListener('beforeunload', leaveOnClose);
+window.addEventListener('pagehide', (e) => { if (!e.persisted) leaveOnClose(); });
+window.addEventListener('pageshow', (e) => {
+  // Restored from back/forward cache after leaving: rejoin
+  if (e.persisted && leftPage && sharing){ leftPage = false; try { if (ws) ws.close(); } catch(_){} ws = null; connect(); }
+});
+
 function isNativeApp(){ return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()); }
 function updateLeaderBtn(){
   const b = document.getElementById('leaderBtn');
@@ -1115,6 +1135,26 @@ def _in_nc(lat, lon):
     s, w, n, e = NC_BBOX
     return s <= lat <= n and w <= lon <= e
 
+@app.post("/api/leave")
+async def api_leave(request: Request):
+    # sendBeacon backup for a closing tab: remove only this rider id in this group
+    try:
+        data = json.loads(await request.body() or b"{}")
+    except Exception:
+        return {"ok": False}
+    if not isinstance(data, dict):
+        return {"ok": False}
+    code = GROUP_BY_UPPER.get(" ".join(str(data.get("group") or "").split()).upper())
+    rid = str(data.get("id") or "")
+    g = groups.get(code) if code else None
+    if not g or rid not in g:
+        return {"ok": False}
+    g.pop(rid, None)
+    await broadcast(code, {"type": "leave", "id": rid})
+    if not g:
+        groups.pop(code, None)
+    return {"ok": True}
+
 @app.get("/api/ramps")
 async def api_ramps(lat: float, lon: float, radius_km: float = 40):
     if not (-90 <= lat <= 90 and -180 <= lon <= 180):
@@ -1277,6 +1317,11 @@ async def ws_endpoint(ws: WebSocket):
             raw = await ws.receive_text()
             msg = json.loads(raw)
             t = msg.get("type")
+            if t != "leave" and rider_id and rider_id not in groups.get(code, {}):
+                # Removed by a /api/leave beacon while this socket is still alive
+                # (e.g. same rider open in another tab): put the rider back.
+                groups.setdefault(code, {})[rider_id] = {"name": name, "lat": None, "lon": None,
+                    "ts": None, "updated": time.time(), "ws": ws, "stale": False, "leader": False}
             g = groups.get(code, {})
             if rider_id in g:
                 g[rider_id]["updated"] = time.time()  # any message counts as keep-alive
