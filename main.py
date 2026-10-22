@@ -402,11 +402,24 @@ function wsSend(obj){
 }
 let joined = false;
 
+// Selecting yourself ("me": the blank -- Riders -- entry or your own YOU marker)
+// clears any selected rider: dropdown value, Find target/line, open rider popup.
+function clearRiderSelection(){
+  const sel = document.getElementById('riderList');
+  if (sel) sel.value = '';
+  if (findTarget) clearFindLine();
+  document.getElementById('findBtn').style.display = 'none';
+  const hasOthers = Object.keys(positions).some(k => k !== me);
+  document.getElementById('msgBox').style.display = hasOthers ? 'flex' : 'none';
+  for (const k in riders){ if (k !== me && riders[k].closePopup) riders[k].closePopup(); }
+}
+
 function onRiderSelect(){
   const sel = document.getElementById('riderList');
   const id = sel.value;
-  document.getElementById('msgBox').style.display = id ? 'flex' : 'none';
-  document.getElementById('findBtn').style.display = id ? 'inline-block' : 'none';
+  if (!id){ clearRiderSelection(); return; }
+  document.getElementById('msgBox').style.display = 'flex';
+  document.getElementById('findBtn').style.display = 'inline-block';
   if (id && positions[id]){
     setFollow(false);
     map.panTo([positions[id].lat, positions[id].lon]);
@@ -557,6 +570,7 @@ function renderMe(){
       iconAnchor:[11,11]
     });
     riders[me] = L.marker(myLatLng,{icon, zIndexOffset:2000}).addTo(map).bindPopup(myName + ' (you)');
+    riders[me].on('click', () => clearRiderSelection());
     rotateMe();
   }
   if (followMe) map.panTo(myLatLng);
