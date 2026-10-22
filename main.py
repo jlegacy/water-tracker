@@ -995,7 +995,7 @@ async function toggleRamps(){
   const btn = document.getElementById('rampsBtn');
   if (rampsOn) {
     if (rampLayer) { map.removeLayer(rampLayer); rampLayer = null; }
-    clearRampRoute(); rampItems = []; if (findTarget) clearFindLine();
+    clearRampRoute(); rampItems = [];
     rampsOn = false; btn.classList.remove('on'); btn.textContent = 'Ramps';
     return;
   }
