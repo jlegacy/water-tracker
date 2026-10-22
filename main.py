@@ -16,7 +16,9 @@ app = FastAPI()
 groups = {}
 
 # Allowed group codes (first is default). Each code is its own isolated group.
-GROUP_CODES = ["ENCSR", "FLSR", "NFLSR", "GLSR", "GCJSR", "CTJSC", "SDXPR", "TCJP", "NGC", "GEN1", "GEN2", "GEN3", "GEN4", "GEN5"]
+GROUP_CODES = ["ENCSR", "FLSR", "NFLSR", "GLSR", "GCJSR", "CTJSC", "SDXPR", "TCJP", "NGC",
+               "Wake Me Up", "Spray & Pray", "Throttle Bottoms", "Salty Seadogs", "Wet Willies", "Full Send Fleet", "Buoy Band", "Rooster Tail Rebels"]
+GROUP_BY_UPPER = {c.upper(): c for c in GROUP_CODES}
 
 INDEX_HTML = r"""<!DOCTYPE html>
 <html lang="en">
@@ -124,11 +126,14 @@ INDEX_HTML = r"""<!DOCTYPE html>
     <option value="SDXPR" title="Sea-Doo XP Riders">SDXPR</option>
     <option value="TCJP" title="Twin Cities JetPilots">TCJP</option>
     <option value="NGC" title="Nauti Girl Crew - Jet Ski Group">NGC</option>
-    <option value="GEN1" title="Generic Channel 1">GEN1</option>
-    <option value="GEN2" title="Generic Channel 2">GEN2</option>
-    <option value="GEN3" title="Generic Channel 3">GEN3</option>
-    <option value="GEN4" title="Generic Channel 4">GEN4</option>
-    <option value="GEN5" title="Generic Channel 5">GEN5</option>
+    <option value="Wake Me Up">Wake Me Up</option>
+    <option value="Spray &amp; Pray">Spray &amp; Pray</option>
+    <option value="Throttle Bottoms">Throttle Bottoms</option>
+    <option value="Salty Seadogs">Salty Seadogs</option>
+    <option value="Wet Willies">Wet Willies</option>
+    <option value="Full Send Fleet">Full Send Fleet</option>
+    <option value="Buoy Band">Buoy Band</option>
+    <option value="Rooster Tail Rebels">Rooster Tail Rebels</option>
   </select>
   <div class="groupLabel">Your Name</div>
   <input id="startName" placeholder="Enter your name" autocomplete="off" autocorrect="off">
@@ -137,7 +142,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
 <div id="banner"></div>
 <div id="bar">
   <div class="row">
-    <input id="groupDisplay" value="ENCSR" readonly style="max-width:90px;text-align:center;font-weight:600">
+    <input id="groupDisplay" value="ENCSR" readonly style="max-width:140px;text-align:center;font-weight:600">
     <button class="center" onclick="centerOnMe()">Center</button>
     <select id="riderList" onchange="onRiderSelect()">
       <option value="">-- Riders --</option>
@@ -954,8 +959,8 @@ async def ws_endpoint(ws: WebSocket):
             return
         rider_id = msg.get("id") or str(uuid.uuid4())[:8]
         name = (msg.get("name") or "Rider").strip()[:20] or "Rider"
-        code = (msg.get("code") or "ENCSR").strip().upper()
-        if code not in GROUP_CODES:
+        code = GROUP_BY_UPPER.get(" ".join((msg.get("code") or "ENCSR").split()).upper())
+        if not code:
             await ws.send_text(json.dumps({"type": "error", "msg": "Unknown group"}))
             await ws.close()
             return
