@@ -17,7 +17,7 @@ groups = {}
 
 # Allowed group codes (first is default). Each code is its own isolated group.
 GROUP_CODES = ["ENCSR", "FLSR", "NFLSR", "GLSR", "GCJSR", "CTJSC", "SDXPR", "TCJP", "NGC",
-               "Wake Me Up", "Spray & Pray", "Throttle Bottoms", "Salty Seadogs", "Wet Willies", "Full Send Fleet", "Buoy Band", "Rooster Tail Rebels"]
+               "Wake Me Up", "Spray & Pray", "Throttle Bottoms", "Salty Seadogs", "Wet Willies", "Full Send Fleet", "Buoy Band", "Rooster Tail Rebels", "JetRider Nation"]
 GROUP_BY_UPPER = {c.upper(): c for c in GROUP_CODES}
 
 INDEX_HTML = r"""<!DOCTYPE html>
@@ -134,6 +134,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
     <option value="Full Send Fleet">Full Send Fleet</option>
     <option value="Buoy Band">Buoy Band</option>
     <option value="Rooster Tail Rebels">Rooster Tail Rebels</option>
+    <option value="JetRider Nation">JetRider Nation</option>
   </select>
   <div class="groupLabel">Your Name</div>
   <input id="startName" placeholder="Enter your name" autocomplete="off" autocorrect="off">
