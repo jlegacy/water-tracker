@@ -748,9 +748,26 @@ function riderPopup(id){
   const nm = p.leader ? '★ ' + p.name + ' (Leader)' : p.name;
   if (p.stale) {
     const mins = Math.max(1, Math.round((Date.now() - (lastSeen[id] || Date.now())) / 60000));
-    return nm + ' (last seen ' + mins + ' min ago)';
+    return nm + ' (last seen ' + mins + ' min ago)' + riderRouteLink(id);
   }
-  return nm;
+  return nm + riderRouteLink(id);
+}
+function riderRouteLink(id){
+  if (id === me) return '';
+  const safe = String(id).replace(/[^A-Za-z0-9_-]/g, c => '&#' + c.charCodeAt(0) + ';');
+  return '<br><a href="#" data-rid="' + safe + '" onclick="toggleRiderRoute(this.dataset.rid);return false;">'
+    + (findTarget === id ? 'Clear route' : 'Route') + '</a>';
+}
+// Route to a rider from their popup: select them and reuse the Find line.
+function toggleRiderRoute(id){
+  if (findTarget === id){ clearFindLine(); map.closePopup(); return; }
+  if (!positions[id]) return;
+  if (!myLatLng){ status('Waiting for your location'); return; }
+  selectRiderFromMap(id);
+  const sel = document.getElementById('riderList');
+  if (!sel || sel.value !== id) return;
+  if (findTarget !== id) toggleFind();
+  map.closePopup();
 }
 function setRiderStale(id, stale){
   if (!riders[id] || id === me) return;
@@ -789,6 +806,7 @@ function upsert(r){
     riders[r.id] = L.marker([r.lat, r.lon],{icon: riderIcon(stale, isLeader, name), zIndexOffset: isLeader ? 1000 : 0}).addTo(map).bindPopup(riderPopup(r.id));
     const rid = r.id;
     riders[rid].on('click', () => selectRiderFromMap(rid));
+    riders[rid].on('popupopen', () => riders[rid].setPopupContent(riderPopup(rid)));
   }
   if (findTarget === r.id) updateFindLine();
 }
@@ -977,7 +995,7 @@ async function toggleRamps(){
   const btn = document.getElementById('rampsBtn');
   if (rampsOn) {
     if (rampLayer) { map.removeLayer(rampLayer); rampLayer = null; }
-    clearRampRoute(); rampItems = [];
+    clearRampRoute(); rampItems = []; if (findTarget) clearFindLine();
     rampsOn = false; btn.classList.remove('on'); btn.textContent = 'Ramps';
     return;
   }
