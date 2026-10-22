@@ -69,6 +69,11 @@ INDEX_HTML = r"""<!DOCTYPE html>
   #bar button.find{background:#f59e0b}
   #bar button.msg{background:#8b5cf6}
   #bar button.broadcast{background:#ec4899}
+  #bar button.ramps{background:#0891b2}
+  #bar button.ramps.on{background:#0e7490;box-shadow:inset 0 0 0 2px #67e8f9}
+  .rampIcon{display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;background:#fff;border:2px solid #0891b2;font-size:15px;box-shadow:0 1px 3px rgba(0,0,0,.4)}
+  .rampIcon.marina{border-color:#1e3a8a;border-radius:50%}
+  #rampToast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:rgba(15,32,56,.95);color:#fff;padding:8px 14px;border-radius:8px;font-size:14px;z-index:2000;display:none;max-width:85%;text-align:center}
   #status{
     position:absolute;bottom:8px;left:8px;right:8px;z-index:1000;
     padding:6px 10px;border-radius:8px;background:rgba(11,29,51,.9);
@@ -147,10 +152,12 @@ INDEX_HTML = r"""<!DOCTYPE html>
     <input id="msgText" placeholder="Message...">
     <button class="msg" onclick="sendMessage()">Send</button>
     <button class="broadcast" onclick="broadcastMessage()">All</button>
+    <button id="rampsBtn" class="ramps" onclick="toggleRamps()">Ramps</button>
   </div>
 </div>
 <div id="map"></div>
 <div id="status"></div>
+<div id="rampToast"></div>
 <button id="headingBtn" class="mapBtn" onclick="toggleHeadingMode()">North Up</button>
 <button id="recenterBtn" class="mapBtn" onclick="recenter()">Re-center</button>
 <script>
@@ -165,7 +172,7 @@ const map = L.map('map', {
 }).setView([35.5,-77.0], 12);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 19,
-  attribution: '&copy; OpenStreetMap'
+  attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
 const zoomCtl = L.control.zoom({position:'bottomright'}).addTo(map);
 zoomCtl.getContainer().addEventListener('click', () => setFollow(false));
@@ -870,9 +877,136 @@ function startApp(){
   }
 }
 
+
+// ---- Boat ramps & marinas (OpenStreetMap via server /api/ramps) ----
+let rampLayer = null, rampsOn = false, rampsLoading = false, rampToastTimer = null;
+function rampToast(t){
+  const el = document.getElementById('rampToast');
+  el.textContent = t; el.style.display = 'block';
+  clearTimeout(rampToastTimer); rampToastTimer = setTimeout(() => el.style.display = 'none', 4000);
+}
+function rampEsc(t){ return String(t).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function rampMiles(a, b, c, d){
+  const R = 3958.8, r = x => x * Math.PI / 180;
+  const h = Math.sin(r(c-a)/2)**2 + Math.cos(r(a))*Math.cos(r(c))*Math.sin(r(d-b)/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+function rampDirUrl(lat, lon){
+  const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  return ios ? ('https://maps.apple.com/?daddr=' + lat + ',' + lon)
+             : ('https://www.google.com/maps/dir/?api=1&destination=' + lat + ',' + lon);
+}
+async function toggleRamps(){
+  const btn = document.getElementById('rampsBtn');
+  if (rampsOn) {
+    if (rampLayer) { map.removeLayer(rampLayer); rampLayer = null; }
+    rampsOn = false; btn.classList.remove('on'); btn.textContent = 'Ramps';
+    return;
+  }
+  if (rampsLoading) return;
+  const c = myLatLng || [map.getCenter().lat, map.getCenter().lng];
+  rampsLoading = true; btn.textContent = 'Loading…'; btn.disabled = true;
+  try {
+    const r = await fetch('/api/ramps?lat=' + c[0].toFixed(5) + '&lon=' + c[1].toFixed(5));
+    if (!r.ok) throw new Error('http ' + r.status);
+    const data = await r.json();
+    const items = data.results || [];
+    if (!items.length) { rampToast('No ramps or marinas found nearby'); return; }
+    rampLayer = L.layerGroup();
+    items.forEach(it => {
+      const marina = it.type === 'marina';
+      const icon = L.divIcon({className:'', html:'<div class="rampIcon' + (marina ? ' marina' : '') + '">' + (marina ? '⚓' : '🚤') + '</div>', iconSize:[26,26], iconAnchor:[13,13]});
+      const m = L.marker([it.lat, it.lon], {icon, zIndexOffset:-500});
+      m.bindPopup(() => {
+        const from = myLatLng || c;
+        const mi = rampMiles(from[0], from[1], it.lat, it.lon);
+        return '<b>' + rampEsc(it.name) + '</b><br>' + (marina ? 'Marina' : 'Boat ramp') + ' · ' + mi.toFixed(1) + ' mi ' + (myLatLng ? 'from you' : 'away') +
+          '<br><a href="' + rampDirUrl(it.lat, it.lon) + '" target="_blank" rel="noopener">Directions</a>' +
+          '<br><small>© OpenStreetMap contributors</small>';
+      });
+      rampLayer.addLayer(m);
+    });
+    rampLayer.addTo(map);
+    rampsOn = true; btn.classList.add('on');
+    rampToast(items.length + ' ramps/marinas nearby · © OpenStreetMap contributors');
+  } catch (e) {
+    rampToast("Couldn't reach map data, check cell signal");
+  } finally {
+    rampsLoading = false; btn.disabled = false; btn.textContent = rampsOn ? 'Hide Ramps' : 'Ramps';
+  }
+}
 </script>
 </body>
 </html>"""
+
+# ---- Boat ramps & marinas (OpenStreetMap / Overpass) ----
+import math, urllib.request, urllib.parse
+from fastapi.responses import JSONResponse
+OVERPASS_URLS = [
+    ("https://overpass-api.de/api/interpreter", 25),
+    ("https://overpass.kumi.systems/api/interpreter", 15),
+    ("https://maps.mail.ru/osm/tools/overpass/api/interpreter", 15),
+]
+RAMP_CACHE_SECS = 24 * 3600
+ramp_cache = {}  # key -> (timestamp, raw elements)
+
+def _miles(a, b, c, d):
+    r = math.radians
+    h = math.sin(r(c - a) / 2) ** 2 + math.cos(r(a)) * math.cos(r(c)) * math.sin(r(d - b) / 2) ** 2
+    return 2 * 3958.8 * math.asin(math.sqrt(h))
+
+def _overpass_fetch(lat, lon, radius_m):
+    q = (f"[out:json][timeout:25];(nwr[leisure=slipway](around:{radius_m},{lat},{lon});"
+         f"nwr[leisure=marina](around:{radius_m},{lat},{lon}););out center tags;")
+    body = urllib.parse.urlencode({"data": q}).encode()
+    last = None
+    for url, tmo in OVERPASS_URLS:
+        try:
+            req = urllib.request.Request(url, data=body, headers={"User-Agent": "WaterTracker/1.0 (github.com/jlegacy/water-tracker)"})
+            with urllib.request.urlopen(req, timeout=tmo) as r:
+                return json.loads(r.read().decode()).get("elements", [])
+        except Exception as e:
+            last = e
+    raise RuntimeError(f"overpass failed: {last}")
+
+@app.get("/api/ramps")
+async def api_ramps(lat: float, lon: float, radius_km: float = 40):
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        return JSONResponse({"error": "bad coordinates"}, status_code=400)
+    radius_km = max(1.0, min(float(radius_km), 80.0))
+    clat, clon = round(lat, 1), round(lon, 1)
+    key = (clat, clon, round(radius_km))
+    now = time.time()
+    hit = ramp_cache.get(key)
+    stale = False
+    if hit and now - hit[0] < RAMP_CACHE_SECS:
+        elements = hit[1]
+    else:
+        try:
+            elements = await asyncio.to_thread(_overpass_fetch, clat, clon, int(radius_km * 1000))
+            ramp_cache[key] = (now, elements)
+        except Exception:
+            if hit:
+                elements, stale = hit[1], True
+            else:
+                return JSONResponse({"error": "Couldn't reach map data right now. Check cell signal and try again."}, status_code=503)
+    out, seen = [], set()
+    for el in elements:
+        t = el.get("tags", {})
+        elat = el.get("lat", (el.get("center") or {}).get("lat"))
+        elon = el.get("lon", (el.get("center") or {}).get("lon"))
+        if elat is None or elon is None:
+            continue
+        kind = "marina" if t.get("leisure") == "marina" else "ramp"
+        k = (el.get("type"), el.get("id"))
+        if k in seen:
+            continue
+        seen.add(k)
+        out.append({"type": kind, "name": t.get("name") or ("Marina" if kind == "marina" else "Boat ramp"),
+                    "lat": elat, "lon": elon, "distance_mi": round(_miles(lat, lon, elat, elon), 1)})
+    out.sort(key=lambda x: x["distance_mi"])
+    return {"results": out[:100], "count": min(len(out), 100), "stale": stale,
+            "attribution": "© OpenStreetMap contributors"}
 
 @app.get("/")
 async def index():
