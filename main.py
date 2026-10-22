@@ -664,33 +664,34 @@ function showAlert(text){
 
 // Leader = purple dot (#8b5cf6) with dark outline and a star; stale leader stays grey
 // but keeps the purple outline + star so it is still identifiable
-function riderIcon(stale, isLeader){
-  if (isLeader){
-    return L.divIcon({
-      className: '',
-      html: `<div style="
-        width:20px;height:20px;border-radius:50%;
-        background:${stale ? '#9ca3af' : '#8b5cf6'};
-        opacity:${stale ? 0.75 : 1};
-        border:3px solid ${stale ? '#8b5cf6' : '#1e1b4b'};
-        box-shadow:0 0 6px rgba(0,0,0,.6);
-        color:#fff;font-size:12px;line-height:14px;text-align:center;font-weight:bold;
-      ">★</div>`,
-      iconSize:[26,26],
-      iconAnchor:[13,13]
-    });
-  }
+function riderInitial(name){
+  const c = String(name || '').trim().charAt(0);
+  return c ? c.toUpperCase() : '?';
+}
+function escHtml(t){
+  return String(t).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+function riderIcon(stale, isLeader, name){
+  const bg = isLeader ? (stale ? '#9ca3af' : '#8b5cf6') : (stale ? '#9ca3af' : '#4aa3ff');
+  const op = stale ? (isLeader ? 0.8 : 0.6) : 1;
+  const border = isLeader ? `3px solid ${stale ? '#8b5cf6' : '#1e1b4b'}` : '2px solid #fff';
+  const badge = isLeader ? `<div style="
+      position:absolute;top:-6px;right:-6px;width:14px;height:14px;border-radius:50%;
+      background:#fbbf24;border:1px solid #fff;color:#fff;font-size:10px;line-height:14px;
+      text-align:center;box-shadow:0 0 3px rgba(0,0,0,.5);">★</div>` : '';
   return L.divIcon({
     className: '',
-    html: `<div style="
-      width:16px;height:16px;border-radius:50%;
-      background:${stale ? '#9ca3af' : '#4aa3ff'};
-      opacity:${stale ? 0.6 : 1};
-      border:2px solid #fff;
-      box-shadow:0 0 4px rgba(0,0,0,.5);
-    "></div>`,
-    iconSize:[16,16],
-    iconAnchor:[8,8]
+    html: `<div style="position:relative;width:28px;height:28px;">
+      <div style="
+        box-sizing:border-box;width:28px;height:28px;border-radius:50%;
+        background:${bg};opacity:${op};border:${border};
+        box-shadow:0 1px 4px rgba(0,0,0,.45);
+        color:#fff;font:bold 14px/1 -apple-system,system-ui,sans-serif;
+        display:flex;align-items:center;justify-content:center;
+      ">${escHtml(riderInitial(name))}</div>${badge}</div>`,
+    iconSize:[28,28],
+    iconAnchor:[14,14],
+    popupAnchor:[0,-14]
   });
 }
 function riderPopup(id){
@@ -705,7 +706,7 @@ function riderPopup(id){
 }
 function setRiderStale(id, stale){
   if (!riders[id] || id === me) return;
-  riders[id].setIcon(riderIcon(stale, positions[id] && positions[id].leader));
+  riders[id].setIcon(riderIcon(stale, positions[id] && positions[id].leader, positions[id] && positions[id].name));
   riders[id].setPopupContent(riderPopup(id));
 }
 
@@ -729,14 +730,15 @@ function upsert(r){
   const stale = !!r.stale || age > STALE_MS;
   const wasStale = positions[r.id] && positions[r.id].stale;
   const wasLeader = positions[r.id] && positions[r.id].leader;
+  const wasName = positions[r.id] && positions[r.id].name;
   const isLeader = !!r.leader;
   positions[r.id] = {lat: r.lat, lon: r.lon, name, stale, leader: isLeader};
   if (riders[r.id]){
     riders[r.id].setLatLng([r.lat, r.lon]);
-    if (wasStale !== stale || wasLeader !== isLeader) riders[r.id].setIcon(riderIcon(stale, isLeader));
+    if (wasStale !== stale || wasLeader !== isLeader || wasName !== name) riders[r.id].setIcon(riderIcon(stale, isLeader, name));
     riders[r.id].setPopupContent(riderPopup(r.id));
   } else {
-    riders[r.id] = L.marker([r.lat, r.lon],{icon: riderIcon(stale, isLeader), zIndexOffset: isLeader ? 1000 : 0}).addTo(map).bindPopup(riderPopup(r.id));
+    riders[r.id] = L.marker([r.lat, r.lon],{icon: riderIcon(stale, isLeader, name), zIndexOffset: isLeader ? 1000 : 0}).addTo(map).bindPopup(riderPopup(r.id));
     const rid = r.id;
     riders[rid].on('click', () => selectRiderFromMap(rid));
   }
