@@ -17,7 +17,7 @@ groups = {}
 
 # Allowed group codes (first is default). Each code is its own isolated group.
 GROUP_CODES = ["ENCSR", "FLSR", "NFLSR", "GLSR", "GCJSR", "CTJSC", "SDXPR", "TCJP", "NGC",
-               "Wake Me Up", "Spray & Pray", "Throttle Bottoms", "Salty Seadogs", "Wet Willies", "Full Send Fleet", "Buoy Band", "Rooster Tail Rebels", "JetRider Nation"]
+               "Wake Me Up", "Spray & Pray", "Throttle Bottoms", "Salty Seadogs", "JetRider Nation", "Wet Willies", "Full Send Fleet", "Buoy Band", "Rooster Tail Rebels"]
 GROUP_BY_UPPER = {c.upper(): c for c in GROUP_CODES}
 
 INDEX_HTML = r"""<!DOCTYPE html>
@@ -117,24 +117,24 @@ INDEX_HTML = r"""<!DOCTYPE html>
   <div class="groupLabel">Group</div>
   <select id="startGroup" required>
     <option value="" disabled selected>-- Select your group --</option>
+    <option value="Buoy Band">Buoy Band</option>
+    <option value="CTJSC" title="Connecticut Jet Ski Club">CTJSC</option>
     <option value="ENCSR" title="ENCSR">ENCSR</option>
     <option value="FLSR" title="Florida Ski Riders">FLSR</option>
-    <option value="NFLSR" title="North Florida Ski Riders">NFLSR</option>
-    <option value="GLSR" title="Great Lakes Ski Riders">GLSR</option>
-    <option value="GCJSR" title="Gulf Coast Jet Ski Riders">GCJSR</option>
-    <option value="CTJSC" title="Connecticut Jet Ski Club">CTJSC</option>
-    <option value="SDXPR" title="Sea-Doo XP Riders">SDXPR</option>
-    <option value="TCJP" title="Twin Cities JetPilots">TCJP</option>
-    <option value="NGC" title="Nauti Girl Crew - Jet Ski Group">NGC</option>
-    <option value="Wake Me Up">Wake Me Up</option>
-    <option value="Spray &amp; Pray">Spray &amp; Pray</option>
-    <option value="Throttle Bottoms">Throttle Bottoms</option>
-    <option value="Salty Seadogs">Salty Seadogs</option>
-    <option value="Wet Willies">Wet Willies</option>
     <option value="Full Send Fleet">Full Send Fleet</option>
-    <option value="Buoy Band">Buoy Band</option>
-    <option value="Rooster Tail Rebels">Rooster Tail Rebels</option>
+    <option value="GCJSR" title="Gulf Coast Jet Ski Riders">GCJSR</option>
+    <option value="GLSR" title="Great Lakes Ski Riders">GLSR</option>
     <option value="JetRider Nation">JetRider Nation</option>
+    <option value="NFLSR" title="North Florida Ski Riders">NFLSR</option>
+    <option value="NGC" title="Nauti Girl Crew - Jet Ski Group">NGC</option>
+    <option value="Rooster Tail Rebels">Rooster Tail Rebels</option>
+    <option value="Salty Seadogs">Salty Seadogs</option>
+    <option value="SDXPR" title="Sea-Doo XP Riders">SDXPR</option>
+    <option value="Spray &amp; Pray">Spray &amp; Pray</option>
+    <option value="TCJP" title="Twin Cities JetPilots">TCJP</option>
+    <option value="Throttle Bottoms">Throttle Bottoms</option>
+    <option value="Wake Me Up">Wake Me Up</option>
+    <option value="Wet Willies">Wet Willies</option>
   </select>
   <div class="groupLabel">Your Name</div>
   <input id="startName" placeholder="Enter your name" autocomplete="off" autocorrect="off">
