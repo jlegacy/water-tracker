@@ -371,8 +371,6 @@ function sendMessage(){
     ws.send(JSON.stringify({type:'msg', to:to, text:text}));
     document.getElementById('msgText').value = '';
     status('Message sent');
-    const toName = (positions[to] && positions[to].name) || 'Rider';
-    showBanner('You \u2192 ' + toName + ': ' + text, null);
   }
 }
 
@@ -383,7 +381,6 @@ function broadcastMessage(){
     ws.send(JSON.stringify({type:'broadcast', text:text}));
     document.getElementById('msgText').value = '';
     status('Broadcast sent');
-    showBanner('You (all): ' + text, null);
   }
 }
 
