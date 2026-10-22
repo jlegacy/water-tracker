@@ -27,6 +27,9 @@ INDEX_HTML = r"""<!DOCTYPE html>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Water Tracker</title>
 <link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="icon" type="image/png" href="/icon-192.png">
+<meta name="theme-color" content="#0b1d51">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Tracker">
@@ -892,7 +895,16 @@ async def index():
 
 @app.get("/manifest.json")
 async def manifest():
-    return FileResponse(pathlib.Path(__file__).parent / "manifest.json")
+    return FileResponse(pathlib.Path(__file__).parent / "manifest.json", media_type="application/manifest+json")
+
+ICON_FILES = ("icon-192.png", "icon-512.png", "icon-maskable-512.png", "apple-touch-icon.png")
+
+for _icon in ICON_FILES:
+    def _make(fn):
+        async def _serve():
+            return FileResponse(pathlib.Path(__file__).parent / fn, media_type="image/png")
+        return _serve
+    app.get("/" + _icon)(_make(_icon))
 
 @app.on_event("startup")
 async def startup():
