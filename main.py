@@ -89,7 +89,8 @@ INDEX_HTML = r"""<!DOCTYPE html>
   #banner .drainFill{height:100%;width:100%;background:#fff}
   #banner button{margin-top:6px;padding:6px 12px;border-radius:6px;border:0;background:#fff;color:#8b5cf6;font-weight:600}
   .leaflet-container{background:#0b1d33}
-  #msgBox{display:none}
+  #msgBox{display:flex}
+  #msgBox #rampsBtn{margin-left:auto}
   #nameScreen{
     position:absolute;inset:0;z-index:2000;background:#0b1d33;
     display:flex;flex-direction:column;align-items:center;justify-content:center;
@@ -150,8 +151,8 @@ INDEX_HTML = r"""<!DOCTYPE html>
     <button id="leaderBtn" class="leader" onclick="toggleLeader()">Leader</button>
   </div>
   <div class="row" id="msgBox">
-    <input id="msgText" placeholder="Message everyone">
-    <button class="msg" onclick="sendMessage()">Send</button>
+    <input id="msgText" placeholder="Message everyone" style="display:none">
+    <button id="sendBtn" class="msg" onclick="sendMessage()" style="display:none">Send</button>
     <button id="rampsBtn" class="ramps" onclick="toggleRamps()">Ramps</button>
   </div>
 </div>
@@ -281,7 +282,7 @@ function replyToLast(fromId){
   const sel = document.getElementById('riderList');
   if (positions[fromId]){
     sel.value = fromId;
-    document.getElementById('msgBox').style.display = 'flex';
+    setMsgControls(true);
     document.getElementById('msgText').focus();
     onRiderSelect();
   }
@@ -437,6 +438,15 @@ let joined = false;
 
 // Selecting yourself ("me": the blank -- Riders -- entry or your own YOU marker)
 // clears any selected rider: dropdown value, Find target/line, open rider popup.
+// Message row stays visible (Ramps lives there); only input + Send hide when alone
+function setMsgControls(show){
+  const t = document.getElementById('msgText'), b = document.getElementById('sendBtn');
+  const d = show ? '' : 'none';
+  if (t.style.display === d && b.style.display === d) return;
+  t.style.display = d; b.style.display = d;
+  scheduleMapLayout();
+}
+
 function clearRiderSelection(){
   const sel = document.getElementById('riderList');
   if (sel) sel.value = '';
@@ -444,7 +454,7 @@ function clearRiderSelection(){
   clearRampRoute();
   document.getElementById('findBtn').style.display = 'none';
   const hasOthers = Object.keys(positions).some(k => k !== me);
-  document.getElementById('msgBox').style.display = hasOthers ? 'flex' : 'none';
+  setMsgControls(hasOthers);
   for (const k in riders){ if (k !== me && riders[k].closePopup) riders[k].closePopup(); }
   updateMsgPlaceholder();
 }
@@ -453,7 +463,7 @@ function onRiderSelect(){
   const sel = document.getElementById('riderList');
   const id = sel.value;
   if (!id){ clearRiderSelection(); return; }
-  document.getElementById('msgBox').style.display = 'flex';
+  setMsgControls(true);
   document.getElementById('findBtn').style.display = 'inline-block';
   if (id && positions[id]){
     setFollow(false);
@@ -556,7 +566,7 @@ function updateRiderList(){
     sel.appendChild(opt);
   });
   if (current && positions[current]) sel.value = current;
-  document.getElementById('msgBox').style.display = others.length ? 'flex' : 'none';
+  setMsgControls(others.length > 0);
   document.getElementById('findBtn').style.display = (sel.value && others.length) ? 'inline-block' : 'none';
   updateMsgPlaceholder();
 }
