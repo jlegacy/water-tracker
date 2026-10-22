@@ -6,6 +6,9 @@ app = FastAPI()
 
 groups = {}
 
+# Allowed group codes (first is default). Each code is its own isolated group.
+GROUP_CODES = ["ENCSR", "FSR", "GLSR", "GCJSR", "CTJSC", "SDXPR", "SDCLS", "2SSDO", "TCJP", "YFXO", "NGC"]
+
 INDEX_HTML = r"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -76,6 +79,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
     padding:14px;border-radius:12px;border:1px solid #2a4a6f;
     background:#132a45;color:#e8eef7;font-size:18px;width:100%;max-width:260px;text-align:center;
   }
+  #nameScreen select{font-size:18px;padding:12px;border-radius:10px;width:100%;max-width:320px}
   #nameScreen input[readonly]{background:#0f2038;color:#9fb3c8}
   #nameScreen button{
     padding:14px 32px;border-radius:12px;border:0;background:#2f9e6b;
@@ -95,7 +99,19 @@ INDEX_HTML = r"""<!DOCTYPE html>
 <div id="nameScreen">
   <h1>Water Tracker</h1>
   <div class="groupLabel">Group</div>
-  <input id="startGroup" value="ENCSR" readonly>
+  <select id="startGroup">
+    <option value="ENCSR" title="ENCSR">ENCSR</option>
+    <option value="FSR" title="Florida Ski Riders">FSR</option>
+    <option value="GLSR" title="Great Lakes Ski Riders">GLSR</option>
+    <option value="GCJSR" title="Gulf Coast Jet Ski Riders">GCJSR</option>
+    <option value="CTJSC" title="Connecticut Jet Ski Club">CTJSC</option>
+    <option value="SDXPR" title="Sea-Doo XP Riders">SDXPR</option>
+    <option value="SDCLS" title="Sea-Doo Classifieds Buy-Sell-Trade">SDCLS</option>
+    <option value="2SSDO" title="2 Stroke Sea-Doo Owners">2SSDO</option>
+    <option value="TCJP" title="Twin Cities JetPilots">TCJP</option>
+    <option value="YFXO" title="2019-2023 Yamaha Waverunner FX SVHO/HO Owners">YFXO</option>
+    <option value="NGC" title="Nauti Girl Crew - Jet Ski Group">NGC</option>
+  </select>
   <div class="groupLabel">Your Name</div>
   <input id="startName" placeholder="Enter your name" autocomplete="off" autocorrect="off">
   <button onclick="startApp()">Start</button>
@@ -459,7 +475,7 @@ function connect(){
       type: 'join',
       id: me,
       name: myName,
-      code: 'ENCSR'
+      code: myGroup
     }));
     if (pingTimer) clearInterval(pingTimer);
     pingTimer = setInterval(() => {
@@ -469,7 +485,7 @@ function connect(){
   ws.onmessage = (ev) => {
     const m = JSON.parse(ev.data);
     if (m.type === 'joined'){
-      status('Sharing — ENCSR');
+      status('Sharing — ' + myGroup);
       if (myLatLng) updateMyMarker(myLatLng[0], myLatLng[1]);
     }
     else if (m.type === 'error'){ status(m.msg); }
@@ -552,6 +568,7 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
+let myGroup = 'ENCSR';
 function startApp(){
   const name = document.getElementById('startName').value.trim();
   if (!name){
@@ -559,6 +576,8 @@ function startApp(){
     return;
   }
   myName = name;
+  myGroup = document.getElementById('startGroup').value || 'ENCSR';
+  document.getElementById('groupDisplay').value = myGroup;
   document.getElementById('nameScreen').style.display = 'none';
   document.getElementById('map').style.display = 'block';
   document.getElementById('bar').style.display = 'flex';
@@ -577,7 +596,7 @@ function startApp(){
     const BackgroundGeolocation = window.Capacitor.Plugins.BackgroundGeolocation;
     BackgroundGeolocation.addWatcher(
       {
-        backgroundMessage: "Tracking your location for ENCSR",
+        backgroundMessage: "Tracking your location for " + myGroup,
         backgroundTitle: "Water Tracker",
         requestPermissions: true,
         stale: false,
@@ -653,6 +672,10 @@ async def ws_endpoint(ws: WebSocket):
         rider_id = msg.get("id") or str(uuid.uuid4())[:8]
         name = (msg.get("name") or "Rider").strip()[:20] or "Rider"
         code = (msg.get("code") or "ENCSR").strip().upper()
+        if code not in GROUP_CODES:
+            await ws.send_text(json.dumps({"type": "error", "msg": "Unknown group"}))
+            await ws.close()
+            return
         if code not in groups:
             groups[code] = {}
         groups[code][rider_id] = {"name": name, "lat": None, "lon": None,
