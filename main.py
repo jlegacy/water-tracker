@@ -66,6 +66,8 @@ INDEX_HTML = r"""<!DOCTYPE html>
     padding:10px 12px;border-radius:8px;background:#8b5cf6;color:#fff;
     font-size:14px;display:none;text-align:center;
   }
+  #banner .drain{height:4px;background:rgba(255,255,255,.25);border-radius:2px;margin-top:8px;overflow:hidden}
+  #banner .drainFill{height:100%;width:100%;background:#fff}
   #banner button{margin-top:6px;padding:6px 12px;border-radius:6px;border:0;background:#fff;color:#8b5cf6;font-weight:600}
   .leaflet-container{background:#0b1d33}
   #msgBox{display:none}
@@ -204,11 +206,21 @@ function status(t){
   if (el.textContent !== t) el.textContent = t;
 }
 
+let bannerTimer = null;
+const BANNER_MS = 12000;
 function showBanner(text, fromId){
   const b = document.getElementById('banner');
-  b.innerHTML = text + (fromId ? '<br><button onclick="replyToLast(\'' + fromId + '\')">Reply</button>' : '');
+  b.innerHTML = text + (fromId ? '<br><button onclick="replyToLast(\'' + fromId + '\')">Reply</button>' : '')
+    + '<div class="drain"><div class="drainFill"></div></div>';
   b.style.display = 'block';
-  setTimeout(() => { b.style.display = 'none'; }, 12000);
+  const fill = b.querySelector('.drainFill');
+  fill.style.transition = 'none';
+  fill.style.width = '100%';
+  void fill.offsetWidth; // restart animation
+  fill.style.transition = 'width ' + BANNER_MS + 'ms linear';
+  fill.style.width = '0%';
+  if (bannerTimer) clearTimeout(bannerTimer);
+  bannerTimer = setTimeout(() => { b.style.display = 'none'; bannerTimer = null; }, BANNER_MS);
 }
 
 function replyToLast(fromId){
@@ -359,6 +371,8 @@ function sendMessage(){
     ws.send(JSON.stringify({type:'msg', to:to, text:text}));
     document.getElementById('msgText').value = '';
     status('Message sent');
+    const toName = (positions[to] && positions[to].name) || 'Rider';
+    showBanner('You \u2192 ' + toName + ': ' + text, null);
   }
 }
 
@@ -369,6 +383,7 @@ function broadcastMessage(){
     ws.send(JSON.stringify({type:'broadcast', text:text}));
     document.getElementById('msgText').value = '';
     status('Broadcast sent');
+    showBanner('You (all): ' + text, null);
   }
 }
 
