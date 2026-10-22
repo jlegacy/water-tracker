@@ -99,7 +99,8 @@ INDEX_HTML = r"""<!DOCTYPE html>
 <div id="nameScreen">
   <h1>Water Tracker</h1>
   <div class="groupLabel">Group</div>
-  <select id="startGroup">
+  <select id="startGroup" required>
+    <option value="" disabled selected>-- Select your group --</option>
     <option value="ENCSR" title="ENCSR">ENCSR</option>
     <option value="FLSR" title="Florida Ski Riders">FLSR</option>
     <option value="NFLSR" title="North Florida Ski Riders">NFLSR</option>
@@ -571,15 +572,21 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
-let myGroup = 'ENCSR';
+let myGroup = '';
 function startApp(){
   const name = document.getElementById('startName').value.trim();
   if (!name){
     document.getElementById('startName').focus();
     return;
   }
+  const grp = document.getElementById('startGroup').value;
+  if (!grp){
+    alert('Please select your group first.');
+    document.getElementById('startGroup').focus();
+    return;
+  }
   myName = name;
-  myGroup = document.getElementById('startGroup').value || 'ENCSR';
+  myGroup = grp;
   document.getElementById('groupDisplay').value = myGroup;
   document.getElementById('nameScreen').style.display = 'none';
   document.getElementById('map').style.display = 'block';
