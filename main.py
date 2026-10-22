@@ -7,7 +7,7 @@ app = FastAPI()
 groups = {}
 
 # Allowed group codes (first is default). Each code is its own isolated group.
-GROUP_CODES = ["ENCSR", "FSR", "NFSR", "GLSR", "GCJSR", "CTJSC", "SDXPR", "SDCLS", "2SSDO", "TCJP", "YFXO", "NGC"]
+GROUP_CODES = ["ENCSR", "FSR", "NFSR", "GLSR", "GCJSR", "CTJSC", "SDXPR", "TCJP", "NGC"]
 
 INDEX_HTML = r"""<!DOCTYPE html>
 <html lang="en">
@@ -107,10 +107,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
     <option value="GCJSR" title="Gulf Coast Jet Ski Riders">GCJSR</option>
     <option value="CTJSC" title="Connecticut Jet Ski Club">CTJSC</option>
     <option value="SDXPR" title="Sea-Doo XP Riders">SDXPR</option>
-    <option value="SDCLS" title="Sea-Doo Classifieds Buy-Sell-Trade">SDCLS</option>
-    <option value="2SSDO" title="2 Stroke Sea-Doo Owners">2SSDO</option>
     <option value="TCJP" title="Twin Cities JetPilots">TCJP</option>
-    <option value="YFXO" title="2019-2023 Yamaha Waverunner FX SVHO/HO Owners">YFXO</option>
     <option value="NGC" title="Nauti Girl Crew - Jet Ski Group">NGC</option>
   </select>
   <div class="groupLabel">Your Name</div>
