@@ -16,7 +16,7 @@ app = FastAPI()
 groups = {}
 
 # Allowed group names. Each is its own isolated group; matching is case-insensitive.
-GROUP_CODES = ["Wake Me Up", "Spray & Pray", "Throttle Bottoms", "Salty Seadogs", "JetRider Nation", "Wet Willies", "Full Send Fleet", "Buoy Band", "Rooster Tail Rebels"]
+GROUP_CODES = ["Wake Me Up", "Spray & Pray", "Throttle Bottoms", "Salty Seadogs", "Wet Willies", "Full Send Fleet", "Buoy Band", "Rooster Tail Rebels"]
 GROUP_BY_UPPER = {c.upper(): c for c in GROUP_CODES}
 
 INDEX_HTML = r"""<!DOCTYPE html>
@@ -121,7 +121,6 @@ INDEX_HTML = r"""<!DOCTYPE html>
     <option value="" disabled selected>-- Select your group --</option>
     <option value="Buoy Band">Buoy Band</option>
     <option value="Full Send Fleet">Full Send Fleet</option>
-    <option value="JetRider Nation">JetRider Nation</option>
     <option value="Rooster Tail Rebels">Rooster Tail Rebels</option>
     <option value="Salty Seadogs">Salty Seadogs</option>
     <option value="Spray &amp; Pray">Spray &amp; Pray</option>
