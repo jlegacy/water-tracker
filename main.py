@@ -141,7 +141,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
 <div id="banner"></div>
 <div id="bar">
   <div class="row">
-    <input id="groupDisplay" value="" readonly style="max-width:140px;text-align:center;font-weight:600">
+    <select id="groupDisplay" onchange="switchGroup(this.value)" aria-label="Group" style="max-width:130px;min-width:0;flex:0 1 auto;font-weight:600"></select>
     <button class="center" onclick="centerOnMe()">Center</button>
     <select id="riderList" onchange="onRiderSelect()">
       <option value="">-- Riders --</option>
@@ -656,6 +656,7 @@ function connect(){
     const m = JSON.parse(ev.data);
     if (m.type === 'joined'){
       joined = true;
+      switchFrom = null;
       reconnectDelay = 1000; // reset backoff on success
       status('Sharing — ' + myGroup);
       // Send positions queued while offline, oldest first; server keeps the newest
@@ -666,7 +667,13 @@ function connect(){
       if (pendingFix) flushPos();
       if (myLatLng && !isHidden()) renderMe();
     }
-    else if (m.type === 'error'){ status(m.msg); }
+    else if (m.type === 'error'){
+      if (m.msg === 'Unknown group' && switchFrom){
+        const back = switchFrom; switchFrom = null;
+        status('Unknown group, staying in ' + back);
+        setTimeout(() => switchGroup(back, true), 0);
+      } else status(m.msg);
+    }
     else if (m.type === 'riders'){
       if (isHidden()) return; // background: ignore others, resync on return
       m.riders.forEach(r => { pendingRiders[r.id] = r; });
@@ -961,8 +968,60 @@ function scheduleMapLayout(){
 window.addEventListener('resize', scheduleMapLayout);
 window.addEventListener('orientationchange', scheduleMapLayout);
 if (window.visualViewport) window.visualViewport.addEventListener('resize', scheduleMapLayout);
+// Header height changes (message row shown/hidden, group switch): keep the map right under it
+if (window.ResizeObserver) new ResizeObserver(scheduleMapLayout).observe(document.getElementById('bar'));
 
 let myGroup = '';
+// Header group switcher: same names as the start screen (alphabetical)
+(function fillGroupSwitcher(){
+  const sel = document.getElementById('groupDisplay');
+  [...document.getElementById('startGroup').options].forEach(o => {
+    if (!o.value) return;
+    const opt = document.createElement('option');
+    opt.value = o.value; opt.textContent = o.value;
+    sel.appendChild(opt);
+  });
+})();
+let switchFrom = null; // old group while a switch is pending (to revert on 'Unknown group')
+function resetGroupState(){
+  for (const id in riders){ if (id !== me){ map.removeLayer(riders[id]); delete riders[id]; } }
+  for (const id in positions) if (id !== me) delete positions[id];
+  for (const id in lastSeen) if (id !== me) delete lastSeen[id];
+  for (const id in pendingRiders) delete pendingRiders[id];
+  clearFindLine(); clearRampRoute();
+  const sel = document.getElementById('riderList');
+  sel.value = '';
+  lastListKey = ''; updateRiderList(); clearRiderSelection();
+  const b = document.getElementById('banner');
+  if (bannerTimer){ clearTimeout(bannerTimer); bannerTimer = null; }
+  b.style.display = 'none'; b.classList.remove('alert');
+  document.getElementById('msgText').value = '';
+}
+function switchGroup(grp, revert){
+  if (!grp || grp === myGroup || !sharing) return;
+  switchFrom = revert ? null : myGroup;
+  // Explicit leave on the old socket, so the old group drops us at once (no ghost/alert)
+  const old = ws; ws = null; joined = false;
+  if (pingTimer){ clearInterval(pingTimer); pingTimer = null; }
+  if (reconnectTimer){ clearTimeout(reconnectTimer); reconnectTimer = null; }
+  if (old){
+    old.onclose = null; old.onmessage = null;
+    try { if (old.readyState === 1) old.send(JSON.stringify({type:'leave'})); } catch(e){}
+    try { old.close(); } catch(e){}
+  }
+  resetGroupState();
+  if (leader){ leader = false; localStorage.setItem('trackerLeader', '0'); updateLeaderBtn(); releaseWakeLock(); }
+  posQueue = [];
+  myGroup = grp;
+  document.getElementById('groupDisplay').value = myGroup;
+  status('Switching to ' + myGroup + '...');
+  if (myLatLng) pendingFix = {lat: myLatLng[0], lon: myLatLng[1], ts: Date.now()};
+  reconnectDelay = 1000;
+  connect();
+  if (rampsOn){ toggleRamps(); toggleRamps(); } // ramps are location-based: refetch here
+  requestAnimationFrame(fixMapLayout);
+  setTimeout(fixMapLayout, 300);
+}
 function startApp(){
   const name = document.getElementById('startName').value.trim();
   if (!name){
@@ -1094,7 +1153,7 @@ async function toggleRamps(){
 </html>"""
 
 # ---- Boat ramps & marinas (OpenStreetMap / Overpass) ----
-import math, urllib.request, urllib.parse
+import math, sys, urllib.request, urllib.parse
 from fastapi.responses import JSONResponse
 OVERPASS_URLS = [
     ("https://overpass-api.de/api/interpreter", 25),
@@ -1124,19 +1183,25 @@ def _overpass_fetch(lat, lon, radius_m):
     print("overpass failed:", errs, flush=True)
     raise RuntimeError("; ".join(errs))
 
-# Bundled NC data (built by scripts/build_ramps.py from Geofabrik's OSM extract)
-NC_BBOX = (33.75, -84.33, 36.60, -75.40)  # south, west, north, east
+# Bundled East Coast data (built by scripts/build_ramps.py from Geofabrik's OSM extracts)
+# Compact rows [type(0=ramp,1=marina), name, lat, lon, state], indexed in 0.5-degree grid cells.
+LOCAL_BBOXES = {}
+RAMP_GRID = {}
+LOCAL_COUNT = 0
 try:
-    _rd = json.loads((pathlib.Path(__file__).parent / "data" / "nc_ramps.json").read_text())
-    LOCAL_RAMPS = _rd.get("items", [])
-    print(f"loaded {len(LOCAL_RAMPS)} local ramps/marinas (generated {_rd.get('generated')})", flush=True)
+    _rd = json.loads((pathlib.Path(__file__).parent / "data" / "ramps_us.json").read_text())
+    LOCAL_BBOXES = {k: tuple(v) for k, v in _rd.get("regions", {}).items()}
+    for _r in _rd.get("items", []):
+        RAMP_GRID.setdefault((int(_r[2] // 0.5), int(_r[3] // 0.5)), []).append(
+            ("marina" if _r[0] else "ramp", sys.intern(_r[1]) if _r[1] else "", _r[2], _r[3]))
+        LOCAL_COUNT += 1
+    del _rd
+    print(f"loaded {LOCAL_COUNT} local ramps/marinas for {','.join(LOCAL_BBOXES)}", flush=True)
 except Exception as e:
-    LOCAL_RAMPS = []
     print("local ramps data unavailable:", e, flush=True)
 
-def _in_nc(lat, lon):
-    s, w, n, e = NC_BBOX
-    return s <= lat <= n and w <= lon <= e
+def _in_local_region(lat, lon):
+    return any(s <= lat <= n and w <= lon <= e for s, w, n, e in LOCAL_BBOXES.values())
 
 @app.post("/api/leave")
 async def api_leave(request: Request):
@@ -1165,16 +1230,19 @@ async def api_ramps(lat: float, lon: float, radius_km: float = 40):
     radius_km = max(1.0, min(float(radius_km), 80.0))
     radius_mi = radius_km / 1.609344
     local = []
-    for it in LOCAL_RAMPS:
-        d = _miles(lat, lon, it["lat"], it["lon"])
-        if d <= radius_mi:
-            local.append({"type": it["type"], "name": it["name"] or ("Marina" if it["type"] == "marina" else "Boat ramp"),
-                          "lat": it["lat"], "lon": it["lon"], "distance_mi": round(d, 1)})
-    if local or _in_nc(lat, lon):
+    gy, gx = int(lat // 0.5), int(lon // 0.5)
+    for dy in range(-2, 3):  # 0.5 deg cells; radius up to 80 km
+        for dx in range(-3, 4):
+            for t, nm, ilat, ilon in RAMP_GRID.get((gy + dy, gx + dx), ()):
+                d = _miles(lat, lon, ilat, ilon)
+                if d <= radius_mi:
+                    local.append({"type": t, "name": nm or ("Marina" if t == "marina" else "Boat ramp"),
+                                  "lat": ilat, "lon": ilon, "distance_mi": round(d, 1)})
+    if local or _in_local_region(lat, lon):
         local.sort(key=lambda x: x["distance_mi"])
         return {"results": local[:100], "count": min(len(local), 100), "stale": False, "source": "local",
                 "attribution": "© OpenStreetMap contributors"}
-    # Outside NC with no bundled data: fall back to live Overpass
+    # Outside all bundled states with no local data: fall back to live Overpass
     clat, clon = round(lat, 1), round(lon, 1)
     key = (clat, clon, round(radius_km))
     now = time.time()
