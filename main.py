@@ -254,6 +254,16 @@ function showBanner(text, fromId){
   bannerTimer = setTimeout(() => { b.style.display = 'none'; bannerTimer = null; }, BANNER_MS);
 }
 
+function selectRiderFromMap(id){
+  const sel = document.getElementById('riderList');
+  if (!sel || !positions[id]) return;
+  if (![...sel.options].some(o => o.value === id)){ lastListKey = null; updateRiderList(); }
+  if (![...sel.options].some(o => o.value === id)) return;
+  sel.value = id;
+  onRiderSelect();
+  try { document.getElementById('msgText').focus({preventScroll:true}); } catch(e){}
+}
+
 function replyToLast(fromId){
   const sel = document.getElementById('riderList');
   if (positions[fromId]){
@@ -717,6 +727,8 @@ function upsert(r){
     riders[r.id].setPopupContent(riderPopup(r.id));
   } else {
     riders[r.id] = L.marker([r.lat, r.lon],{icon: riderIcon(stale, isLeader), zIndexOffset: isLeader ? 1000 : 0}).addTo(map).bindPopup(riderPopup(r.id));
+    const rid = r.id;
+    riders[rid].on('click', () => selectRiderFromMap(rid));
   }
   if (findTarget === r.id) updateFindLine();
 }
