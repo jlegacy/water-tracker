@@ -289,6 +289,31 @@ function clearFindLine(){
   document.getElementById('findBtn').textContent = 'Find';
 }
 
+// Route line to a ramp/marina (same style/behavior as the rider Find line)
+let rampRoute = null, rampRouteLine = null, rampItems = [];
+function clearRampRoute(){
+  if (rampRouteLine){ map.removeLayer(rampRouteLine); rampRouteLine = null; }
+  rampRoute = null;
+}
+function updateRampRoute(){
+  if (!rampRoute) return;
+  if (!myLatLng){ clearRampRoute(); return; }
+  const t = [rampRoute.lat, rampRoute.lon];
+  if (rampRouteLine) rampRouteLine.setLatLngs([myLatLng, t]);
+  else rampRouteLine = L.polyline([myLatLng, t], {color:'#f59e0b', weight:4, opacity:0.85}).addTo(map);
+}
+function toggleRampRoute(i){
+  const it = rampItems[i];
+  if (!it) return;
+  if (rampRoute === it){ clearRampRoute(); map.closePopup(); return; }
+  if (!myLatLng){ rampToast('Waiting for your location'); return; }
+  if (findTarget) clearFindLine();
+  clearRampRoute();
+  rampRoute = it;
+  updateRampRoute();
+  map.closePopup();
+}
+
 function centerOnMe(){
   recenter();
 }
@@ -408,6 +433,7 @@ function clearRiderSelection(){
   const sel = document.getElementById('riderList');
   if (sel) sel.value = '';
   if (findTarget) clearFindLine();
+  clearRampRoute();
   document.getElementById('findBtn').style.display = 'none';
   const hasOthers = Object.keys(positions).some(k => k !== me);
   document.getElementById('msgBox').style.display = hasOthers ? 'flex' : 'none';
@@ -425,6 +451,7 @@ function onRiderSelect(){
     map.panTo([positions[id].lat, positions[id].lon]);
   }
   if (findTarget && findTarget !== id) clearFindLine();
+  clearRampRoute();
 }
 
 function toggleFind(){
@@ -435,6 +462,7 @@ function toggleFind(){
     clearFindLine();
     return;
   }
+  clearRampRoute();
   findTarget = id;
   document.getElementById('findBtn').textContent = 'Stop';
   updateFindLine();
@@ -576,6 +604,7 @@ function renderMe(){
   if (followMe) map.panTo(myLatLng);
   rotateMe();
   updateFindLine();
+  updateRampRoute();
   renderDirty = true; // rider list (distances) refreshed by the 1 s render loop
 }
 
@@ -938,6 +967,7 @@ async function toggleRamps(){
   const btn = document.getElementById('rampsBtn');
   if (rampsOn) {
     if (rampLayer) { map.removeLayer(rampLayer); rampLayer = null; }
+    clearRampRoute(); rampItems = [];
     rampsOn = false; btn.classList.remove('on'); btn.textContent = 'Ramps';
     return;
   }
@@ -953,7 +983,8 @@ async function toggleRamps(){
     const items = data.results || [];
     if (!items.length) { rampToast('No ramps or marinas found nearby'); return; }
     rampLayer = L.layerGroup();
-    items.forEach(it => {
+    rampItems = items;
+    items.forEach((it, i) => {
       const marina = it.type === 'marina';
       const icon = L.divIcon({className:'', html:'<div class="rampIcon' + (marina ? ' marina' : '') + '">' + (marina ? '⚓' : '🚤') + '</div>', iconSize:[26,26], iconAnchor:[13,13]});
       const m = L.marker([it.lat, it.lon], {icon, zIndexOffset:-500});
@@ -962,6 +993,7 @@ async function toggleRamps(){
         const mi = rampMiles(from[0], from[1], it.lat, it.lon);
         return '<b>' + rampEsc(it.name) + '</b><br>' + (marina ? 'Marina' : 'Boat ramp') + ' · ' + mi.toFixed(1) + ' mi ' + (myLatLng ? 'from you' : 'away') +
           '<br><a href="' + rampDirUrl(it.lat, it.lon) + '" target="_blank" rel="noopener">Directions</a>' +
+          ' · <a href="#" onclick="toggleRampRoute(' + i + ');return false;">' + (rampRoute === it ? 'Clear route' : 'Route') + '</a>' +
           '<br><small>© OpenStreetMap contributors</small>';
       });
       rampLayer.addLayer(m);
