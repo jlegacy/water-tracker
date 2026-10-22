@@ -987,11 +987,37 @@ def _overpass_fetch(lat, lon, radius_m):
     print("overpass failed:", errs, flush=True)
     raise RuntimeError("; ".join(errs))
 
+# Bundled NC data (built by scripts/build_ramps.py from Geofabrik's OSM extract)
+NC_BBOX = (33.75, -84.33, 36.60, -75.40)  # south, west, north, east
+try:
+    _rd = json.loads((pathlib.Path(__file__).parent / "data" / "nc_ramps.json").read_text())
+    LOCAL_RAMPS = _rd.get("items", [])
+    print(f"loaded {len(LOCAL_RAMPS)} local ramps/marinas (generated {_rd.get('generated')})", flush=True)
+except Exception as e:
+    LOCAL_RAMPS = []
+    print("local ramps data unavailable:", e, flush=True)
+
+def _in_nc(lat, lon):
+    s, w, n, e = NC_BBOX
+    return s <= lat <= n and w <= lon <= e
+
 @app.get("/api/ramps")
 async def api_ramps(lat: float, lon: float, radius_km: float = 40):
     if not (-90 <= lat <= 90 and -180 <= lon <= 180):
         return JSONResponse({"error": "bad coordinates"}, status_code=400)
     radius_km = max(1.0, min(float(radius_km), 80.0))
+    radius_mi = radius_km / 1.609344
+    local = []
+    for it in LOCAL_RAMPS:
+        d = _miles(lat, lon, it["lat"], it["lon"])
+        if d <= radius_mi:
+            local.append({"type": it["type"], "name": it["name"] or ("Marina" if it["type"] == "marina" else "Boat ramp"),
+                          "lat": it["lat"], "lon": it["lon"], "distance_mi": round(d, 1)})
+    if local or _in_nc(lat, lon):
+        local.sort(key=lambda x: x["distance_mi"])
+        return {"results": local[:100], "count": min(len(local), 100), "stale": False, "source": "local",
+                "attribution": "© OpenStreetMap contributors"}
+    # Outside NC with no bundled data: fall back to live Overpass
     clat, clon = round(lat, 1), round(lon, 1)
     key = (clat, clon, round(radius_km))
     now = time.time()
