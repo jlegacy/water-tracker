@@ -657,10 +657,10 @@ function updateRiderList(){
     if (id === me) continue;
     const p = positions[id];
     const dist = myLatLng ? haversine(myLatLng[0], myLatLng[1], p.lat, p.lon) : null;
-    others.push({id, name: p.leader ? '★ ' + p.name + ' (Leader)' : p.name, dist, stale: !!p.stale});
+    others.push({id, name: p.leader ? '★ ' + p.name + ' (Leader)' : p.name, dist, stale: !!p.stale, sos: !!p.sos});
   }
   others.sort((a,b) => (a.dist == null || b.dist == null) ? a.name.localeCompare(b.name) : a.dist - b.dist);
-  const key = (leader ? 'L|' : '') + others.map(o => o.id + ':' + o.name + ':' + (o.dist == null ? '-' : Math.round(o.dist)) + (o.stale ? ':q' : '')).join('|');
+  const key = (leader ? 'L|' : '') + others.map(o => o.id + ':' + o.name + ':' + (o.dist == null ? '-' : Math.round(o.dist)) + (o.stale ? ':q' : '') + (o.sos ? ':s' : '')).join('|');
   if (key === lastListKey) return;
   lastListKey = key;
 
@@ -670,7 +670,8 @@ function updateRiderList(){
     const opt = document.createElement('option');
     opt.value = o.id;
     // Status dot like the map: blue active, gray-ish white quiet (native <select> can't color options on iOS)
-    const label = (o.stale ? '⚪ ' : '🔵 ') + o.name;
+    const label = (o.sos ? '🔴 🆘 ' : (o.stale ? '⚪ ' : '🔵 ')) + o.name;
+    if (o.sos){ opt.style.color = '#dc2626'; opt.style.fontWeight = '700'; }
     opt.textContent = o.dist == null ? label : `${label} (${(o.dist / 1609.34).toFixed(2)} mi)`;
     sel.appendChild(opt);
   });
@@ -807,6 +808,7 @@ function connect(){
       if (m.id === me) return;
       if (positions[m.id]){ positions[m.id].sos = !!m.on; setRiderStale(m.id, positions[m.id].stale); }
       if (pendingRiders[m.id]) pendingRiders[m.id].sos = !!m.on;
+      lastListKey = null; updateRiderList();
     }
     else if (m.type === 'leave') remove(m.id);
     else if (m.type === 'msg'){
