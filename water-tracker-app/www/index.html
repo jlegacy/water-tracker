@@ -159,6 +159,45 @@ function wsUrl(path) {
   .groupLabel{font-size:13px;color:#9fb3c8;margin-bottom:-6px}
   #bar button.leader{background:#475569}
   #bar button.leader.on{background:#dc2626}
+  #bar button.trail{background:#64748b}
+  #bar button.trail.on{background:#475569;box-shadow:inset 0 0 0 2px #cbd5e1}
+  #bar button.past{background:#475569}
+  #pastRides{
+    display:none;position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.72);
+    align-items:center;justify-content:center;padding:20px;box-sizing:border-box;
+  }
+  #pastRides.show{display:flex}
+  #pastRides .box{
+    background:#0f2038;color:#e8eef7;border-radius:14px;padding:16px;max-width:380px;width:100%;
+    border:1px solid #2a4a6f;max-height:80vh;display:flex;flex-direction:column;gap:10px;
+  }
+  #pastRides h2{margin:0;font-size:18px}
+  #pastRides ul{list-style:none;margin:0;padding:0;overflow:auto;flex:1;min-height:80px}
+  #pastRides li{
+    padding:10px 12px;border-radius:8px;background:#132a45;margin-bottom:8px;cursor:pointer;
+    font-size:14px;border:1px solid #2a4a6f;
+  }
+  #pastRides li:active,#pastRides li:hover{background:#1e3a5f}
+  #pastRides .empty{color:#9fb3c8;font-size:14px;padding:8px 0}
+  #pastRides .actions{display:flex;gap:10px;justify-content:flex-end}
+  #pastRides .actions button{padding:10px 16px;border-radius:10px;border:0;font-weight:700;font-size:15px;background:#334155;color:#fff}
+
+  #trailDisclosure{
+    display:none;position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.72);
+    align-items:center;justify-content:center;padding:20px;box-sizing:border-box;
+  }
+  #trailDisclosure.show{display:flex}
+  #trailDisclosure .box{
+    background:#0f2038;color:#e8eef7;border-radius:14px;padding:20px 18px;max-width:360px;width:100%;
+    border:1px solid #2a4a6f;box-shadow:0 8px 28px rgba(0,0,0,.5);
+  }
+  #trailDisclosure h2{margin:0 0 10px;font-size:18px;color:#f8fafc}
+  #trailDisclosure p{margin:0 0 14px;font-size:14px;line-height:1.45;color:#cbd5e1}
+  #trailDisclosure .actions{display:flex;gap:10px;justify-content:flex-end}
+  #trailDisclosure .actions button{padding:10px 16px;border-radius:10px;border:0;font-weight:700;font-size:15px}
+  #trailDisclosure .cancel{background:#334155;color:#fff}
+  #trailDisclosure .ok{background:#3b82f6;color:#fff}
+
   #sosBar{
     position:absolute;left:0;right:0;z-index:999;
     display:none;box-sizing:border-box;
@@ -197,6 +236,8 @@ function wsUrl(path) {
     <button id="findBtn" class="find" onclick="toggleFind()" style="display:none">Find</button>
     <button id="leaderBtn" class="leader" onclick="toggleLeader()">Leader</button>
     <button id="sosBtn" class="sos" onclick="toggleSos()">SOS</button>
+    <button id="trailBtn" class="trail" onclick="onTrailBtnClick()">Trail</button>
+    <button id="pastBtn" class="past" onclick="openPastRides()">Past</button>
   </div>
   <div class="row" id="riderRow">
     <select id="riderList" onchange="onRiderSelect()" aria-label="Riders" style="display:none">
@@ -215,6 +256,27 @@ function wsUrl(path) {
   </div>
 </div>
 <div id="sosBar" role="button" tabindex="0" onclick="jumpToSos()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();jumpToSos();}" aria-label="Jump to SOS"></div></div>
+<div id="trailDisclosure" role="dialog" aria-modal="true" aria-labelledby="trailDiscTitle">
+  <div class="box">
+    <h2 id="trailDiscTitle">Save trail?</h2>
+    <p>Water Tracker collects location data to save your ride trail even when the app is closed or not in use. Each ride is auto-saved on your device (IndexedDB). Archives are kept until about 50&nbsp;MB total — then the oldest rides are removed. While Trail is on, a thinned live path is shared with riders in your group.</p>
+    <div class="actions">
+      <button type="button" class="cancel" onclick="cancelTrailDisclosure()">Cancel</button>
+      <button type="button" class="ok" onclick="confirmTrailDisclosure()">Continue</button>
+    </div>
+  </div>
+</div>
+<div id="pastRides" role="dialog" aria-modal="true" aria-labelledby="pastRidesTitle">
+  <div class="box">
+    <h2 id="pastRidesTitle">Past rides</h2>
+    <div id="pastRidesEmpty" class="empty">No saved rides yet.</div>
+    <ul id="pastRidesList"></ul>
+    <div class="actions">
+      <button type="button" onclick="clearPastOverlay()">Clear map</button>
+      <button type="button" onclick="closePastRides()">Close</button>
+    </div>
+  </div>
+</div>
 <div id="map"></div>
 <div id="status"></div>
 <div id="rampToast"></div>
@@ -328,10 +390,233 @@ function updateMotion(lat, lon, speed){
   else if (isMoving && v < MOVE_STOP_MS){ isMoving = false; }
 }
 
-// Breadcrumb trail
-let breadcrumb = [];
+// Trail logging (trial): live ride buffer + IndexedDB archives (~50 MB) + gray dashed Garmin-style line
+let trailOn = localStorage.getItem('trackerTrail') === '1';
+let breadcrumb = []; // current ride: {lat, lon, t}
 let breadcrumbLine = null;
-const MAX_BREADCRUMB = 500;
+let breadcrumbPending = [];
+let pastOverlayLine = null; // loaded archived ride
+let rideStartedAt = null;
+const LIVE_TRAIL_MAX_POINTS = 8000; // modest in-memory current-ride buffer
+const TRAIL_SHARE_MAX = 40; // thinned points shared with the group per update
+const TRAIL_ARCHIVE_MAX_POINTS = 2500; // thinned points stored per archived ride
+const TRAIL_ARCHIVE_BUDGET = 50 * 1024 * 1024; // ~50 MB IndexedDB total
+const TRAIL_DB_NAME = 'water-tracker-trails';
+const TRAIL_DB_STORE = 'rides';
+const remoteTrails = {}; // rider id -> L.polyline
+const TRAIL_STYLE = { color: '#9ca3af', weight: 3, opacity: 0.85, dashArray: '8, 8' };
+
+function trailLatLngs(pts){
+  return pts.map(p => Array.isArray(p) ? [p[0], p[1]] : [p.lat, p.lon]);
+}
+function thinTrail(pts, maxPts){
+  if (!pts || !pts.length) return [];
+  const ll = trailLatLngs(pts);
+  if (ll.length <= maxPts) return ll.map(p => [+Number(p[0]).toFixed(6), +Number(p[1]).toFixed(6)]);
+  const out = [];
+  const n = ll.length;
+  for (let i = 0; i < maxPts; i++){
+    const idx = Math.min(n - 1, Math.round(i * (n - 1) / (maxPts - 1)));
+    out.push([+Number(ll[idx][0]).toFixed(6), +Number(ll[idx][1]).toFixed(6)]);
+  }
+  return out;
+}
+function pruneLiveTrail(){
+  while (breadcrumb.length > LIVE_TRAIL_MAX_POINTS) breadcrumb.shift();
+}
+function clearMyTrailLine(){
+  if (breadcrumbLine){
+    try { map.removeLayer(breadcrumbLine); } catch(_){}
+    breadcrumbLine = null;
+  }
+}
+function clearPastOverlay(silent){
+  if (pastOverlayLine){
+    try { map.removeLayer(pastOverlayLine); } catch(_){}
+    pastOverlayLine = null;
+  }
+  if (!silent) status('Past ride cleared from map');
+}
+function clearRemoteTrail(id){
+  if (remoteTrails[id]){
+    try { map.removeLayer(remoteTrails[id]); } catch(_){}
+    delete remoteTrails[id];
+  }
+}
+function setRemoteTrail(id, latlngs){
+  if (!id || id === me) return;
+  if (!latlngs || latlngs.length < 2){
+    clearRemoteTrail(id);
+    return;
+  }
+  if (remoteTrails[id]){
+    remoteTrails[id].setLatLngs(latlngs);
+  } else {
+    remoteTrails[id] = L.polyline(latlngs, TRAIL_STYLE).addTo(map);
+  }
+}
+function updateMyTrailLine(){
+  if (!trailOn){
+    clearMyTrailLine();
+    return;
+  }
+  const ll = trailLatLngs(breadcrumb);
+  if (ll.length < 2){
+    clearMyTrailLine();
+    return;
+  }
+  if (breadcrumbLine){
+    breadcrumbLine.setLatLngs(ll);
+  } else {
+    breadcrumbLine = L.polyline(ll, TRAIL_STYLE).addTo(map);
+  }
+}
+function clearLiveTrailBuffer(){
+  breadcrumb = [];
+  breadcrumbPending = [];
+  rideStartedAt = null;
+  clearMyTrailLine();
+}
+
+function openTrailDb(){
+  return new Promise((resolve, reject) => {
+    if (!window.indexedDB){ reject(new Error('no IndexedDB')); return; }
+    const req = indexedDB.open(TRAIL_DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(TRAIL_DB_STORE)){
+        const store = db.createObjectStore(TRAIL_DB_STORE, { keyPath: 'id' });
+        store.createIndex('endedAt', 'endedAt', { unique: false });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error || new Error('idb open failed'));
+  });
+}
+function estimateRideBytes(ride){
+  try { return JSON.stringify(ride).length; } catch(_){ return (ride.points || []).length * 24 + 128; }
+}
+async function listArchivedRides(){
+  const db = await openTrailDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(TRAIL_DB_STORE, 'readonly');
+    const req = tx.objectStore(TRAIL_DB_STORE).getAll();
+    req.onsuccess = () => {
+      const rows = (req.result || []).slice().sort((a, b) => (b.endedAt || 0) - (a.endedAt || 0));
+      resolve(rows);
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+async function enforceArchiveBudget(db){
+  const rides = await new Promise((resolve, reject) => {
+    const tx = db.transaction(TRAIL_DB_STORE, 'readonly');
+    const req = tx.objectStore(TRAIL_DB_STORE).getAll();
+    req.onsuccess = () => resolve(req.result || []);
+    req.onerror = () => reject(req.error);
+  });
+  let total = rides.reduce((s, r) => s + (r.bytes || estimateRideBytes(r)), 0);
+  if (total <= TRAIL_ARCHIVE_BUDGET) return;
+  const oldest = rides.slice().sort((a, b) => (a.endedAt || 0) - (b.endedAt || 0));
+  const tx = db.transaction(TRAIL_DB_STORE, 'readwrite');
+  const store = tx.objectStore(TRAIL_DB_STORE);
+  for (const r of oldest){
+    if (total <= TRAIL_ARCHIVE_BUDGET) break;
+    store.delete(r.id);
+    total -= (r.bytes || estimateRideBytes(r));
+  }
+  await new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function archiveCurrentRide(reason){
+  // Merge any pending points first
+  if (breadcrumbPending.length){
+    breadcrumbPending.forEach(p => breadcrumb.push(p));
+    breadcrumbPending = [];
+    pruneLiveTrail();
+  }
+  if (breadcrumb.length < 2){
+    clearLiveTrailBuffer();
+    return false;
+  }
+  const points = thinTrail(breadcrumb, TRAIL_ARCHIVE_MAX_POINTS);
+  if (points.length < 2){
+    clearLiveTrailBuffer();
+    return false;
+  }
+  const ride = {
+    id: 'ride-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+    startedAt: rideStartedAt || (breadcrumb[0] && breadcrumb[0].t) || Date.now(),
+    endedAt: Date.now(),
+    group: myGroup || '',
+    points,
+    reason: reason || 'end'
+  };
+  ride.bytes = estimateRideBytes(ride);
+  try {
+    const db = await openTrailDb();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(TRAIL_DB_STORE, 'readwrite');
+      tx.objectStore(TRAIL_DB_STORE).put(ride);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    await enforceArchiveBudget(db);
+    try { db.close(); } catch(_){}
+    clearLiveTrailBuffer();
+    return true;
+  } catch (e){
+    console.warn('trail archive failed', e);
+    // Keep live buffer if archive failed so user doesn't lose the ride silently mid-session
+    return false;
+  }
+}
+function formatRideLabel(r){
+  const d = new Date(r.endedAt || r.startedAt || Date.now());
+  const when = d.toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+  const pts = (r.points && r.points.length) || 0;
+  const grp = r.group ? (' · ' + r.group) : '';
+  return when + grp + ' · ' + pts + ' pts';
+}
+async function openPastRides(){
+  const panel = document.getElementById('pastRides');
+  const list = document.getElementById('pastRidesList');
+  const empty = document.getElementById('pastRidesEmpty');
+  if (!panel || !list) return;
+  list.innerHTML = '';
+  try {
+    const rides = await listArchivedRides();
+    if (!rides.length){
+      if (empty) empty.style.display = 'block';
+    } else {
+      if (empty) empty.style.display = 'none';
+      rides.slice(0, 40).forEach(r => {
+        const li = document.createElement('li');
+        li.textContent = formatRideLabel(r);
+        li.onclick = () => { loadPastRide(r); closePastRides(); };
+        list.appendChild(li);
+      });
+    }
+  } catch (e){
+    if (empty){ empty.style.display = 'block'; empty.textContent = 'Could not open saved rides on this device.'; }
+  }
+  panel.classList.add('show');
+}
+function closePastRides(){
+  const panel = document.getElementById('pastRides');
+  if (panel) panel.classList.remove('show');
+}
+function loadPastRide(r){
+  clearPastOverlay(true);
+  const ll = trailLatLngs(r.points || []);
+  if (ll.length < 2){ status('That ride has no path'); return; }
+  pastOverlayLine = L.polyline(ll, TRAIL_STYLE).addTo(map);
+  try { map.fitBounds(pastOverlayLine.getBounds().pad(0.2)); } catch(_){}
+  userMovedMap();
+  status('Showing past ride');
+}
 
 function status(t){ 
   const el = document.getElementById('status');
@@ -562,7 +847,12 @@ function flushPos(){
   if (!pendingFix) return;
   const f = pendingFix; pendingFix = null;
   lastSent = {lat: f.lat, lon: f.lon, t: Date.now()};
-  if (!wsSend({type:'pos', lat:f.lat, lon:f.lon, ts:f.ts})){
+  const payload = {type:'pos', lat:f.lat, lon:f.lon, ts:f.ts};
+  if (trailOn && breadcrumb.length){
+    // Best-effort group share: thinned recent segment (tight payload)
+    payload.trail = thinTrail(breadcrumb, TRAIL_SHARE_MAX);
+  }
+  if (!wsSend(payload)){
     posQueue.push(f);
     if (posQueue.length > MAX_QUEUE) posQueue.shift();
   }
@@ -799,27 +1089,25 @@ function updateMyMarker(lat, lon){
   myLatLng = [lat, lon];
   lastSeen[me] = Date.now();
   positions[me] = {lat, lon, name: myName};
-  breadcrumbPending.push([lat, lon]);
-  if (breadcrumbPending.length > MAX_BREADCRUMB) breadcrumbPending.shift();
+  if (trailOn && sharing){
+    if (!rideStartedAt) rideStartedAt = Date.now();
+    breadcrumbPending.push({lat, lon, t: Date.now()});
+    while (breadcrumbPending.length > LIVE_TRAIL_MAX_POINTS) breadcrumbPending.shift();
+  }
   if (isHidden()) return; // background: no drawing at all
   renderMe();
 }
 
-let breadcrumbPending = [];
 function renderMe(){
   if (!myLatLng) return;
-  // Breadcrumb trail (fixes collected while hidden are added on return)
-  breadcrumbPending.forEach(p => breadcrumb.push(p));
-  breadcrumbPending = [];
-  while (breadcrumb.length > MAX_BREADCRUMB) breadcrumb.shift();
-  if (breadcrumbLine){
-    breadcrumbLine.setLatLngs(breadcrumb);
-  } else if (breadcrumb.length > 1){
-    breadcrumbLine = L.polyline(breadcrumb, {
-      color: '#22c55e',
-      weight: 4,
-      opacity: 0.7
-    }).addTo(map);
+  // Trail: merge pending fixes (incl. while hidden), size-cap, draw gray dashed line
+  if (trailOn && sharing){
+    breadcrumbPending.forEach(p => breadcrumb.push(p));
+    breadcrumbPending = [];
+    pruneLiveTrail();
+    updateMyTrailLine();
+  } else if (breadcrumbPending.length){
+    breadcrumbPending = [];
   }
 
   // SOS overrides motion icons; still = circle; moving = fixed-length arrow
@@ -899,7 +1187,13 @@ function connect(){
     else if (m.type === 'pos') {
       if (isHidden()) return;
       pendingRiders[m.id] = m;
+      if (m.id !== me && Array.isArray(m.trail)) setRemoteTrail(m.id, m.trail);
       renderDirty = true;
+    }
+    else if (m.type === 'trail'){
+      if (isHidden()) return;
+      if (m.id === me) return;
+      setRemoteTrail(m.id, Array.isArray(m.points) ? m.points : []);
     }
     else if (m.type === 'alert'){
       if (m.id === me) return;
@@ -1162,6 +1456,7 @@ function remove(id){
   }
   delete pendingRiders[id];
   delete riderMotion[id];
+  clearRemoteTrail(id);
   if (findTarget === id) clearFindLine();
   lastListKey = null;
   updateRiderList();
@@ -1234,6 +1529,8 @@ let wakeLock = null;
 // (no ghost rider, no false 'gone quiet'). Hiding/app-switching/screen lock is NOT a leave.
 let leftPage = false;
 function leaveOnClose(){
+  // Best-effort auto-archive current ride (IndexedDB txn usually completes during unload)
+  try { if (trailOn || breadcrumb.length || breadcrumbPending.length) archiveCurrentRide('session-end'); } catch(e){}
   if (!sharing || leftPage || isNativeApp()) return;
   leftPage = true;
   try { if (ws && ws.readyState === 1) ws.send(JSON.stringify({type:'leave'})); } catch(e){}
@@ -1335,6 +1632,54 @@ function toggleSos(){
   else status(sosOn ? 'SOS not sent — you\'re offline (shown on your map only)' : 'SOS off not sent — you\'re offline');
 }
 updateSosBtn();
+function updateTrailBtn(){
+  const b = document.getElementById('trailBtn');
+  if (!b) return;
+  b.classList.toggle('on', trailOn);
+  b.textContent = trailOn ? 'Trail ✓' : 'Trail';
+}
+function onTrailBtnClick(){
+  if (trailOn){
+    setTrailOn(false);
+    return;
+  }
+  const d = document.getElementById('trailDisclosure');
+  if (d) d.classList.add('show');
+}
+function cancelTrailDisclosure(){
+  const d = document.getElementById('trailDisclosure');
+  if (d) d.classList.remove('show');
+  // leave toggle off
+  updateTrailBtn();
+}
+function confirmTrailDisclosure(){
+  const d = document.getElementById('trailDisclosure');
+  if (d) d.classList.remove('show');
+  setTrailOn(true);
+}
+function setTrailOn(on){
+  const next = !!on;
+  if (!next && trailOn){
+    // Turning off: archive current ride, clear live path, tell group
+    archiveCurrentRide('trail-off').then(saved => {
+      wsSend({type:'trail', points:[]});
+      status(saved ? 'Trail off — ride saved' : 'Trail off');
+    });
+  }
+  trailOn = next;
+  localStorage.setItem('trackerTrail', trailOn ? '1' : '0');
+  updateTrailBtn();
+  if (trailOn){
+    status('Trail on — auto-saves each ride (~50 MB archive cap)');
+    if (myLatLng && sharing){
+      if (!rideStartedAt) rideStartedAt = Date.now();
+      breadcrumb.push({lat: myLatLng[0], lon: myLatLng[1], t: Date.now()});
+      pruneLiveTrail();
+      if (!isHidden()) updateMyTrailLine();
+    }
+  }
+}
+updateTrailBtn();
 function requestWakeLock(){
   if (!leader || !isNativeApp() || !('wakeLock' in navigator) || !sharing) return;
   if (wakeLock && !wakeLock.released) return;
@@ -1438,6 +1783,7 @@ function resetGroupState(){
   for (const id in lastSeen) if (id !== me) delete lastSeen[id];
   for (const id in pendingRiders) delete pendingRiders[id];
   for (const id in riderMotion) delete riderMotion[id];
+  for (const id of Object.keys(remoteTrails)) clearRemoteTrail(id);
   clearFindLine(); clearRampRoute();
   const sel = document.getElementById('riderList');
   sel.value = '';
@@ -1449,6 +1795,7 @@ function resetGroupState(){
 }
 function switchGroup(grp, revert){
   if (!grp || grp === myGroup || !sharing) return;
+  try { archiveCurrentRide('switch-group'); } catch(e){}
   switchFrom = revert ? null : myGroup;
   // Explicit leave on the old socket, so the old group drops us at once (no ghost/alert)
   const old = ws; ws = null; joined = false;
