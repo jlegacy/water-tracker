@@ -313,6 +313,8 @@ if (map.touchRotate) map.touchRotate.enable();
 // Any user pan/zoom turns off follow-me (programmatic moves don't fire these)
 map.on('dragstart', () => userMovedMap());
 map.on('rotate', () => rotateArrows());
+// Trail must refresh during zoom/pan frames (not only zoomend) or it detaches then snaps back
+map.on('zoom zoomanim move zoomend moveend', syncTrailDuringMapMotion);
 const mapEl = document.getElementById('map');
 mapEl.addEventListener('wheel', () => userMovedMap(), {passive:true});
 mapEl.addEventListener('touchstart', e => { if (e.touches.length > 1) userMovedMap(); }, {passive:true});
@@ -405,6 +407,13 @@ const TRAIL_DB_NAME = 'water-tracker-trails';
 const TRAIL_DB_STORE = 'rides';
 const remoteTrails = {}; // rider id -> L.polyline
 const TRAIL_STYLE = { color: '#9ca3af', weight: 3, opacity: 0.85, dashArray: '8, 8' };
+// Canvas path redraws with the map during zoom; SVG trails can detach/snap vs the marker
+const trailRenderer = (typeof L !== 'undefined' && L.canvas) ? L.canvas({ padding: 0.5 }) : undefined;
+function trailPolyOpts(){
+  const o = Object.assign({}, TRAIL_STYLE);
+  if (trailRenderer) o.renderer = trailRenderer;
+  return o;
+}
 
 function trailLatLngs(pts){
   return pts.map(p => Array.isArray(p) ? [p[0], p[1]] : [p.lat, p.lon]);
@@ -452,24 +461,45 @@ function setRemoteTrail(id, latlngs){
   if (remoteTrails[id]){
     remoteTrails[id].setLatLngs(latlngs);
   } else {
-    remoteTrails[id] = L.polyline(latlngs, TRAIL_STYLE).addTo(map);
+    remoteTrails[id] = L.polyline(latlngs, trailPolyOpts()).addTo(map);
   }
+}
+function trailDrawLatLngs(){
+  // Always end the live trail at the YOU marker so zoom never leaves a visual gap
+  const ll = trailLatLngs(breadcrumb);
+  if (myLatLng){
+    if (!ll.length) return [[myLatLng[0], myLatLng[1]]];
+    const last = ll[ll.length - 1];
+    if (last[0] !== myLatLng[0] || last[1] !== myLatLng[1]){
+      ll.push([myLatLng[0], myLatLng[1]]);
+    }
+  }
+  return ll;
 }
 function updateMyTrailLine(){
   if (!trailOn){
     clearMyTrailLine();
     return;
   }
-  const ll = trailLatLngs(breadcrumb);
+  const ll = trailDrawLatLngs();
   if (ll.length < 2){
     clearMyTrailLine();
     return;
   }
   if (breadcrumbLine){
+    // Update in place — never remove/re-add during zoom
     breadcrumbLine.setLatLngs(ll);
+    if (breadcrumbLine._renderer && breadcrumbLine._renderer._update) {
+      try { breadcrumbLine.redraw(); } catch(_){}
+    }
   } else {
-    breadcrumbLine = L.polyline(ll, TRAIL_STYLE).addTo(map);
+    breadcrumbLine = L.polyline(ll, trailPolyOpts()).addTo(map);
   }
+}
+function syncTrailDuringMapMotion(){
+  // Keep gray dashed trail glued to the user marker through the whole zoom/pan animation
+  if (!trailOn || !breadcrumbLine || !myLatLng || isHidden()) return;
+  updateMyTrailLine();
 }
 function clearLiveTrailBuffer(){
   breadcrumb = [];
@@ -612,7 +642,7 @@ function loadPastRide(r){
   clearPastOverlay(true);
   const ll = trailLatLngs(r.points || []);
   if (ll.length < 2){ status('That ride has no path'); return; }
-  pastOverlayLine = L.polyline(ll, TRAIL_STYLE).addTo(map);
+  pastOverlayLine = L.polyline(ll, trailPolyOpts()).addTo(map);
   try { map.fitBounds(pastOverlayLine.getBounds().pad(0.2)); } catch(_){}
   userMovedMap();
   status('Showing past ride');
