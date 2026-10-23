@@ -196,6 +196,7 @@ if (map.touchRotate) map.touchRotate.enable();
 
 // Any user pan/zoom turns off follow-me (programmatic moves don't fire these)
 map.on('dragstart', () => userMovedMap());
+map.on('rotate', () => rotateArrows());
 const mapEl = document.getElementById('map');
 mapEl.addEventListener('wheel', () => userMovedMap(), {passive:true});
 mapEl.addEventListener('touchstart', e => { if (e.touches.length > 1) userMovedMap(); }, {passive:true});
@@ -251,6 +252,7 @@ const MOVE_START_MS = 1.34;   // > ~3 mph counts as moving
 const MOVE_STOP_MS = 0.89;    // < ~2 mph counts as stopped
 const FOLLOW_GRACE_MS = 5000;
 let isMoving = false;
+let meIconKind = null; // 'circle' | 'arrow' for YOU marker
 let lastUserPanAt = 0;
 const motionFixes = [];       // recent {lat, lon, t, spd}
 function userMovedMap(){ lastUserPanAt = Date.now(); setFollow(false); }
@@ -378,13 +380,33 @@ function toggleHeadingMode(){
   applyBearing();
 }
 
-// Point the YOU triangle in the real direction of travel on screen
-function rotateMe(){
-  const el = document.querySelector('.me-arrow');
-  if (!el || lastHeading == null) return;
-  const b = map.getBearing ? map.getBearing() : 0;
-  el.style.transform = 'rotate(' + (lastHeading + b) + 'deg)';
+// Bearing between two lat/lon points (degrees, 0 = north)
+function bearingDeg(lat1, lon1, lat2, lon2){
+  const toRad = x => x * Math.PI / 180;
+  const y = Math.sin(toRad(lon2 - lon1)) * Math.cos(toRad(lat2));
+  const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) -
+            Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(toRad(lon2 - lon1));
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
 }
+
+// Point moving-rider arrows in the real direction of travel on screen
+// (markers sit in the non-rotating pane, so we compensate for map bearing).
+function rotateArrows(){
+  const b = map.getBearing ? map.getBearing() : 0;
+  const meEl = document.querySelector('.me-arrow');
+  if (meEl && lastHeading != null && isMoving){
+    meEl.style.transform = 'rotate(' + (lastHeading + b) + 'deg)';
+  }
+  for (const id in riders){
+    if (id === me) continue;
+    const m = riderMotion[id];
+    if (!m || !m.moving || m.heading == null) continue;
+    const root = riders[id].getElement && riders[id].getElement();
+    const el = root && root.querySelector('.rider-arrow');
+    if (el) el.style.transform = 'rotate(' + (m.heading + b) + 'deg)';
+  }
+}
+function rotateMe(){ rotateArrows(); } // legacy alias
 function applyBearing(){
   if (!map.setBearing) return;
   if (headingMode === 'heading' && lastHeading != null){
@@ -393,7 +415,40 @@ function applyBearing(){
   } else {
     map.setBearing(0);
   }
-  rotateMe();
+  rotateArrows();
+}
+
+// Per-rider motion for other markers (server pos has no heading/speed)
+const riderMotion = {}; // id -> {fixes, moving, heading}
+function updateRiderMotion(id, lat, lon){
+  const now = Date.now();
+  let m = riderMotion[id];
+  if (!m) m = riderMotion[id] = {fixes: [], moving: false, heading: null};
+  const prev = m.fixes.length ? m.fixes[m.fixes.length - 1] : null;
+  m.fixes.push({lat, lon, t: now});
+  while (m.fixes.length > 6 || (m.fixes.length > 2 && now - m.fixes[0].t > 20000)) m.fixes.shift();
+  let v = null;
+  if (m.fixes.length >= 2){
+    const a = m.fixes[0], b = m.fixes[m.fixes.length - 1];
+    const dt = (b.t - a.t) / 1000;
+    if (dt >= 1) v = haversine(a.lat, a.lon, b.lat, b.lon) / dt;
+  }
+  if (v != null){
+    if (!m.moving && v > MOVE_START_MS) m.moving = true;
+    else if (m.moving && v < MOVE_STOP_MS) m.moving = false;
+  }
+  if (prev){
+    const d = haversine(prev.lat, prev.lon, lat, lon);
+    if (d > 5){
+      const h = bearingDeg(prev.lat, prev.lon, lat, lon);
+      if (m.heading == null) m.heading = h;
+      else {
+        const diff = ((h - m.heading + 540) % 360) - 180;
+        m.heading = (m.heading + diff * 0.3 + 360) % 360;
+      }
+    }
+  }
+  return m;
 }
 
 // Update lastHeading from a fix. heading in degrees (may be null/NaN), speed in m/s (may be null)
@@ -629,44 +684,22 @@ function renderMe(){
     }).addTo(map);
   }
 
+  // Still = circle; moving with known heading = fixed-length arrow (direction only)
+  const meKind = (isMoving && lastHeading != null) ? 'arrow' : 'circle';
   if (riders[me]){
     riders[me].setLatLng(myLatLng);
+    if (meIconKind !== meKind){
+      meIconKind = meKind;
+      riders[me].setIcon(buildMeIcon(meKind));
+    }
   } else {
-    const icon = L.divIcon({
-      className: '',
-      html: `<div class="me-arrow" style="width:22px;height:22px;transform-origin:50% 50%;"><div style="
-        width:0;height:0;
-        border-left:11px solid transparent;
-        border-right:11px solid transparent;
-        border-bottom:22px solid #000;
-        position:relative;
-      ">
-        <div style="
-          position:absolute;
-          top:2px;left:-9px;
-          width:0;height:0;
-          border-left:9px solid transparent;
-          border-right:9px solid transparent;
-          border-bottom:18px solid #e11d48;
-        "></div>
-        <div style="
-          position:absolute;
-          top:4px;left:-12px;
-          width:24px;text-align:center;
-          color:#fff;font-weight:900;font-size:8px;
-          text-shadow:0 0 2px #000;
-        ">YOU</div>
-      </div></div>`,
-      iconSize:[22,22],
-      iconAnchor:[11,11]
-    });
-    riders[me] = L.marker(myLatLng,{icon, zIndexOffset:2000}).addTo(map).bindPopup(myName + ' (you)');
+    meIconKind = meKind;
+    riders[me] = L.marker(myLatLng,{icon: buildMeIcon(meKind), zIndexOffset:2000}).addTo(map).bindPopup(myName + ' (you)');
     riders[me].on('click', () => clearRiderSelection());
-    rotateMe();
   }
   if (isMoving && !followMe && Date.now() - lastUserPanAt >= FOLLOW_GRACE_MS) setFollow(true);
   if (followMe) map.panTo(myLatLng);
-  rotateMe();
+  rotateArrows();
   updateFindLine();
   updateRampRoute();
   renderDirty = true; // rider list (distances) refreshed by the 1 s render loop
@@ -774,8 +807,7 @@ function showAlert(text){
   if (navigator.vibrate) { try { navigator.vibrate([300, 150, 300]); } catch(e){} }
 }
 
-// Leader = purple dot (#8b5cf6) with dark outline and a star; stale leader stays grey
-// but keeps the purple outline + star so it is still identifiable
+// Leader = purple (#8b5cf6) with star; stale = grey. Still = circle; moving = fixed arrow.
 function riderInitial(name){
   const c = String(name || '').trim().charAt(0);
   return c ? c.toUpperCase() : '?';
@@ -783,7 +815,34 @@ function riderInitial(name){
 function escHtml(t){
   return String(t).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 }
-function riderIcon(stale, isLeader, name){
+function buildMeIcon(kind){
+  // Fixed size for both shapes; arrow length does NOT scale with speed
+  if (kind === 'arrow'){
+    return L.divIcon({
+      className: '',
+      html: `<div class="me-arrow" style="width:28px;height:28px;transform-origin:50% 50%;"><div style="
+        width:0;height:0;border-left:14px solid transparent;border-right:14px solid transparent;
+        border-bottom:28px solid #000;position:relative;">
+        <div style="position:absolute;top:3px;left:-11px;width:0;height:0;
+          border-left:11px solid transparent;border-right:11px solid transparent;
+          border-bottom:22px solid #e11d48;"></div>
+        <div style="position:absolute;top:8px;left:-14px;width:28px;text-align:center;
+          color:#fff;font-weight:900;font-size:8px;text-shadow:0 0 2px #000;">YOU</div>
+      </div></div>`,
+      iconSize:[28,28],
+      iconAnchor:[14,14]
+    });
+  }
+  return L.divIcon({
+    className: '',
+    html: `<div style="box-sizing:border-box;width:28px;height:28px;border-radius:50%;
+      background:#e11d48;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.45);
+      color:#fff;font:bold 9px/28px -apple-system,system-ui,sans-serif;text-align:center;">YOU</div>`,
+    iconSize:[28,28],
+    iconAnchor:[14,14]
+  });
+}
+function riderIcon(stale, isLeader, name, moving, heading){
   const bg = isLeader ? (stale ? '#9ca3af' : '#8b5cf6') : (stale ? '#9ca3af' : '#4aa3ff');
   const op = stale ? (isLeader ? 0.8 : 0.6) : 1;
   const border = isLeader ? `3px solid ${stale ? '#8b5cf6' : '#1e1b4b'}` : '2px solid #fff';
@@ -791,6 +850,25 @@ function riderIcon(stale, isLeader, name){
       position:absolute;top:-6px;right:-6px;width:14px;height:14px;border-radius:50%;
       background:#fbbf24;border:1px solid #fff;color:#fff;font-size:10px;line-height:14px;
       text-align:center;box-shadow:0 0 3px rgba(0,0,0,.5);">★</div>` : '';
+  const showArrow = !!moving && heading != null && isFinite(heading);
+  if (showArrow){
+    // Fixed-length direction arrow (same size whether 3 mph or 40)
+    return L.divIcon({
+      className: '',
+      html: `<div class="rider-arrow" style="position:relative;width:28px;height:28px;transform-origin:50% 50%;">
+        <div style="width:0;height:0;border-left:14px solid transparent;border-right:14px solid transparent;
+          border-bottom:28px solid #fff;position:relative;filter:drop-shadow(0 1px 3px rgba(0,0,0,.45));">
+          <div style="position:absolute;top:3px;left:-11px;width:0;height:0;opacity:${op};
+            border-left:11px solid transparent;border-right:11px solid transparent;
+            border-bottom:22px solid ${bg};"></div>
+          <div style="position:absolute;top:7px;left:-14px;width:28px;text-align:center;
+            color:#fff;font-weight:900;font-size:11px;text-shadow:0 0 2px #000;">${escHtml(riderInitial(name))}</div>
+        </div>${badge}</div>`,
+      iconSize:[28,28],
+      iconAnchor:[14,14],
+      popupAnchor:[0,-14]
+    });
+  }
   return L.divIcon({
     className: '',
     html: `<div style="position:relative;width:28px;height:28px;">
@@ -835,8 +913,10 @@ function toggleRiderRoute(id){
 }
 function setRiderStale(id, stale){
   if (!riders[id] || id === me) return;
-  riders[id].setIcon(riderIcon(stale, positions[id] && positions[id].leader, positions[id] && positions[id].name));
+  const m = riderMotion[id] || {};
+  riders[id].setIcon(riderIcon(stale, positions[id] && positions[id].leader, positions[id] && positions[id].name, m.moving, m.heading));
   riders[id].setPopupContent(riderPopup(id));
+  rotateArrows();
   updateRiderList();
 }
 
@@ -861,18 +941,23 @@ function upsert(r){
   const wasStale = positions[r.id] && positions[r.id].stale;
   const wasLeader = positions[r.id] && positions[r.id].leader;
   const wasName = positions[r.id] && positions[r.id].name;
+  const wasArrow = !!(positions[r.id] && positions[r.id]._arrow);
   const isLeader = !!r.leader;
-  positions[r.id] = {lat: r.lat, lon: r.lon, name, stale, leader: isLeader};
+  const mot = updateRiderMotion(r.id, r.lat, r.lon);
+  const wantArrow = !!(mot.moving && mot.heading != null);
+  positions[r.id] = {lat: r.lat, lon: r.lon, name, stale, leader: isLeader, _arrow: wantArrow};
   if (riders[r.id]){
     riders[r.id].setLatLng([r.lat, r.lon]);
-    if (wasStale !== stale || wasLeader !== isLeader || wasName !== name) riders[r.id].setIcon(riderIcon(stale, isLeader, name));
+    if (wasStale !== stale || wasLeader !== isLeader || wasName !== name || wasArrow !== wantArrow)
+      riders[r.id].setIcon(riderIcon(stale, isLeader, name, mot.moving, mot.heading));
     riders[r.id].setPopupContent(riderPopup(r.id));
   } else {
-    riders[r.id] = L.marker([r.lat, r.lon],{icon: riderIcon(stale, isLeader, name), zIndexOffset: isLeader ? 1000 : 0}).addTo(map).bindPopup(riderPopup(r.id));
+    riders[r.id] = L.marker([r.lat, r.lon],{icon: riderIcon(stale, isLeader, name, mot.moving, mot.heading), zIndexOffset: isLeader ? 1000 : 0}).addTo(map).bindPopup(riderPopup(r.id));
     const rid = r.id;
     riders[rid].on('click', () => selectRiderFromMap(rid));
     riders[rid].on('popupopen', () => riders[rid].setPopupContent(riderPopup(rid)));
   }
+  rotateArrows();
   if (findTarget === r.id) updateFindLine();
 }
 
@@ -885,6 +970,7 @@ function remove(id){
     delete positions[id];
   }
   delete pendingRiders[id];
+  delete riderMotion[id];
   if (findTarget === id) clearFindLine();
   lastListKey = null;
   updateRiderList();
@@ -1033,6 +1119,7 @@ function resetGroupState(){
   for (const id in positions) if (id !== me) delete positions[id];
   for (const id in lastSeen) if (id !== me) delete lastSeen[id];
   for (const id in pendingRiders) delete pendingRiders[id];
+  for (const id in riderMotion) delete riderMotion[id];
   clearFindLine(); clearRampRoute();
   const sel = document.getElementById('riderList');
   sel.value = '';
