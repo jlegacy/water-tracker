@@ -274,11 +274,13 @@ async def ws_endpoint(ws: WebSocket):
             groups[code] = {}
         prev = groups[code].get(rider_id)
         if prev:  # rejoin after a drop: keep last known position
-            prev.update({"name": name, "ws": ws, "leader": bool(msg.get("leader"))})
+            prev.update({"name": name, "ws": ws, "leader": bool(msg.get("leader")),
+                         "sos": bool(msg.get("sos"))})
         else:
             groups[code][rider_id] = {"name": name, "lat": None, "lon": None, "ts": None,
                                       "updated": time.time(), "ws": ws, "stale": False,
-                                      "leader": bool(msg.get("leader"))}
+                                      "leader": bool(msg.get("leader")),
+                                      "sos": bool(msg.get("sos"))}
         await ws.send_text(json.dumps({"type": "joined", "id": rider_id, "code": code}))
         await broadcast(code, {"type": "riders", "riders": public_list(code)})
 
@@ -290,7 +292,8 @@ async def ws_endpoint(ws: WebSocket):
                 # Removed by a /api/leave beacon while this socket is still alive
                 # (e.g. same rider open in another tab): put the rider back.
                 groups.setdefault(code, {})[rider_id] = {"name": name, "lat": None, "lon": None,
-                    "ts": None, "updated": time.time(), "ws": ws, "stale": False, "leader": False}
+                    "ts": None, "updated": time.time(), "ws": ws, "stale": False, "leader": False,
+                    "sos": False}
             g = groups.get(code, {})
             if rider_id in g:
                 g[rider_id]["updated"] = time.time()  # any message counts as keep-alive
@@ -310,12 +313,18 @@ async def ws_endpoint(ws: WebSocket):
                     if changed:
                         await broadcast(code, {"type": "pos", "id": rider_id,
                                         "name": r["name"], "lat": r["lat"], "lon": r["lon"],
-                                        "ts": r.get("ts"), "leader": bool(r.get("leader"))})
+                                        "ts": r.get("ts"), "leader": bool(r.get("leader")),
+                                        "sos": bool(r.get("sos"))})
             elif t == "leader":
                 if rider_id in g:
                     g[rider_id]["leader"] = bool(msg.get("on"))
                     await broadcast(code, {"type": "leader", "id": rider_id,
                                            "on": g[rider_id]["leader"]})
+            elif t == "sos":
+                if rider_id in g:
+                    g[rider_id]["sos"] = bool(msg.get("on"))
+                    await broadcast(code, {"type": "sos", "id": rider_id,
+                                           "on": g[rider_id]["sos"]})
             elif t == "ping":
                 await ws.send_text(json.dumps({"type": "pong"}))
             elif t == "sync":
@@ -379,7 +388,8 @@ def public_list(code):
             continue
         out.append({"id": rid, "name": r["name"], "lat": r["lat"],
                     "lon": r["lon"], "age": round(now - r["updated"], 1),
-                    "stale": bool(r.get("stale")), "leader": bool(r.get("leader"))})
+                    "stale": bool(r.get("stale")), "leader": bool(r.get("leader")),
+                    "sos": bool(r.get("sos"))})
     return out
 
 async def broadcast(code, msg):

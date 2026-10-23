@@ -16,12 +16,11 @@
 <script src="leaflet-rotate/leaflet-rotate.js"></script>
 
 <script>
-/* API origin: same-origin on Render/Heroku; Render absolute from Capacitor/local preview */
+/* API origin: same-origin when served by FastAPI (Render/Heroku/localhost).
+   Capacitor/ionic/file shells load www locally and must hit Render for WS/API. */
 const API_ORIGIN = (function () {
-  const h = location.hostname;
   const p = location.protocol;
-  if (!h || h === 'localhost' || h === '127.0.0.1'
-      || p === 'capacitor:' || p === 'ionic:' || p === 'file:') {
+  if (p === 'capacitor:' || p === 'ionic:' || p === 'file:') {
     return 'https://water-tracker-yz68.onrender.com';
   }
   return '';
@@ -75,6 +74,9 @@ function wsUrl(path) {
   #bar button.center{background:#3b82f6}
   #bar button.find{background:#f59e0b}
   #bar button.msg{background:#8b5cf6}
+  #bar button.broadcast{background:#ec4899}
+  #bar button.sos{background:#475569}
+  #bar button.sos.on{background:#dc2626;box-shadow:inset 0 0 0 2px #fecaca}
   #bar button.ramps{background:#0891b2}
   #bar button.ramps.on{background:#0e7490;box-shadow:inset 0 0 0 2px #67e8f9}
   .rampIcon{display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;background:#fff;border:2px solid #0891b2;font-size:15px;box-shadow:0 1px 3px rgba(0,0,0,.4)}
@@ -154,10 +156,12 @@ function wsUrl(path) {
     </select>
     <button id="findBtn" class="find" onclick="toggleFind()" style="display:none">Find</button>
     <button id="leaderBtn" class="leader" onclick="toggleLeader()">Leader</button>
+    <button id="sosBtn" class="sos" onclick="toggleSos()">SOS</button>
   </div>
   <div class="row" id="msgBox">
     <input id="msgText" placeholder="Message everyone" style="display:none">
     <button id="sendBtn" class="msg" onclick="sendMessage()" style="display:none">Send</button>
+    <button id="allBtn" class="broadcast" onclick="broadcastMessage()" style="display:none">All</button>
     <button id="rampsBtn" class="ramps" onclick="toggleRamps()">Ramps</button>
   </div>
 </div>
@@ -252,7 +256,8 @@ const MOVE_START_MS = 1.34;   // > ~3 mph counts as moving
 const MOVE_STOP_MS = 0.89;    // < ~2 mph counts as stopped
 const FOLLOW_GRACE_MS = 5000;
 let isMoving = false;
-let meIconKind = null; // 'circle' | 'arrow' for YOU marker
+let meIconKind = null; // 'circle' | 'arrow' | 'sos' for YOU marker
+let sosOn = false; // SOS: show 🆘 on my marker and broadcast to the group
 let lastUserPanAt = 0;
 const motionFixes = [];       // recent {lat, lon, t, spd}
 function userMovedMap(){ lastUserPanAt = Date.now(); setFollow(false); }
@@ -527,9 +532,11 @@ let joined = false;
 // Message row stays visible (Ramps lives there); only input + Send hide when alone
 function setMsgControls(show){
   const t = document.getElementById('msgText'), b = document.getElementById('sendBtn');
+  const a = document.getElementById('allBtn');
   const d = show ? '' : 'none';
-  if (t.style.display === d && b.style.display === d) return;
+  if (t.style.display === d && b.style.display === d && (!a || a.style.display === d)) return;
   t.style.display = d; b.style.display = d;
+  if (a) a.style.display = d;
   scheduleMapLayout();
 }
 
@@ -684,8 +691,8 @@ function renderMe(){
     }).addTo(map);
   }
 
-  // Still = circle; moving with known heading = fixed-length arrow (direction only)
-  const meKind = (isMoving && lastHeading != null) ? 'arrow' : 'circle';
+  // SOS overrides motion icons; still = circle; moving = fixed-length arrow
+  const meKind = sosOn ? 'sos' : ((isMoving && lastHeading != null) ? 'arrow' : 'circle');
   if (riders[me]){
     riders[me].setLatLng(myLatLng);
     if (meIconKind !== meKind){
@@ -719,7 +726,8 @@ function connect(){
       id: me,
       name: myName,
       code: myGroup,
-      leader: leader
+      leader: leader,
+      sos: sosOn
     }));
     lastSendAt = Date.now();
     // Keep-alive only when nothing else has been sent for a while; positions double as keep-alive
@@ -779,6 +787,11 @@ function connect(){
       if (pendingRiders[m.id]) pendingRiders[m.id].leader = !!m.on;
       lastListKey = null; updateRiderList();
     }
+    else if (m.type === 'sos'){
+      if (m.id === me) return;
+      if (positions[m.id]){ positions[m.id].sos = !!m.on; setRiderStale(m.id, positions[m.id].stale); }
+      if (pendingRiders[m.id]) pendingRiders[m.id].sos = !!m.on;
+    }
     else if (m.type === 'leave') remove(m.id);
     else if (m.type === 'msg'){
       const txt = (m.from || 'Someone') + ': ' + m.text;
@@ -818,6 +831,15 @@ function escHtml(t){
 }
 function buildMeIcon(kind){
   // Fixed size for both shapes; arrow length does NOT scale with speed
+  if (kind === 'sos'){
+    return L.divIcon({
+      className: '',
+      html: `<div style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;
+        font-size:28px;line-height:1;filter:drop-shadow(0 1px 3px rgba(0,0,0,.55));">🆘</div>`,
+      iconSize:[32,32],
+      iconAnchor:[16,16]
+    });
+  }
   if (kind === 'arrow'){
     return L.divIcon({
       className: '',
@@ -843,7 +865,17 @@ function buildMeIcon(kind){
     iconAnchor:[14,14]
   });
 }
-function riderIcon(stale, isLeader, name, moving, heading){
+function riderIcon(stale, isLeader, name, moving, heading, sos){
+  if (sos){
+    return L.divIcon({
+      className: '',
+      html: `<div style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;
+        font-size:28px;line-height:1;filter:drop-shadow(0 1px 3px rgba(0,0,0,.55));">🆘</div>`,
+      iconSize:[32,32],
+      iconAnchor:[16,16],
+      popupAnchor:[0,-16]
+    });
+  }
   const bg = isLeader ? (stale ? '#9ca3af' : '#8b5cf6') : (stale ? '#9ca3af' : '#4aa3ff');
   const op = stale ? (isLeader ? 0.8 : 0.6) : 1;
   const border = isLeader ? `3px solid ${stale ? '#8b5cf6' : '#1e1b4b'}` : '2px solid #fff';
@@ -888,7 +920,8 @@ function riderIcon(stale, isLeader, name, moving, heading){
 function riderPopup(id){
   const p = positions[id];
   if (!p) return '';
-  const nm = p.leader ? '★ ' + p.name + ' (Leader)' : p.name;
+  let nm = p.leader ? '★ ' + p.name + ' (Leader)' : p.name;
+  if (p.sos) nm = '🆘 ' + nm;
   if (p.stale) {
     const mins = Math.max(1, Math.round((Date.now() - (lastSeen[id] || Date.now())) / 60000));
     return nm + ' (last seen ' + mins + ' min ago)' + riderRouteLink(id);
@@ -915,7 +948,8 @@ function toggleRiderRoute(id){
 function setRiderStale(id, stale){
   if (!riders[id] || id === me) return;
   const m = riderMotion[id] || {};
-  riders[id].setIcon(riderIcon(stale, positions[id] && positions[id].leader, positions[id] && positions[id].name, m.moving, m.heading));
+  const p = positions[id];
+  riders[id].setIcon(riderIcon(stale, p && p.leader, p && p.name, m.moving, m.heading, p && p.sos));
   riders[id].setPopupContent(riderPopup(id));
   rotateArrows();
   updateRiderList();
@@ -943,17 +977,19 @@ function upsert(r){
   const wasLeader = positions[r.id] && positions[r.id].leader;
   const wasName = positions[r.id] && positions[r.id].name;
   const wasArrow = !!(positions[r.id] && positions[r.id]._arrow);
+  const wasSos = !!(positions[r.id] && positions[r.id].sos);
   const isLeader = !!r.leader;
+  const isSos = !!r.sos;
   const mot = updateRiderMotion(r.id, r.lat, r.lon);
   const wantArrow = !!(mot.moving && mot.heading != null);
-  positions[r.id] = {lat: r.lat, lon: r.lon, name, stale, leader: isLeader, _arrow: wantArrow};
+  positions[r.id] = {lat: r.lat, lon: r.lon, name, stale, leader: isLeader, sos: isSos, _arrow: wantArrow};
   if (riders[r.id]){
     riders[r.id].setLatLng([r.lat, r.lon]);
-    if (wasStale !== stale || wasLeader !== isLeader || wasName !== name || wasArrow !== wantArrow)
-      riders[r.id].setIcon(riderIcon(stale, isLeader, name, mot.moving, mot.heading));
+    if (wasStale !== stale || wasLeader !== isLeader || wasName !== name || wasArrow !== wantArrow || wasSos !== isSos)
+      riders[r.id].setIcon(riderIcon(stale, isLeader, name, mot.moving, mot.heading, isSos));
     riders[r.id].setPopupContent(riderPopup(r.id));
   } else {
-    riders[r.id] = L.marker([r.lat, r.lon],{icon: riderIcon(stale, isLeader, name, mot.moving, mot.heading), zIndexOffset: isLeader ? 1000 : 0}).addTo(map).bindPopup(riderPopup(r.id));
+    riders[r.id] = L.marker([r.lat, r.lon],{icon: riderIcon(stale, isLeader, name, mot.moving, mot.heading, isSos), zIndexOffset: isSos ? 1500 : (isLeader ? 1000 : 0)}).addTo(map).bindPopup(riderPopup(r.id));
     const rid = r.id;
     riders[rid].on('click', () => selectRiderFromMap(rid));
     riders[rid].on('popupopen', () => riders[rid].setPopupContent(riderPopup(rid)));
@@ -1073,6 +1109,21 @@ function toggleLeader(){
   if (leader) requestWakeLock(); else releaseWakeLock();
   if (leader && !isNativeApp()) status('Leader on (screen stays awake only in the app)');
 }
+function updateSosBtn(){
+  const b = document.getElementById('sosBtn');
+  if (!b) return;
+  b.classList.toggle('on', sosOn);
+  b.textContent = sosOn ? 'SOS ✓' : 'SOS';
+}
+function toggleSos(){
+  sosOn = !sosOn;
+  updateSosBtn();
+  meIconKind = null; // force icon rebuild
+  if (myLatLng && !isHidden()) renderMe();
+  if (ws && ws.readyState === 1 && joined) wsSend({type:'sos', on: sosOn});
+  status(sosOn ? 'SOS on — others see 🆘' : 'SOS off');
+}
+updateSosBtn();
 function requestWakeLock(){
   if (!leader || !isNativeApp() || !('wakeLock' in navigator) || !sharing) return;
   if (wakeLock && !wakeLock.released) return;
@@ -1185,6 +1236,7 @@ function switchGroup(grp, revert){
   }
   resetGroupState();
   if (leader){ leader = false; localStorage.setItem('trackerLeader', '0'); updateLeaderBtn(); releaseWakeLock(); }
+  if (sosOn){ sosOn = false; updateSosBtn(); meIconKind = null; }
   posQueue = [];
   myGroup = grp;
   document.getElementById('groupDisplay').value = myGroup;
