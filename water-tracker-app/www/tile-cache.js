@@ -188,59 +188,57 @@
     }
   }
 
-  function setTileBlob(tile, blob) {
+  function setTileBlob(tile, blob, assign) {
     revokeTileUrl(tile);
     var url = URL.createObjectURL(blob);
     rememberObjectUrl(tile, url);
-    tile.src = url;
+    assign(url);
   }
 
   var CachedTileLayer = L.TileLayer.extend({
-    options: {
-      // Hint CORS on <img> fallback path; fetch uses mode:'cors' separately
-      crossOrigin: 'anonymous'
-    },
-
     createTile: function (coords, done) {
+      var self = this;
       var tile = document.createElement('img');
-      L.DomEvent.on(tile, 'load', L.Util.bind(this._tileOnLoad, this, done, tile));
-      L.DomEvent.on(tile, 'error', L.Util.bind(this._tileOnError, this, done, tile));
-      if (this.options.crossOrigin || this.options.crossOrigin === '') {
-        tile.crossOrigin = this.options.crossOrigin === true ? '' : this.options.crossOrigin;
-      }
       tile.alt = '';
       tile.setAttribute('role', 'presentation');
 
       var url = this.getTileUrl(coords);
       var key = tileKey(coords);
+      var bound = false;
+
+      // Bind load/error only when a real src is assigned, so an empty-src
+      // error can't mark the tile failed before async cache/fetch finishes.
+      function assign(src) {
+        if (!bound) {
+          bound = true;
+          L.DomEvent.on(tile, 'load', L.Util.bind(self._tileOnLoad, self, done, tile));
+          L.DomEvent.on(tile, 'error', L.Util.bind(self._tileOnError, self, done, tile));
+        }
+        tile.src = src;
+      }
 
       getCached(key).then(function (row) {
         if (row && row.blob) {
-          setTileBlob(tile, row.blob);
+          setTileBlob(tile, row.blob, assign);
           return;
         }
         if (typeof fetch !== 'function') {
-          tile.src = url;
+          assign(url);
           return;
         }
-        fetch(url, {
-          mode: 'cors',
-          credentials: 'omit',
-          referrerPolicy: 'strict-origin-when-cross-origin'
-        })
+        fetch(url, { mode: 'cors', credentials: 'omit' })
           .then(function (res) {
             if (!res.ok) throw new Error('tile http ' + res.status);
             return res.blob();
           })
           .then(function (blob) {
             if (!blob || !blob.size) throw new Error('empty tile');
-            setTileBlob(tile, blob);
+            setTileBlob(tile, blob, assign);
             putCached(key, blob);
           })
           .catch(function () {
-            // CORS blocked or network error: still display online via normal img request
-            // (no IndexedDB write). Offline + miss → Leaflet error tile.
-            tile.src = url;
+            // CORS/network fail: plain img request (no cache write, no crossOrigin).
+            assign(url);
           });
       });
 
