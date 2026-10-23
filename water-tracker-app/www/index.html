@@ -813,7 +813,7 @@ function renderMe(){
   }
 
   // SOS overrides motion icons; still = circle; moving = fixed-length arrow
-  const meKind = sosOn ? 'sos' : ((isMoving && lastHeading != null) ? 'arrow' : 'circle');
+  const meKind = (sosOn ? 'sos' : ((isMoving && lastHeading != null) ? 'arrow' : 'circle')) + (leader && !sosOn ? '-leader' : '');
   if (riders[me]){
     riders[me].setLatLng(myLatLng);
     if (meIconKind !== meKind){
@@ -962,6 +962,18 @@ function escHtml(t){
   return String(t).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 }
 function buildMeIcon(kind){
+  if (kind === 'arrow-leader' || kind === 'circle-leader'){
+    const star = `<div style="position:absolute;top:-6px;right:-6px;width:14px;height:14px;border-radius:50%;background:#fbbf24;border:1px solid #fff;color:#fff;font-size:10px;line-height:14px;text-align:center;box-shadow:0 0 3px rgba(0,0,0,.5);">★</div>`;
+    if (kind === 'arrow-leader') return L.divIcon({className:'', html:`<div class="me-arrow" style="width:28px;height:28px;transform-origin:50% 50%;"><div style="
+        width:0;height:0;border-left:14px solid transparent;border-right:14px solid transparent;
+        border-bottom:28px solid #1e1b4b;position:relative;filter:drop-shadow(0 1px 3px rgba(0,0,0,.45));">
+        <div style="position:absolute;top:3px;left:-11px;width:0;height:0;border-left:11px solid transparent;border-right:11px solid transparent;border-bottom:22px solid #8b5cf6;"></div>
+        <div style="position:absolute;top:7px;left:-14px;width:28px;text-align:center;color:#fbbf24;font-weight:900;font-size:13px;text-shadow:0 0 2px #000;">★</div>
+      </div></div>`, iconSize:[28,28], iconAnchor:[14,14]});
+    return L.divIcon({className:'', html:`<div style="position:relative;width:28px;height:28px;"><div style="box-sizing:border-box;width:28px;height:28px;border-radius:50%;
+      background:#8b5cf6;border:3px solid #1e1b4b;box-shadow:0 1px 4px rgba(0,0,0,.45);
+      color:#fff;font:bold 9px/22px -apple-system,system-ui,sans-serif;text-align:center;">YOU</div>${star}</div>`, iconSize:[28,28], iconAnchor:[14,14]});
+  }
   // YOU = teal #0d9488 (not red — SOS uses 🆘 / #dc2626). Fixed size; arrow length does NOT scale with speed
   if (kind === 'sos'){
     return L.divIcon({
