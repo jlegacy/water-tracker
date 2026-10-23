@@ -337,6 +337,10 @@ let pingTimer = null;
 // --- Power saving: outbound throttle, reconnect backoff, offline queue ---
 const SEND_INTERVAL_MS = 7000;   // send at most every 7 s...
 const SEND_DISTANCE_M = 15;      // ...unless we've moved 15 m since the last send
+// Native GPS stays distance-filtered at 15 m (and web is OS-driven, often ~1 Hz);
+// this gate caps how often onFix consumes fixes to ~every 3 s.
+const FIX_MIN_INTERVAL_MS = 3000;
+let lastFixAcceptedAt = 0;
 const KEEPALIVE_MS = 25000;      // only ping if nothing was sent for 25 s
 const MAX_QUEUE = 10;            // positions kept while disconnected
 let lastSent = null;             // {lat, lon, t}
@@ -856,6 +860,9 @@ function updateHeading(lat, lon, heading, speed){
 }
 
 function onFix(lat, lon, heading, speed){
+  const fixNow = Date.now();
+  if (lastFixAcceptedAt && fixNow - lastFixAcceptedAt < FIX_MIN_INTERVAL_MS) return;
+  lastFixAcceptedAt = fixNow;
   updateMotion(lat, lon, speed);
   if (!isHidden()) updateHeading(lat, lon, heading, speed);
   updateMyMarker(lat, lon);
