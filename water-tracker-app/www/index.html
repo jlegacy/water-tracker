@@ -92,6 +92,7 @@ function wsUrl(path) {
   .rampIcon{display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;background:#fff;border:2px solid #0891b2;font-size:15px;box-shadow:0 1px 3px rgba(0,0,0,.4)}
   .rampIcon.marina{border-color:#1e3a8a;border-radius:50%}
   #rampToast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:rgba(15,32,56,.95);color:#fff;padding:8px 14px;border-radius:8px;font-size:14px;z-index:2000;display:none;max-width:85%;text-align:center}
+  .leaflet-bottom{bottom:var(--statusH,0px);transition:bottom .15s}
   #status{
     position:absolute;bottom:8px;left:8px;right:8px;z-index:1000;
     padding:6px 10px;border-radius:8px;background:rgba(11,29,51,.9);
@@ -1452,6 +1453,12 @@ async function toggleRamps(){
     rampsLoading = false; btn.disabled = false; btn.textContent = rampsOn ? 'Hide Ramps' : 'Ramps';
   }
 }
+</script>
+<script>
+(function(){var st=document.getElementById('status');if(!st)return;
+function u(){var h=st.offsetParent&&getComputedStyle(st).display!=='none'?st.offsetHeight+12:0;document.documentElement.style.setProperty('--statusH',h+'px');}
+new MutationObserver(u).observe(st,{attributes:true,childList:true,characterData:true,subtree:true});
+window.addEventListener('resize',u);u();})();
 </script>
 </body>
 </html>
