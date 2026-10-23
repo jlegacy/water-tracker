@@ -159,6 +159,14 @@ function wsUrl(path) {
   .groupLabel{font-size:13px;color:#9fb3c8;margin-bottom:-6px}
   #bar button.leader{background:#475569}
   #bar button.leader.on{background:#dc2626}
+  #sosBar{
+    position:absolute;left:0;right:0;z-index:999;
+    display:none;box-sizing:border-box;
+    background:#dc2626;color:#fff;font-weight:700;font-size:15px;
+    text-align:center;padding:10px 12px;cursor:pointer;
+    box-shadow:0 2px 6px rgba(0,0,0,.35);
+    -webkit-tap-highlight-color:transparent;
+  }
   #banner.alert{background:#dc2626}
 </style>
 </head>
@@ -206,6 +214,7 @@ function wsUrl(path) {
     <button id="rampsBtn" class="ramps" onclick="toggleRamps()">Ramps</button>
   </div>
 </div>
+<div id="sosBar" role="button" tabindex="0" onclick="jumpToSos()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();jumpToSos();}" aria-label="Jump to SOS"></div></div>
 <div id="map"></div>
 <div id="status"></div>
 <div id="rampToast"></div>
@@ -691,7 +700,7 @@ function updateRiderList(){
   }
   others.sort((a,b) => (a.dist == null || b.dist == null) ? a.name.localeCompare(b.name) : a.dist - b.dist);
   const key = (leader ? 'L|' : '') + others.map(o => o.id + ':' + o.name + ':' + (o.dist == null ? '-' : Math.round(o.dist)) + (o.stale ? ':q' : '') + (o.sos ? ':s' : '')).join('|');
-  if (key === lastListKey) return;
+  if (key === lastListKey){ updateSosBar(); return; }
   lastListKey = key;
 
   const current = sel.value;
@@ -710,6 +719,7 @@ function updateRiderList(){
   setMsgControls(others.length > 0);
   document.getElementById('findBtn').style.display = (sel.value && others.length) ? 'inline-block' : 'none';
   updateMsgPlaceholder();
+  updateSosBar();
 }
 
 // Custom rider picker: mirrors the hidden #riderList <select> (still the source of truth)
@@ -1253,6 +1263,61 @@ function toggleLeader(){
   if (leader) requestWakeLock(); else releaseWakeLock();
   if (leader && !isNativeApp()) status('Leader on (screen stays awake only in the app)');
 }
+function collectSosRiders(){
+  const list = [];
+  if (sosOn){
+    list.push({
+      id: me,
+      name: myName || 'You',
+      lat: myLatLng ? myLatLng[0] : null,
+      lon: myLatLng ? myLatLng[1] : null
+    });
+  }
+  for (const id in positions){
+    if (id === me) continue;
+    const p = positions[id];
+    if (p && p.sos) list.push({id, name: p.name || 'Rider', lat: p.lat, lon: p.lon});
+  }
+  return list;
+}
+function updateSosBar(){
+  const el = document.getElementById('sosBar');
+  if (!el) return;
+  const bar = document.getElementById('bar');
+  // Only on the main map screen (after startApp)
+  if (!bar || bar.style.display === 'none'){
+    el.style.display = 'none';
+    return;
+  }
+  const list = collectSosRiders();
+  if (!list.length){
+    if (el.style.display !== 'none'){
+      el.style.display = 'none';
+      scheduleMapLayout();
+    }
+    return;
+  }
+  el.textContent = list.length === 1
+    ? ('SOS — ' + (list[0].name || 'Rider'))
+    : ('SOS — ' + list.length + ' riders');
+  const wasHidden = el.style.display === 'none' || !el.style.display;
+  el.style.display = 'block';
+  if (wasHidden) scheduleMapLayout();
+}
+function jumpToSos(){
+  const list = collectSosRiders().filter(r => r.lat != null && r.lon != null);
+  if (!list.length){
+    status('Waiting for SOS location');
+    return;
+  }
+  userMovedMap();
+  if (list.length === 1){
+    map.setView([list[0].lat, list[0].lon], Math.max(map.getZoom(), 16));
+  } else {
+    const bounds = L.latLngBounds(list.map(r => [r.lat, r.lon]));
+    map.fitBounds(bounds.pad(0.25));
+  }
+}
 function updateSosBtn(){
   const b = document.getElementById('sosBtn');
   if (!b) return;
@@ -1262,6 +1327,7 @@ function updateSosBtn(){
 function toggleSos(){
   sosOn = !sosOn;
   updateSosBtn();
+  updateSosBar();
   meIconKind = null; // force icon rebuild
   if (myLatLng && !isHidden()) renderMe();
   const sent = wsSend({type:'sos', on: sosOn});
@@ -1282,13 +1348,20 @@ updateLeaderBtn();
 // Keep the map sized and placed under the header bar
 function fixMapLayout(){
   const bar = document.getElementById('bar');
+  const sosBar = document.getElementById('sosBar');
   const mapDiv = document.getElementById('map');
   if (bar && mapDiv && bar.style.display !== 'none' && bar.offsetHeight > 0){
-    mapDiv.style.top = bar.offsetHeight + 'px';
-    // Float map buttons just below the header so they never cover bar buttons
+    const barH = bar.offsetHeight;
+    if (sosBar) sosBar.style.top = barH + 'px';
+    const sosH = (sosBar && sosBar.style.display !== 'none') ? sosBar.offsetHeight : 0;
+    const top = barH + sosH;
+    mapDiv.style.top = top + 'px';
+    // Float map buttons just below the header (and SOS bar when visible)
     const hb = document.getElementById('headingBtn'), rb = document.getElementById('recenterBtn');
-    if (hb) hb.style.top = (bar.offsetHeight + 12) + 'px';
-    if (rb) rb.style.top = (bar.offsetHeight + 70) + 'px';
+    if (hb) hb.style.top = (top + 12) + 'px';
+    if (rb) rb.style.top = (top + 70) + 'px';
+    const banner = document.getElementById('banner');
+    if (banner) banner.style.top = (top + 10) + 'px';
   }
   map.invalidateSize();
 }
@@ -1389,6 +1462,7 @@ function switchGroup(grp, revert){
   resetGroupState();
   if (leader){ leader = false; localStorage.setItem('trackerLeader', '0'); updateLeaderBtn(); releaseWakeLock(); }
   if (sosOn){ sosOn = false; updateSosBtn(); meIconKind = null; }
+  updateSosBar();
   posQueue = [];
   myGroup = grp;
   document.getElementById('groupDisplay').value = myGroup;
