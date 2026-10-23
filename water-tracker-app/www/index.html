@@ -61,7 +61,7 @@ function wsUrl(path) {
     display:none;
     flex-direction:column;
     gap:6px;
-    padding: calc(env(safe-area-inset-top, 0px) + 6px) 8px 8px 8px;
+    padding: 6px 8px 8px 8px; /* iOS contentInset:automatic already insets the webview below the notch */
     background:rgba(11,29,51,.95);
     box-sizing:border-box;
   }
@@ -71,8 +71,10 @@ function wsUrl(path) {
     border:1px solid #2a4a6f;background:#132a45;color:#e8eef7;font-size:15px;
   }
   /* Riders dropdown gets its own full-width line so names/status aren't crunched */
-  #bar .row:first-child{flex-wrap:wrap}
-  #bar select#riderList{order:10;flex:1 1 100%;width:100%;min-width:0;font-size:15px;padding:8px 10px}
+  #bar .row:first-child{flex-wrap:nowrap}
+  #bar .row:first-child button{padding:8px 9px;font-size:13px;flex:0 0 auto}
+  #bar select#groupDisplay{flex:1 1 auto !important;min-width:0;max-width:180px;text-overflow:ellipsis}
+  #bar select#riderList{flex:1 1 100%;width:100%;min-width:0;font-size:15px;padding:8px 10px}
   #bar input[readonly]{background:#0f2038;color:#9fb3c8;cursor:default}
   #bar button{
     padding:8px 12px;border-radius:8px;border:0;
@@ -159,12 +161,14 @@ function wsUrl(path) {
   <div class="row">
     <select id="groupDisplay" onchange="switchGroup(this.value)" aria-label="Group" style="max-width:180px;min-width:0;flex:0 1 auto;font-weight:600"></select>
     <button class="center" onclick="centerOnMe()">Center</button>
-    <select id="riderList" onchange="onRiderSelect()">
-      <option value="">-- Riders --</option>
-    </select>
     <button id="findBtn" class="find" onclick="toggleFind()" style="display:none">Find</button>
     <button id="leaderBtn" class="leader" onclick="toggleLeader()">Leader</button>
     <button id="sosBtn" class="sos" onclick="toggleSos()">SOS</button>
+  </div>
+  <div class="row">
+    <select id="riderList" onchange="onRiderSelect()">
+      <option value="">-- Riders --</option>
+    </select>
   </div>
   <div class="row" id="msgBox">
     <input id="msgText" placeholder="Message everyone" style="display:none">
