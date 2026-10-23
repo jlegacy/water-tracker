@@ -184,10 +184,6 @@ async def index():
 async def manifest():
     return FileResponse(pathlib.Path(__file__).parent / "manifest.json", media_type="application/manifest+json")
 
-@app.get("/tile-cache.js")
-async def tile_cache_js():
-    return FileResponse(WWW_DIR / "tile-cache.js", media_type="application/javascript")
-
 ICON_FILES = ("icon-192.png", "icon-512.png", "icon-maskable-512.png", "apple-touch-icon.png")
 
 for _icon in ICON_FILES:
