@@ -670,7 +670,7 @@ function updateRiderList(){
     const opt = document.createElement('option');
     opt.value = o.id;
     // Status dot like the map: blue active, gray-ish white quiet (native <select> can't color options on iOS)
-    const label = (o.sos ? '🔴 🆘 ' : (o.stale ? '⚪ ' : '🔵 ')) + o.name;
+    const label = (o.sos ? '🔴 ' : (o.stale ? '⚪ ' : '🔵 ')) + o.name;
     if (o.sos){ opt.style.color = '#dc2626'; opt.style.fontWeight = '700'; }
     opt.textContent = o.dist == null ? label : `${label} (${(o.dist / 1609.34).toFixed(2)} mi)`;
     sel.appendChild(opt);
