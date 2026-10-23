@@ -1854,14 +1854,26 @@ function updateGroupSelects(){
   ['startGroup', 'groupDisplay'].forEach(id => {
     const sel = document.getElementById(id);
     if (!sel) return;
-    const cur = sel.value;
+    // Don't touch the join form while the user is mid-composition (mobile IME/autocorrect)
+    if (id === 'startGroup' && nameComposing) return;
+    // Update labels in place, only when they changed; never reassign value/selection
     [...sel.options].forEach(o => {
       if (!o.value) return; // keep placeholder
-      o.textContent = groupLabel(o.value, groupCounts[o.value] || 0);
+      const label = groupLabel(o.value, groupCounts[o.value] || 0);
+      if (o.textContent !== label) o.textContent = label;
     });
-    if (cur) sel.value = cur; // value stays the real group code
   });
 }
+// Join-screen name: guard against background refreshes + keep a draft
+let nameComposing = false;
+(function guardStartName(){
+  const i = document.getElementById('startName');
+  if (!i) return;
+  try { const d = sessionStorage.getItem('startNameDraft'); if (d && !i.value) i.value = d; } catch(_){}
+  i.addEventListener('compositionstart', () => { nameComposing = true; });
+  i.addEventListener('compositionend', () => { nameComposing = false; updateGroupSelects(); });
+  i.addEventListener('input', () => { try { sessionStorage.setItem('startNameDraft', i.value); } catch(_){} });
+})();
 function applyGroupCounts(list){
   const map = {};
   (list || []).forEach(g => { if (g && g.code) map[g.code] = g.active|0; });
