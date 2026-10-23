@@ -311,6 +311,18 @@ try {
 } catch (_) {}
 const zoomCtl = L.control.zoom({position:'bottomright'}).addTo(map);
 zoomCtl.getContainer().addEventListener('click', () => userMovedMap());
+// Offline: freeze pan/zoom so riders can't move into areas with no tiles
+function setMapInteraction(on){
+  ['dragging','touchZoom','doubleClickZoom','scrollWheelZoom','boxZoom','keyboard','tap'].forEach(k => {
+    const h = map[k]; if (h && h.enable) on ? h.enable() : h.disable();
+  });
+  const c = zoomCtl.getContainer();
+  c.style.display = on ? '' : 'none';
+  if (on) zoomCtl.enable && zoomCtl.enable(); else zoomCtl.disable && zoomCtl.disable();
+}
+window.addEventListener('offline', () => setMapInteraction(false));
+window.addEventListener('online', () => setMapInteraction(true));
+if (navigator.onLine === false) setMapInteraction(false);
 
 // Enable two-finger spin
 if (map.touchRotate) map.touchRotate.enable();
