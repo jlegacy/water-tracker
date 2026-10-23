@@ -231,6 +231,27 @@ async def mark_fresh(code, rid):
         r["stale"] = False
         await broadcast(code, {"type": "recovered", "id": rid, "name": r["name"]})
 
+
+def sanitize_trail(raw, max_pts=60):
+    """Cap and validate a thinned trail payload from a client (list of [lat, lon])."""
+    if not isinstance(raw, list):
+        return None
+    out = []
+    for pt in raw[-max_pts:]:
+        try:
+            if isinstance(pt, (list, tuple)) and len(pt) >= 2:
+                lat, lon = float(pt[0]), float(pt[1])
+            elif isinstance(pt, dict) and "lat" in pt and "lon" in pt:
+                lat, lon = float(pt["lat"]), float(pt["lon"])
+            else:
+                continue
+            if abs(lat) > 90 or abs(lon) > 180:
+                continue
+            out.append([round(lat, 6), round(lon, 6)])
+        except (TypeError, ValueError):
+            continue
+    return out
+
 def apply_pos(r, lat, lon, ts):
     """Apply a position if it is newer than what we have (ts in ms, optional for old clients)."""
     if ts is not None:
@@ -311,10 +332,20 @@ async def ws_endpoint(ws: WebSocket):
                         except (KeyError, TypeError, ValueError):
                             pass
                     if changed:
-                        await broadcast(code, {"type": "pos", "id": rider_id,
-                                        "name": r["name"], "lat": r["lat"], "lon": r["lon"],
-                                        "ts": r.get("ts"), "leader": bool(r.get("leader")),
-                                        "sos": bool(r.get("sos"))})
+                        out = {"type": "pos", "id": rider_id,
+                               "name": r["name"], "lat": r["lat"], "lon": r["lon"],
+                               "ts": r.get("ts"), "leader": bool(r.get("leader")),
+                               "sos": bool(r.get("sos"))}
+                        # Best-effort thinned trail share (from this pos message only)
+                        trail = sanitize_trail(msg.get("trail") if t == "pos" else None)
+                        if trail and len(trail) >= 2:
+                            out["trail"] = trail
+                        await broadcast(code, out)
+            elif t == "trail":
+                # Explicit trail update / clear from a rider
+                pts = sanitize_trail(msg.get("points") if msg.get("points") is not None else msg.get("trail"))
+                await broadcast(code, {"type": "trail", "id": rider_id,
+                                       "points": pts or []})
             elif t == "leader":
                 if rider_id in g:
                     g[rider_id]["leader"] = bool(msg.get("on"))
