@@ -62,6 +62,8 @@ function wsUrl(path) {
   }
   #map.map-offline #offlineOverlay{display:block !important}
   #map.map-offline .leaflet-control-zoom{display:none !important}
+  /* Leaflet drops touch-action:none when its handlers are disabled → browser page pinch takes over */
+  #map.map-offline, #map.map-offline *{touch-action:none !important}
   #offlineOverlay .t{font-size:30px;font-weight:800;line-height:1.2}
   #offlineOverlay .s{font-size:18px;font-weight:600;margin-top:10px;opacity:.9}
   #bar{
@@ -1312,7 +1314,7 @@ function scheduleReconnect(){
 // enable() calls are ignored (leaflet-rotate's ShiftKeyRotate re-enables
 // scrollWheelZoom on every wheel event) and input is swallowed in capture phase.
 let appOffline = false, probeTimer = null;
-const LOCK_HANDLERS = ['dragging','touchZoom','doubleClickZoom','scrollWheelZoom','boxZoom','keyboard','tap','touchGestures'];
+const LOCK_HANDLERS = ['dragging','touchZoom','doubleClickZoom','scrollWheelZoom','boxZoom','keyboard','tap','touchGestures','touchRotate','compassBearing','shiftKeyRotate'];
 LOCK_HANDLERS.forEach(k => {
   const h = map[k]; if (!h || !h.enable || h.__lockWrapped) return;
   const orig = h.enable;
@@ -1326,6 +1328,8 @@ LOCK_HANDLERS.forEach(k => {
   c.appendChild(ov);
   const block = e => {
     if (!appOffline) return;
+    // Multi-touch (pinch/rotate) is always swallowed, even when it starts on a marker
+    if (e.touches && e.touches.length > 1){ e.preventDefault(); e.stopPropagation(); return; }
     const el = e.target && e.target.closest ? e.target : null;
     if (el && el.closest('.leaflet-control-zoom')){ e.preventDefault(); e.stopPropagation(); return; }
     // Let marker/popup/other-control taps through; swallow map pan/zoom gestures
@@ -1334,13 +1338,23 @@ LOCK_HANDLERS.forEach(k => {
   };
   ['wheel','mousedown','pointerdown','touchstart','touchmove','dblclick','keydown','click'].forEach(ev =>
     c.addEventListener(ev, block, {capture:true, passive:false}));
+  // iOS Safari/WKWebView ignore user-scalable=no: block page pinch + gesture events while offline
+  const pageBlock = e => { if (appOffline && (!e.touches || e.touches.length > 1)){ e.preventDefault(); e.stopPropagation(); } };
+  ['gesturestart','gesturechange','gestureend'].forEach(ev => document.addEventListener(ev, pageBlock, {capture:true, passive:false}));
+  document.addEventListener('touchmove', pageBlock, {capture:true, passive:false});
 })();
 function applyMapLock(){
   const off = appOffline;
   map.getContainer().classList.toggle('map-offline', off);
-  LOCK_HANDLERS.forEach(k => { const h = map[k]; if (h && h.disable && off) h.disable(); });
-  if (!off) ['dragging','touchZoom','doubleClickZoom','scrollWheelZoom','boxZoom','keyboard','tap'].forEach(k => { const h = map[k]; if (h && h.enable) h.enable(); });
-  if (!off && map.touchRotate) map.touchRotate.enable();
+  if (off){
+    LOCK_HANDLERS.forEach(k => { const h = map[k]; if (!h || !h.disable) return;
+      if (!('__wasOn' in h)) h.__wasOn = h.enabled ? h.enabled() : true; h.disable(); });
+  } else {
+    ['dragging','touchZoom','doubleClickZoom','scrollWheelZoom','boxZoom','keyboard','tap'].forEach(k => { const h = map[k]; if (h && h.enable) h.enable(); });
+    if (map.touchRotate) map.touchRotate.enable();
+    ['compassBearing','shiftKeyRotate'].forEach(k => { const h = map[k]; if (h && h.__wasOn && h.enable) h.enable(); });
+    LOCK_HANDLERS.forEach(k => { const h = map[k]; if (h) delete h.__wasOn; });
+  }
   zoomCtl.getContainer().style.display = off ? 'none' : '';
   if (off) zoomCtl.disable && zoomCtl.disable(); else zoomCtl.enable && zoomCtl.enable();
 }
