@@ -83,6 +83,19 @@ function wsUrl(path) {
   #riderMenu div{display:flex;align-items:center;gap:6px;padding:9px 8px;font-size:13px;color:#e8eef7;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #riderMenu div.sel{background:#1e3a5f}
   #riderMenu div.sos{color:#f87171;font-weight:700}
+  .cpick{position:relative;min-width:0}
+  #bar .cpick.g{flex:1 1 0;min-width:90px}
+  #nameScreen .cpick{width:100%;max-width:320px}
+  .cpick .cbtn{width:100%;display:flex;align-items:center;gap:6px;text-align:left;font-size:13px;padding:8px 6px;border-radius:8px;border:1px solid #2a4a6f;background:#132a45;color:#e8eef7;cursor:pointer;margin:0}
+  #nameScreen .cpick .cbtn{font-size:18px;padding:12px;border-radius:10px}
+  .cpick .cbtn .lbl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .cpick .cbtn .car{opacity:.7;font-size:10px}
+  .cpick .cmenu{display:none;position:absolute;left:0;right:0;top:100%;margin-top:4px;max-height:50vh;overflow-y:auto;background:#132a45;border:1px solid #2a4a6f;border-radius:8px;z-index:2000;box-shadow:0 4px 14px rgba(0,0,0,.4);text-align:left}
+  .cpick .cmenu.open{display:block}
+  .cpick .cmenu div{padding:9px 8px;font-size:13px;color:#e8eef7;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #nameScreen .cpick .cmenu div{font-size:16px;padding:11px 12px}
+  .cpick .cmenu div.sel{background:#1e3a5f}
+  .cpick .cmenu div.dis{opacity:.5;cursor:default}
   .rdot{flex:0 0 auto;width:8px;height:8px;border-radius:50%;display:inline-block}
   .rdot.on{background:#3b82f6}.rdot.q{background:#cbd5e1}.rdot.s{background:#dc2626}
   #bar select#riderList{flex:1 1 auto;width:100%;min-width:0;font-size:13px;padding:8px 6px;text-overflow:ellipsis}
@@ -727,10 +740,50 @@ function renderRiderPicker(){
 function toggleRiderMenu(e){
   if (e) e.stopPropagation();
   renderRiderPicker();
-  document.getElementById('riderMenu').classList.toggle('open');
+  const rm = document.getElementById('riderMenu'), wasOpen = rm.classList.contains('open');
+  document.querySelectorAll('.cmenu.open').forEach(m => m.classList.remove('open'));
+  rm.classList.toggle('open', !wasOpen);
 }
 document.addEventListener('click', () => { const m = document.getElementById('riderMenu'); if (m) m.classList.remove('open'); });
 setInterval(() => { const m = document.getElementById('riderMenu'); if (!m || !m.classList.contains('open')) renderRiderPicker(); }, 500);
+
+// Generic custom picker (same look as riders list) mirroring a hidden native <select>
+function enhanceSelect(id, cls){
+  const sel = document.getElementById(id); if (!sel || sel._cp) return;
+  const wrap = document.createElement('div'); wrap.className = 'cpick ' + (cls||'');
+  const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'cbtn';
+  btn.setAttribute('aria-haspopup','listbox'); btn.setAttribute('aria-label', sel.getAttribute('aria-label') || id);
+  if (sel.style.fontWeight) btn.style.fontWeight = sel.style.fontWeight;
+  const menu = document.createElement('div'); menu.className = 'cmenu'; menu.setAttribute('role','listbox');
+  wrap.appendChild(btn); wrap.appendChild(menu);
+  sel.style.display = 'none'; sel.parentNode.insertBefore(wrap, sel.nextSibling);
+  let sig = '';
+  const render = (force) => {
+    const opts = [...sel.options];
+    const s2 = sel.value + '|' + opts.map(o => o.value + ':' + o.textContent + ':' + o.disabled).join(',');
+    if (!force && s2 === sig) return; sig = s2;
+    const cur = sel.options[sel.selectedIndex] || opts[0];
+    const t = document.createElement('span'); t.className = 'lbl'; t.textContent = cur ? cur.textContent : '';
+    btn.innerHTML = ''; btn.appendChild(t); btn.insertAdjacentHTML('beforeend','<span class="car">▼</span>');
+    menu.innerHTML = '';
+    opts.forEach(o => {
+      const d = document.createElement('div'); d.setAttribute('role','option'); d.textContent = o.textContent;
+      if (o.value === sel.value) d.classList.add('sel');
+      if (o.disabled) d.classList.add('dis');
+      d.onclick = (e) => { e.stopPropagation(); if (o.disabled) return; menu.classList.remove('open');
+        if (sel.value !== o.value){ sel.value = o.value; sel.dispatchEvent(new Event('change')); } render(true); };
+      menu.appendChild(d);
+    });
+  };
+  btn.onclick = (e) => { e.stopPropagation(); const open = menu.classList.contains('open');
+    document.querySelectorAll('.cmenu.open, #riderMenu.open').forEach(m => m.classList.remove('open'));
+    render(true); if (!open) menu.classList.add('open'); };
+  sel.focus = () => btn.focus();
+  sel._cp = render; render(true);
+  setInterval(() => { if (!menu.classList.contains('open')) render(); }, 500);
+}
+document.addEventListener('click', () => document.querySelectorAll('.cmenu.open').forEach(m => m.classList.remove('open')));
+window.addEventListener('DOMContentLoaded', () => { enhanceSelect('startGroup'); enhanceSelect('groupDisplay','g'); });
 
 function updateMyMarker(lat, lon){
   myLatLng = [lat, lon];
