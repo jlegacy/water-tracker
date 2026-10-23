@@ -54,6 +54,14 @@ function wsUrl(path) {
     left:0;right:0;bottom:0;
     display:none;
   }
+  #offlineOverlay{
+    position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    width:min(85%,520px);padding:28px 20px;box-sizing:border-box;
+    background:rgba(0,0,0,.78);color:#fff;text-align:center;border-radius:16px;
+    z-index:900;pointer-events:none;display:none;
+  }
+  #offlineOverlay .t{font-size:30px;font-weight:800;line-height:1.2}
+  #offlineOverlay .s{font-size:18px;font-weight:600;margin-top:10px;opacity:.9}
   #bar{
     position:absolute;
     top:0;left:0;right:0;
@@ -319,6 +327,13 @@ function setMapInteraction(on){
   const c = zoomCtl.getContainer();
   c.style.display = on ? '' : 'none';
   if (on) zoomCtl.enable && zoomCtl.enable(); else zoomCtl.disable && zoomCtl.disable();
+  let ov = document.getElementById('offlineOverlay');
+  if (!ov){
+    ov = document.createElement('div'); ov.id = 'offlineOverlay';
+    ov.innerHTML = '<div class="t">No internet connection</div><div class="s">Map locked until connection returns</div>';
+    map.getContainer().appendChild(ov);
+  }
+  ov.style.display = on ? 'none' : 'block';
 }
 window.addEventListener('offline', () => setMapInteraction(false));
 window.addEventListener('online', () => setMapInteraction(true));
