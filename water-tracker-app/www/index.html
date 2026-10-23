@@ -72,7 +72,7 @@ function wsUrl(path) {
   }
   /* Riders dropdown gets its own full-width line so names/status aren't crunched */
   #bar .row:first-child{flex-wrap:wrap}
-  #bar select#riderList{order:10;flex:1 1 100%;width:100%;min-width:0;font-size:16px;padding:10px 12px}
+  #bar select#riderList{order:10;flex:1 1 100%;width:100%;min-width:0;font-size:15px;padding:8px 10px}
   #bar input[readonly]{background:#0f2038;color:#9fb3c8;cursor:default}
   #bar button{
     padding:8px 12px;border-radius:8px;border:0;
@@ -1148,6 +1148,10 @@ function fixMapLayout(){
   const mapDiv = document.getElementById('map');
   if (bar && mapDiv && bar.style.display !== 'none' && bar.offsetHeight > 0){
     mapDiv.style.top = bar.offsetHeight + 'px';
+    // Float map buttons just below the header so they never cover bar buttons
+    const hb = document.getElementById('headingBtn'), rb = document.getElementById('recenterBtn');
+    if (hb) hb.style.top = (bar.offsetHeight + 12) + 'px';
+    if (rb) rb.style.top = (bar.offsetHeight + 70) + 'px';
   }
   map.invalidateSize();
 }
