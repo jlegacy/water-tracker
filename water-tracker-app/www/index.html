@@ -863,6 +863,7 @@ function onFix(lat, lon, heading, speed){
   const fixNow = Date.now();
   if (lastFixAcceptedAt && fixNow - lastFixAcceptedAt < FIX_MIN_INTERVAL_MS) return;
   lastFixAcceptedAt = fixNow;
+  lastFixAt = fixNow; // shared GPS clock for all paths (native + web) so watchdogs see stalls
   updateMotion(lat, lon, speed);
   if (!isHidden()) updateHeading(lat, lon, heading, speed);
   updateMyMarker(lat, lon);
@@ -1517,17 +1518,17 @@ setInterval(() => {
 
 // Browser location watch (non-Capacitor): restartable, since iPhone Safari
 // can stop delivering watchPosition after the page is backgrounded.
-let lastFixAt = 0, lastWebRestart = 0, webRestartTimer = null;
+let lastFixAt = 0, lastWebRestart = 0, webRestartTimer = null, webWatchId = null;
 function webFix(p){
   lastFixAt = Date.now();
   onFix(p.coords.latitude, p.coords.longitude, p.coords.heading, p.coords.speed); // throttled send happens in onFix
 }
 function startWebWatch(){
-  if (isNativeApp() || !navigator.geolocation) return;
-  if (watchId !== null){ try { navigator.geolocation.clearWatch(watchId); } catch(_){} }
+  if (!navigator.geolocation) return; // also used on native as a fallback when the plugin is missing/failing
+  if (webWatchId !== null){ try { navigator.geolocation.clearWatch(webWatchId); } catch(_){} }
   lastWebRestart = Date.now();
   lastFixAt = Date.now(); // grace period before the watchdog fires again
-  watchId = navigator.geolocation.watchPosition(webFix, e => {
+  webWatchId = navigator.geolocation.watchPosition(webFix, e => {
     status('Location error: ' + e.message);
     if (e.code === 2 || e.code === 3) scheduleWebRestart();
   }, {enableHighAccuracy:true, maximumAge:10000, timeout:20000});
@@ -1539,6 +1540,19 @@ function scheduleWebRestart(){
 }
 setInterval(() => {
   if (sharing && !isNativeApp() && document.visibilityState === 'visible' && Date.now() - lastFixAt > 30000) startWebWatch();
+}, 10000);
+// Native watchdog: if BackgroundGeolocation goes quiet while visible, grab a one-shot fix
+// (no second continuous watch, to avoid doubling battery use).
+let nativeOneShotBusy = false;
+function nativeOneShot(){
+  if (nativeOneShotBusy || !navigator.geolocation) return;
+  nativeOneShotBusy = true;
+  navigator.geolocation.getCurrentPosition(p => { nativeOneShotBusy = false; webFix(p); },
+    e => { nativeOneShotBusy = false; status('Location error: ' + e.message); },
+    {enableHighAccuracy:true, maximumAge:5000, timeout:15000});
+}
+setInterval(() => {
+  if (sharing && isNativeApp() && webWatchId === null && document.visibilityState === 'visible' && Date.now() - lastFixAt > 20000) nativeOneShot();
 }, 10000);
 
 document.addEventListener('visibilitychange', () => {
@@ -1878,6 +1892,7 @@ function startApp(){
   // Prefer native background geolocation when running inside Capacitor
   if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.BackgroundGeolocation){
     const BackgroundGeolocation = window.Capacitor.Plugins.BackgroundGeolocation;
+    lastFixAt = Date.now(); // grace period before the native watchdog fires
     BackgroundGeolocation.addWatcher(
       {
         backgroundMessage: "Tracking your location for " + myGroup,
@@ -1891,6 +1906,7 @@ function startApp(){
           if (error.code === "NOT_AUTHORIZED"){
             status("Location permission denied");
           }
+          nativeOneShot(); // don't leave YOU missing on any watcher error
           return;
         }
         const lat = location.latitude;
@@ -1899,7 +1915,7 @@ function startApp(){
       }
     ).then(function(id){
       watchId = id;
-    });
+    }).catch(function(){ startWebWatch(); }); // plugin failed to start: fall back to web watch
   } else {
     // Fallback for browser / non-Capacitor
     startWebWatch();
