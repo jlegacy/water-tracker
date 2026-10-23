@@ -70,6 +70,9 @@ function wsUrl(path) {
     flex:1;min-width:0;padding:8px 10px;border-radius:8px;
     border:1px solid #2a4a6f;background:#132a45;color:#e8eef7;font-size:15px;
   }
+  /* Riders dropdown gets its own full-width line so names/status aren't crunched */
+  #bar .row:first-child{flex-wrap:wrap}
+  #bar select#riderList{order:10;flex:1 1 100%;width:100%;min-width:0;font-size:16px;padding:10px 12px}
   #bar input[readonly]{background:#0f2038;color:#9fb3c8;cursor:default}
   #bar button{
     padding:8px 12px;border-radius:8px;border:0;
