@@ -830,7 +830,7 @@ function escHtml(t){
   return String(t).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 }
 function buildMeIcon(kind){
-  // Fixed size for both shapes; arrow length does NOT scale with speed
+  // YOU = teal #0d9488 (not red — SOS uses 🆘 / #dc2626). Fixed size; arrow length does NOT scale with speed
   if (kind === 'sos'){
     return L.divIcon({
       className: '',
@@ -848,7 +848,7 @@ function buildMeIcon(kind){
         border-bottom:28px solid #000;position:relative;">
         <div style="position:absolute;top:3px;left:-11px;width:0;height:0;
           border-left:11px solid transparent;border-right:11px solid transparent;
-          border-bottom:22px solid #e11d48;"></div>
+          border-bottom:22px solid #0d9488;"></div>
         <div style="position:absolute;top:8px;left:-14px;width:28px;text-align:center;
           color:#fff;font-weight:900;font-size:8px;text-shadow:0 0 2px #000;">YOU</div>
       </div></div>`,
@@ -859,7 +859,7 @@ function buildMeIcon(kind){
   return L.divIcon({
     className: '',
     html: `<div style="box-sizing:border-box;width:28px;height:28px;border-radius:50%;
-      background:#e11d48;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.45);
+      background:#0d9488;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.45);
       color:#fff;font:bold 9px/28px -apple-system,system-ui,sans-serif;text-align:center;">YOU</div>`,
     iconSize:[28,28],
     iconAnchor:[14,14]
