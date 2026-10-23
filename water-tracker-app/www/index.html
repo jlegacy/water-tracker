@@ -1186,7 +1186,9 @@ if (window.ResizeObserver) new ResizeObserver(scheduleMapLayout).observe(documen
 
 let myGroup = '';
 let groupCounts = {}; // code -> active rider count (not stale, has a fix)
+let groupCountsReady = false; // true after the first successful /api/groups poll
 function groupLabel(code, active){
+  if (!groupCountsReady) return code + ' (\u2026)';
   const n = (active == null || active === '') ? 0 : active;
   return code + ' (' + n + ')';
 }
@@ -1212,6 +1214,7 @@ function applyGroupCounts(list){
     [...sel.options].forEach(o => { if (o.value && map[o.value] == null) map[o.value] = 0; });
   });
   groupCounts = map;
+  groupCountsReady = true;
   updateGroupSelects();
 }
 async function fetchGroupCounts(){
@@ -1231,7 +1234,7 @@ async function fetchGroupCounts(){
     opt.value = o.value; opt.textContent = groupLabel(o.value, 0);
     sel.appendChild(opt);
   });
-  // Start screen also shows (0) until the first poll lands
+  // Start screen shows (…) until the first poll lands
   updateGroupSelects();
   fetchGroupCounts();
   setInterval(fetchGroupCounts, 5000);
