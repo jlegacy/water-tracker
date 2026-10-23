@@ -1598,6 +1598,8 @@ function toggleLeader(){
   if (ws && ws.readyState === 1 && joined) wsSend({type:'leader', on: leader}); // tell the group in real time
   if (leader) requestWakeLock(); else releaseWakeLock();
   if (leader && !isNativeApp()) status('Leader on (screen stays awake only in the app)');
+  meIconKind = null; // redraw YOU marker now (purple+star when leader)
+  if (myLatLng && !isHidden()) renderMe();
 }
 function collectSosRiders(){
   const list = [];
