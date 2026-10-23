@@ -302,6 +302,13 @@ L.tileLayer(
     attribution: '&copy; OpenStreetMap contributors'
   }
 ).addTo(map);
+// One-time: drop leftover on-demand tile cache DB (removed in #80)
+try {
+  if (window.indexedDB) {
+    const del = indexedDB.deleteDatabase('water-tracker-tiles');
+    del.onerror = del.onblocked = function () {};
+  }
+} catch (_) {}
 const zoomCtl = L.control.zoom({position:'bottomright'}).addTo(map);
 zoomCtl.getContainer().addEventListener('click', () => userMovedMap());
 
