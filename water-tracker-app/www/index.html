@@ -70,11 +70,11 @@ function wsUrl(path) {
     flex:1;min-width:0;padding:8px 10px;border-radius:8px;
     border:1px solid #2a4a6f;background:#132a45;color:#e8eef7;font-size:15px;
   }
-  /* Riders dropdown gets its own full-width line so names/status aren't crunched */
+  /* Group, buttons and Riders share one non-wrapping row; selects shrink so SOS never drops */
   #bar .row:first-child{flex-wrap:nowrap}
   #bar .row:first-child button{padding:8px 9px;font-size:13px;flex:0 0 auto}
-  #bar select#groupDisplay{flex:1 1 auto !important;min-width:0;max-width:180px;text-overflow:ellipsis}
-  #bar select#riderList{flex:1 1 100%;width:100%;min-width:0;font-size:15px;padding:8px 10px}
+  #bar select#groupDisplay{flex:1 1 0 !important;min-width:50px;max-width:140px;font-size:13px;padding:8px 6px;text-overflow:ellipsis}
+  #bar select#riderList{flex:1 1 0;width:auto;min-width:60px;font-size:13px;padding:8px 6px;text-overflow:ellipsis}
   #bar input[readonly]{background:#0f2038;color:#9fb3c8;cursor:default}
   #bar button{
     padding:8px 12px;border-radius:8px;border:0;
@@ -163,12 +163,10 @@ function wsUrl(path) {
     <button class="center" onclick="centerOnMe()">Center</button>
     <button id="findBtn" class="find" onclick="toggleFind()" style="display:none">Find</button>
     <button id="leaderBtn" class="leader" onclick="toggleLeader()">Leader</button>
-    <button id="sosBtn" class="sos" onclick="toggleSos()">SOS</button>
-  </div>
-  <div class="row">
-    <select id="riderList" onchange="onRiderSelect()">
+    <select id="riderList" onchange="onRiderSelect()" aria-label="Riders">
       <option value="">-- Riders --</option>
     </select>
+    <button id="sosBtn" class="sos" onclick="toggleSos()">SOS</button>
   </div>
   <div class="row" id="msgBox">
     <input id="msgText" placeholder="Message everyone" style="display:none">
