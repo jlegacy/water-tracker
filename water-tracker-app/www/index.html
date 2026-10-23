@@ -74,6 +74,17 @@ function wsUrl(path) {
   #bar .row:first-child{flex-wrap:nowrap}
   #bar .row:first-child button{padding:8px 9px;font-size:13px;flex:0 0 auto}
   #bar select#groupDisplay{flex:1 1 0 !important;min-width:90px;max-width:none;font-size:13px;padding:8px 6px;text-overflow:ellipsis}
+  #riderPick{position:relative;flex:1 1 auto;min-width:0;width:100%}
+  #bar #riderBtn{width:100%;font-weight:400;display:flex;align-items:center;gap:6px;text-align:left;font-size:13px;padding:8px 6px;border-radius:8px;border:1px solid #2a4a6f;background:#132a45;color:#e8eef7;cursor:pointer}
+  #bar #riderBtn .lbl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #riderBtn .car{opacity:.7;font-size:10px}
+  #riderMenu{display:none;position:absolute;left:0;right:0;top:100%;margin-top:4px;max-height:50vh;overflow-y:auto;background:#132a45;border:1px solid #2a4a6f;border-radius:8px;z-index:2000;box-shadow:0 4px 14px rgba(0,0,0,.4)}
+  #riderMenu.open{display:block}
+  #riderMenu div{display:flex;align-items:center;gap:6px;padding:9px 8px;font-size:13px;color:#e8eef7;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #riderMenu div.sel{background:#1e3a5f}
+  #riderMenu div.sos{color:#f87171;font-weight:700}
+  .rdot{flex:0 0 auto;width:8px;height:8px;border-radius:50%;display:inline-block}
+  .rdot.on{background:#3b82f6}.rdot.q{background:#cbd5e1}.rdot.s{background:#dc2626}
   #bar select#riderList{flex:1 1 auto;width:100%;min-width:0;font-size:13px;padding:8px 6px;text-overflow:ellipsis}
   #bar input[readonly]{background:#0f2038;color:#9fb3c8;cursor:default}
   #bar button{
@@ -167,9 +178,13 @@ function wsUrl(path) {
     <button id="sosBtn" class="sos" onclick="toggleSos()">SOS</button>
   </div>
   <div class="row" id="riderRow">
-    <select id="riderList" onchange="onRiderSelect()" aria-label="Riders">
+    <select id="riderList" onchange="onRiderSelect()" aria-label="Riders" style="display:none">
       <option value="">-- Riders --</option>
     </select>
+    <div id="riderPick">
+      <button type="button" id="riderBtn" onclick="toggleRiderMenu(event)" aria-haspopup="listbox" aria-label="Riders"><span class="lbl">-- Riders --</span><span class="car">▼</span></button>
+      <div id="riderMenu" role="listbox"></div>
+    </div>
   </div>
   <div class="row" id="msgBox">
     <input id="msgText" placeholder="Message everyone" style="display:none">
@@ -564,6 +579,7 @@ function clearRiderSelection(){
   setMsgControls(hasOthers);
   for (const k in riders){ if (k !== me && riders[k].closePopup) riders[k].closePopup(); }
   updateMsgPlaceholder();
+  renderRiderPicker();
 }
 
 function onRiderSelect(){
@@ -579,6 +595,7 @@ function onRiderSelect(){
   if (findTarget && findTarget !== id) clearFindLine();
   clearRampRoute();
   updateMsgPlaceholder();
+  renderRiderPicker();
 }
 
 function toggleFind(){
@@ -670,16 +687,50 @@ function updateRiderList(){
     const opt = document.createElement('option');
     opt.value = o.id;
     // Status dot like the map: blue active, gray-ish white quiet (native <select> can't color options on iOS)
-    const label = (o.sos ? '🔴 ' : (o.stale ? '⚪ ' : '🔵 ')) + o.name;
-    if (o.sos){ opt.style.color = '#dc2626'; opt.style.fontWeight = '700'; }
+    const label = o.name;
+    opt.dataset.st = o.sos ? 's' : (o.stale ? 'q' : 'on');
     opt.textContent = o.dist == null ? label : `${label} (${(o.dist / 1609.34).toFixed(2)} mi)`;
     sel.appendChild(opt);
   });
   if (current && positions[current]) sel.value = current;
+  renderRiderPicker();
   setMsgControls(others.length > 0);
   document.getElementById('findBtn').style.display = (sel.value && others.length) ? 'inline-block' : 'none';
   updateMsgPlaceholder();
 }
+
+// Custom rider picker: mirrors the hidden #riderList <select> (still the source of truth)
+function riderRowHtml(opt){
+  const st = opt.dataset.st;
+  const dot = st ? '<span class="rdot ' + st + '"></span>' : '';
+  const t = document.createElement('span'); t.textContent = opt.textContent;
+  return dot + '<span class="lbl">' + t.innerHTML + '</span>';
+}
+function renderRiderPicker(){
+  const sel = document.getElementById('riderList');
+  const btn = document.getElementById('riderBtn'), menu = document.getElementById('riderMenu');
+  if (!sel || !btn || !menu) return;
+  const cur = sel.options[sel.selectedIndex] || sel.options[0];
+  btn.innerHTML = riderRowHtml(cur) + '<span class="car">▼</span>';
+  btn.classList.toggle('sos', cur && cur.dataset.st === 's');
+  menu.innerHTML = '';
+  [...sel.options].forEach(o => {
+    const d = document.createElement('div');
+    d.setAttribute('role','option');
+    d.innerHTML = riderRowHtml(o);
+    if (o.value === sel.value) d.classList.add('sel');
+    if (o.dataset.st === 's') d.classList.add('sos');
+    d.onclick = (e) => { e.stopPropagation(); menu.classList.remove('open'); if (sel.value !== o.value){ sel.value = o.value; onRiderSelect(); } else renderRiderPicker(); };
+    menu.appendChild(d);
+  });
+}
+function toggleRiderMenu(e){
+  if (e) e.stopPropagation();
+  renderRiderPicker();
+  document.getElementById('riderMenu').classList.toggle('open');
+}
+document.addEventListener('click', () => { const m = document.getElementById('riderMenu'); if (m) m.classList.remove('open'); });
+setInterval(() => { const m = document.getElementById('riderMenu'); if (!m || !m.classList.contains('open')) renderRiderPicker(); }, 500);
 
 function updateMyMarker(lat, lon){
   myLatLng = [lat, lon];
