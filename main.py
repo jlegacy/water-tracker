@@ -83,6 +83,24 @@ except Exception as e:
 def _in_local_region(lat, lon):
     return any(s <= lat <= n and w <= lon <= e for s, w, n, e in LOCAL_BBOXES.values())
 
+def active_count(code):
+    """Riders the list would show as present (have a fix) and not stale."""
+    now = time.time()
+    n = 0
+    for r in groups.get(code, {}).values():
+        if r.get("lat") is None:
+            continue
+        age = now - r["updated"]
+        if r.get("stale") or age > STALE_SECS:
+            continue
+        n += 1
+    return n
+
+@app.get("/api/groups")
+async def api_groups():
+    # Active = has a position and not stale (same bar as the rider list).
+    return {"groups": [{"code": c, "active": active_count(c)} for c in GROUP_CODES]}
+
 @app.post("/api/leave")
 async def api_leave(request: Request):
     # sendBeacon backup for a closing tab: remove only this rider id in this group

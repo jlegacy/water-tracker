@@ -147,7 +147,7 @@ function wsUrl(path) {
 <div id="banner"></div>
 <div id="bar">
   <div class="row">
-    <select id="groupDisplay" onchange="switchGroup(this.value)" aria-label="Group" style="max-width:130px;min-width:0;flex:0 1 auto;font-weight:600"></select>
+    <select id="groupDisplay" onchange="switchGroup(this.value)" aria-label="Group" style="max-width:180px;min-width:0;flex:0 1 auto;font-weight:600"></select>
     <button class="center" onclick="centerOnMe()">Center</button>
     <select id="riderList" onchange="onRiderSelect()">
       <option value="">-- Riders --</option>
@@ -736,6 +736,7 @@ function connect(){
       switchFrom = null;
       reconnectDelay = 1000; // reset backoff on success
       status('Sharing — ' + myGroup);
+      fetchGroupCounts();
       // Send positions queued while offline, oldest first; server keeps the newest
       if (posQueue.length){
         wsSend({type:'posbatch', positions: posQueue});
@@ -1103,15 +1104,56 @@ if (window.visualViewport) window.visualViewport.addEventListener('resize', sche
 if (window.ResizeObserver) new ResizeObserver(scheduleMapLayout).observe(document.getElementById('bar'));
 
 let myGroup = '';
+let groupCounts = {}; // code -> active rider count (not stale, has a fix)
+function groupLabel(code, active){
+  const n = (active == null || active === '') ? 0 : active;
+  return code + ' (' + n + ')';
+}
+function updateGroupSelects(){
+  ['startGroup', 'groupDisplay'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    const cur = sel.value;
+    [...sel.options].forEach(o => {
+      if (!o.value) return; // keep placeholder
+      o.textContent = groupLabel(o.value, groupCounts[o.value] || 0);
+    });
+    if (cur) sel.value = cur; // value stays the real group code
+  });
+}
+function applyGroupCounts(list){
+  const map = {};
+  (list || []).forEach(g => { if (g && g.code) map[g.code] = g.active|0; });
+  // ensure every known option has a number (empty groups show 0)
+  ['startGroup', 'groupDisplay'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    [...sel.options].forEach(o => { if (o.value && map[o.value] == null) map[o.value] = 0; });
+  });
+  groupCounts = map;
+  updateGroupSelects();
+}
+async function fetchGroupCounts(){
+  try {
+    const r = await fetch(apiUrl('/api/groups'));
+    if (!r.ok) return;
+    const data = await r.json();
+    applyGroupCounts(data.groups || data);
+  } catch (e) {}
+}
 // Header group switcher: same names as the start screen (alphabetical)
 (function fillGroupSwitcher(){
   const sel = document.getElementById('groupDisplay');
   [...document.getElementById('startGroup').options].forEach(o => {
     if (!o.value) return;
     const opt = document.createElement('option');
-    opt.value = o.value; opt.textContent = o.value;
+    opt.value = o.value; opt.textContent = groupLabel(o.value, 0);
     sel.appendChild(opt);
   });
+  // Start screen also shows (0) until the first poll lands
+  updateGroupSelects();
+  fetchGroupCounts();
+  setInterval(fetchGroupCounts, 5000);
 })();
 let switchFrom = null; // old group while a switch is pending (to revert on 'Unknown group')
 function resetGroupState(){
