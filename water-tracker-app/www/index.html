@@ -20,7 +20,12 @@
    Capacitor/ionic/file shells load www locally and must hit Render for WS/API. */
 const API_ORIGIN = (function () {
   const p = location.protocol;
+  const h = location.hostname;
+  // Native Capacitor: iOS often capacitor://; Android Capacitor 8 uses https://localhost
   if (p === 'capacitor:' || p === 'ionic:' || p === 'file:') {
+    return 'https://water-tracker-yz68.onrender.com';
+  }
+  if (h === 'localhost' || h === '127.0.0.1') {
     return 'https://water-tracker-yz68.onrender.com';
   }
   return '';
@@ -1311,8 +1316,9 @@ function startApp(){
 }
 
 
-// ---- Boat ramps & marinas (OpenStreetMap via server /api/ramps) ----
+// ---- Boat ramps & marinas (bundled OSM extract in www/ramps_us.json — no Render call) ----
 let rampLayer = null, rampsOn = false, rampsLoading = false, rampToastTimer = null;
+let rampLocalGrid = null, rampLocalPromise = null;
 function rampToast(t){
   const el = document.getElementById('rampToast');
   el.textContent = t; el.style.display = 'block';
@@ -1329,6 +1335,55 @@ function rampDirUrl(lat, lon){
   return ios ? ('https://maps.apple.com/?daddr=' + lat + ',' + lon)
              : ('https://www.google.com/maps/dir/?api=1&destination=' + lat + ',' + lon);
 }
+function loadLocalRamps(){
+  if (rampLocalGrid) return Promise.resolve(rampLocalGrid);
+  if (rampLocalPromise) return rampLocalPromise;
+  // Relative path works for Capacitor www and for the site when FastAPI serves www/
+  rampLocalPromise = fetch('ramps_us.json').then(r => {
+    if (!r.ok) throw new Error('ramps file http ' + r.status);
+    return r.json();
+  }).then(data => {
+    const grid = new Map();
+    for (const row of (data.items || [])) {
+      const lat = row[2], lon = row[3];
+      const key = (Math.floor(lat / 0.5)) + ',' + (Math.floor(lon / 0.5));
+      let bucket = grid.get(key);
+      if (!bucket) { bucket = []; grid.set(key, bucket); }
+      bucket.push({
+        type: row[0] ? 'marina' : 'ramp',
+        name: row[1] || '',
+        lat, lon
+      });
+    }
+    rampLocalGrid = grid;
+    return grid;
+  });
+  return rampLocalPromise;
+}
+function queryLocalRamps(lat, lon, radiusKm){
+  const radiusMi = Math.max(1, Math.min(radiusKm || 40, 80)) / 1.609344;
+  const gy = Math.floor(lat / 0.5), gx = Math.floor(lon / 0.5);
+  const out = [];
+  for (let dy = -2; dy <= 2; dy++) {
+    for (let dx = -3; dx <= 3; dx++) {
+      const bucket = rampLocalGrid.get((gy + dy) + ',' + (gx + dx));
+      if (!bucket) continue;
+      for (const it of bucket) {
+        const d = rampMiles(lat, lon, it.lat, it.lon);
+        if (d <= radiusMi) {
+          out.push({
+            type: it.type,
+            name: it.name || (it.type === 'marina' ? 'Marina' : 'Boat ramp'),
+            lat: it.lat, lon: it.lon,
+            distance_mi: Math.round(d * 10) / 10
+          });
+        }
+      }
+    }
+  }
+  out.sort((a, b) => a.distance_mi - b.distance_mi);
+  return out.slice(0, 100);
+}
 async function toggleRamps(){
   const btn = document.getElementById('rampsBtn');
   if (rampsOn) {
@@ -1340,13 +1395,9 @@ async function toggleRamps(){
   if (rampsLoading) return;
   const c = myLatLng || [map.getCenter().lat, map.getCenter().lng];
   rampsLoading = true; btn.textContent = 'Loading…'; btn.disabled = true;
-  const ctrl = new AbortController();
-  const rampTimer = setTimeout(() => ctrl.abort(), 20000);
   try {
-    const r = await fetch(apiUrl('/api/ramps?lat=' + c[0].toFixed(5) + '&lon=' + c[1].toFixed(5)), {signal: ctrl.signal});
-    if (!r.ok) throw new Error('http ' + r.status);
-    const data = await r.json();
-    const items = data.results || [];
+    await loadLocalRamps();
+    const items = queryLocalRamps(c[0], c[1], 40);
     if (!items.length) { rampToast('No ramps or marinas found nearby'); return; }
     rampLayer = L.layerGroup();
     rampItems = items;
@@ -1368,9 +1419,8 @@ async function toggleRamps(){
     rampsOn = true; btn.classList.add('on');
     rampToast(items.length + ' ramps/marinas nearby · © OpenStreetMap contributors');
   } catch (e) {
-    rampToast("Couldn't reach map data, check cell signal");
+    rampToast("Couldn't load ramp data");
   } finally {
-    clearTimeout(rampTimer);
     rampsLoading = false; btn.disabled = false; btn.textContent = rampsOn ? 'Hide Ramps' : 'Ramps';
   }
 }

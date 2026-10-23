@@ -42,4 +42,4 @@ Client bootstrap in `www/index.html`:
 ## Do not
 
 - Re-add `server.url` + `cleartext` for App Store builds
-- Cache ramp database on the phone (ramps stay server-only)
+- Remove `www/ramps_us.json` (native apps load ramps from this bundled file)
