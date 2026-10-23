@@ -155,7 +155,7 @@ function wsUrl(path) {
     color:#fff;font-weight:700;font-size:16px;box-shadow:0 2px 6px rgba(0,0,0,.5);display:none;
   }
   #headingBtn{top:172px;background:#0f766e}
-  #recenterBtn{top:230px;background:#3b82f6}
+  #recenterBtn{top:230px;background:#3b82f6;display:block !important;visibility:visible !important;pointer-events:auto}
   .groupLabel{font-size:13px;color:#9fb3c8;margin-bottom:-6px}
   #bar button.leader{background:#475569}
   #bar button.leader.on{background:#dc2626}
@@ -407,7 +407,7 @@ function centerOnMe(){
 
 function setFollow(on){
   followMe = on;
-  document.getElementById('recenterBtn').style.display = on ? 'none' : 'block';
+  const rb = document.getElementById('recenterBtn'); if (rb) rb.style.display = 'block';
 }
 
 function recenter(){
