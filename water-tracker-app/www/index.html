@@ -1022,13 +1022,13 @@ function riderIcon(stale, isLeader, name, moving, heading, sos){
       className: '',
       html: `<div class="rider-arrow" style="position:relative;width:28px;height:28px;transform-origin:50% 50%;">
         <div style="width:0;height:0;border-left:14px solid transparent;border-right:14px solid transparent;
-          border-bottom:28px solid #fff;position:relative;filter:drop-shadow(0 1px 3px rgba(0,0,0,.45));">
+          border-bottom:28px solid ${isLeader ? (stale ? '#8b5cf6' : '#1e1b4b') : '#fff'};position:relative;filter:drop-shadow(0 1px 3px rgba(0,0,0,.45));">
           <div style="position:absolute;top:3px;left:-11px;width:0;height:0;opacity:${op};
             border-left:11px solid transparent;border-right:11px solid transparent;
             border-bottom:22px solid ${bg};"></div>
           <div style="position:absolute;top:7px;left:-14px;width:28px;text-align:center;
-            color:#fff;font-weight:900;font-size:11px;text-shadow:0 0 2px #000;">${escHtml(riderInitial(name))}</div>
-        </div>${badge}</div>`,
+            color:${isLeader ? '#fbbf24' : '#fff'};font-weight:900;font-size:${isLeader ? 13 : 11}px;text-shadow:0 0 2px #000;">${isLeader ? '★' : escHtml(riderInitial(name))}</div>
+        </div></div>`,
       iconSize:[28,28],
       iconAnchor:[14,14],
       popupAnchor:[0,-14]
