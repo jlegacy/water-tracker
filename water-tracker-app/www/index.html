@@ -60,6 +60,8 @@ function wsUrl(path) {
     background:rgba(0,0,0,.78);color:#fff;text-align:center;border-radius:16px;
     z-index:900;pointer-events:none;display:none;
   }
+  #map.map-offline #offlineOverlay{display:block !important}
+  #map.map-offline .leaflet-control-zoom{display:none !important}
   #offlineOverlay .t{font-size:30px;font-weight:800;line-height:1.2}
   #offlineOverlay .s{font-size:18px;font-weight:600;margin-top:10px;opacity:.9}
   #bar{
@@ -319,25 +321,6 @@ try {
 } catch (_) {}
 const zoomCtl = L.control.zoom({position:'bottomright'}).addTo(map);
 zoomCtl.getContainer().addEventListener('click', () => userMovedMap());
-// Offline: freeze pan/zoom so riders can't move into areas with no tiles
-function setMapInteraction(on){
-  ['dragging','touchZoom','doubleClickZoom','scrollWheelZoom','boxZoom','keyboard','tap'].forEach(k => {
-    const h = map[k]; if (h && h.enable) on ? h.enable() : h.disable();
-  });
-  const c = zoomCtl.getContainer();
-  c.style.display = on ? '' : 'none';
-  if (on) zoomCtl.enable && zoomCtl.enable(); else zoomCtl.disable && zoomCtl.disable();
-  let ov = document.getElementById('offlineOverlay');
-  if (!ov){
-    ov = document.createElement('div'); ov.id = 'offlineOverlay';
-    ov.innerHTML = '<div class="t">No internet connection</div><div class="s">Map locked until connection returns</div>';
-    map.getContainer().appendChild(ov);
-  }
-  ov.style.display = on ? 'none' : 'block';
-}
-window.addEventListener('offline', () => setMapInteraction(false));
-window.addEventListener('online', () => setMapInteraction(true));
-if (navigator.onLine === false) setMapInteraction(false);
 
 // Enable two-finger spin
 if (map.touchRotate) map.touchRotate.enable();
@@ -1232,6 +1215,7 @@ function connect(){
     const m = JSON.parse(ev.data);
     if (m.type === 'joined'){
       joined = true;
+      setAppOffline(false);
       switchFrom = null;
       reconnectDelay = 1000; // reset backoff on success
       status('Sharing — ' + myGroup);
@@ -1301,6 +1285,7 @@ function connect(){
     joined = false;
     if (pingTimer) clearInterval(pingTimer);
     if (sharing) scheduleReconnect();
+    probeConnectivity();
   };
 }
 // Exponential backoff: 1 s, 2 s, 4 s ... capped at 60 s; reset on a successful join
@@ -1320,6 +1305,73 @@ function scheduleReconnect(){
   reconnectTimer = setTimeout(() => { reconnectTimer = null; connect(); }, reconnectDelay);
   reconnectDelay = Math.min(reconnectDelay * 2, 60000);
 }
+
+// ---- Offline map lock: single source of truth ----
+// Offline when the browser says so OR a reachability probe to our API fails
+// (navigator.onLine can lag; WS close triggers a probe). While locked, handler
+// enable() calls are ignored (leaflet-rotate's ShiftKeyRotate re-enables
+// scrollWheelZoom on every wheel event) and input is swallowed in capture phase.
+let appOffline = false, probeTimer = null;
+const LOCK_HANDLERS = ['dragging','touchZoom','doubleClickZoom','scrollWheelZoom','boxZoom','keyboard','tap','touchGestures'];
+LOCK_HANDLERS.forEach(k => {
+  const h = map[k]; if (!h || !h.enable || h.__lockWrapped) return;
+  const orig = h.enable;
+  h.enable = function(){ return appOffline ? this : orig.apply(this, arguments); };
+  h.__lockWrapped = true;
+});
+(function(){
+  const c = map.getContainer();
+  const ov = document.createElement('div'); ov.id = 'offlineOverlay';
+  ov.innerHTML = '<div class="t">No internet connection</div><div class="s">Map locked until connection returns</div>';
+  c.appendChild(ov);
+  const block = e => {
+    if (!appOffline) return;
+    const el = e.target && e.target.closest ? e.target : null;
+    if (el && el.closest('.leaflet-control-zoom')){ e.preventDefault(); e.stopPropagation(); return; }
+    // Let marker/popup/other-control taps through; swallow map pan/zoom gestures
+    if (e.type === 'click' || (el && el.closest('.leaflet-marker-icon,.leaflet-popup,.leaflet-control'))) return;
+    e.preventDefault(); e.stopPropagation();
+  };
+  ['wheel','mousedown','pointerdown','touchstart','touchmove','dblclick','keydown','click'].forEach(ev =>
+    c.addEventListener(ev, block, {capture:true, passive:false}));
+})();
+function applyMapLock(){
+  const off = appOffline;
+  map.getContainer().classList.toggle('map-offline', off);
+  LOCK_HANDLERS.forEach(k => { const h = map[k]; if (h && h.disable && off) h.disable(); });
+  if (!off) ['dragging','touchZoom','doubleClickZoom','scrollWheelZoom','boxZoom','keyboard','tap'].forEach(k => { const h = map[k]; if (h && h.enable) h.enable(); });
+  if (!off && map.touchRotate) map.touchRotate.enable();
+  zoomCtl.getContainer().style.display = off ? 'none' : '';
+  if (off) zoomCtl.disable && zoomCtl.disable(); else zoomCtl.enable && zoomCtl.enable();
+}
+function setAppOffline(off){
+  off = !!off;
+  if (off === appOffline){ if (off) applyMapLock(); return; }
+  appOffline = off;
+  applyMapLock();
+  if (off){ if (!probeTimer) probeTimer = setInterval(probeConnectivity, 5000); }
+  else {
+    if (probeTimer){ clearInterval(probeTimer); probeTimer = null; }
+    // Connection back: drop pending long backoff and reconnect now (clears stale footer)
+    if (sharing && !(ws && ws.readyState <= 1)){
+      if (reconnectTimer){ clearTimeout(reconnectTimer); reconnectTimer = null; }
+      reconnectDelay = 1000; status('Reconnecting…'); connect();
+    }
+  }
+}
+// Kept for compatibility with earlier callers
+function setMapInteraction(on){ setAppOffline(!on); }
+async function probeConnectivity(){
+  if (navigator.onLine === false){ setAppOffline(true); return; }
+  try {
+    const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 4000);
+    await fetch(apiUrl('/manifest.json') + '?ping=' + Date.now(), {cache:'no-store', signal: ctl.signal, mode:'no-cors'});
+    clearTimeout(to); setAppOffline(false);
+  } catch(_){ setAppOffline(true); }
+}
+window.addEventListener('offline', () => setAppOffline(true));
+window.addEventListener('online', () => probeConnectivity());
+if (navigator.onLine === false) setAppOffline(true);
 
 function showAlert(text){
   const b = document.getElementById('banner');
