@@ -529,8 +529,9 @@ function flushPos(){
     if (posQueue.length > MAX_QUEUE) posQueue.shift();
   }
 }
+function isOnline(){ return navigator.onLine !== false && ws && ws.readyState === 1 && joined; }
 function wsSend(obj){
-  if (ws && ws.readyState === 1 && joined){
+  if (isOnline()){
     ws.send(JSON.stringify(obj));
     lastSendAt = Date.now();
     return true;
@@ -620,7 +621,8 @@ function sendMessage(){
   const text = document.getElementById('msgText').value.trim();
   if (!to){ broadcastMessage(); return; }
   if (!text) return;
-  if (ws && ws.readyState === 1){
+  if (!isOnline()){ status('Not sent — you\'re offline'); return; }
+  {
     ws.send(JSON.stringify({type:'msg', to:to, text:text}));
     document.getElementById('msgText').value = '';
     status('Message sent');
@@ -630,7 +632,8 @@ function sendMessage(){
 function broadcastMessage(){
   const text = document.getElementById('msgText').value.trim();
   if (!text) return;
-  if (ws && ws.readyState === 1){
+  if (!isOnline()){ status('Not sent — you\'re offline'); return; }
+  {
     ws.send(JSON.stringify({type:'broadcast', text:text}));
     document.getElementById('msgText').value = '';
     status('Broadcast sent');
@@ -818,9 +821,19 @@ function connect(){
   };
 }
 // Exponential backoff: 1 s, 2 s, 4 s ... capped at 60 s; reset on a successful join
+window.addEventListener('offline', () => {
+  if (!sharing) return;
+  status('Offline — reconnecting…');
+  try { if (ws) ws.close(); } catch(e){}
+});
+window.addEventListener('online', () => {
+  if (!sharing) return;
+  if (reconnectTimer){ clearTimeout(reconnectTimer); reconnectTimer = null; }
+  reconnectDelay = 1000; connect();
+});
 function scheduleReconnect(){
   if (reconnectTimer) return;
-  status('Reconnecting in ' + Math.round(reconnectDelay/1000) + 's...');
+  status('Offline — reconnecting in ' + Math.round(reconnectDelay/1000) + 's...');
   reconnectTimer = setTimeout(() => { reconnectTimer = null; connect(); }, reconnectDelay);
   reconnectDelay = Math.min(reconnectDelay * 2, 60000);
 }
@@ -1132,8 +1145,9 @@ function toggleSos(){
   updateSosBtn();
   meIconKind = null; // force icon rebuild
   if (myLatLng && !isHidden()) renderMe();
-  if (ws && ws.readyState === 1 && joined) wsSend({type:'sos', on: sosOn});
-  status(sosOn ? 'SOS on — others see 🆘' : 'SOS off');
+  const sent = wsSend({type:'sos', on: sosOn});
+  if (sent) status(sosOn ? 'SOS on — others see 🆘' : 'SOS off');
+  else status(sosOn ? 'SOS not sent — you\'re offline (shown on your map only)' : 'SOS off not sent — you\'re offline');
 }
 updateSosBtn();
 function requestWakeLock(){
