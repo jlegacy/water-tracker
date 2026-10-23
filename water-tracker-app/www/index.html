@@ -14,7 +14,6 @@
 <link rel="stylesheet" href="leaflet/leaflet.css"/>
 <script src="leaflet/leaflet.js"></script>
 <script src="leaflet-rotate/leaflet-rotate.js"></script>
-<script src="tile-cache.js"></script>
 
 <script>
 /* API origin: same-origin when served by FastAPI (Render/Heroku/localhost).
@@ -296,8 +295,7 @@ const map = L.map('map', {
   touchZoom: true,
   bounceAtZoomLimits: false
 }).setView([35.5,-77.0], 12);
-// On-demand tile cache (viewed OSM tiles → IndexedDB, TILE_CACHE_MAX_BYTES ~75 MB LRU)
-(typeof L.tileLayer.cached === 'function' ? L.tileLayer.cached : L.tileLayer)(
+L.tileLayer(
   'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
   {
     maxZoom: 19,
