@@ -266,7 +266,7 @@ function wsUrl(path) {
 <div id="trailDisclosure" role="dialog" aria-modal="true" aria-labelledby="trailDiscTitle">
   <div class="box">
     <h2 id="trailDiscTitle">Save trail?</h2>
-    <p>Water Tracker collects location data to save your ride trail even when the app is closed or not in use. Each ride is auto-saved on your device (IndexedDB). Archives are kept until about 50&nbsp;MB total — then the oldest rides are removed. While Trail is on, a thinned live path is shared with riders in your group.</p>
+    <p>Water Tracker collects location data to save your ride trail even when the app is closed or not in use. Each ride is auto-saved on your device (IndexedDB). Saved rides are kept for about 1 day (24 hours) and then deleted automatically (with a ~50&nbsp;MB safety cap that removes the oldest rides first). While Trail is on, a thinned live path is shared with riders in your group.</p>
     <div class="actions">
       <button type="button" class="cancel" onclick="cancelTrailDisclosure()">Cancel</button>
       <button type="button" class="ok" onclick="confirmTrailDisclosure()">Continue</button>
@@ -413,7 +413,7 @@ function updateMotion(lat, lon, speed){
   else if (isMoving && v < MOVE_STOP_MS){ isMoving = false; }
 }
 
-// Trail logging (trial): live ride buffer + IndexedDB archives (~50 MB) + gray dashed Garmin-style line
+// Trail logging (trial): live ride buffer + IndexedDB archives (kept 24 h, ~50 MB cap) + gray dashed Garmin-style line
 // Trail button removed: trail logging is always on.
 let trailOn = true;
 localStorage.setItem('trackerTrail', '1');
@@ -425,7 +425,9 @@ let rideStartedAt = null;
 const LIVE_TRAIL_MAX_POINTS = 8000; // modest in-memory current-ride buffer
 const TRAIL_SHARE_MAX = 40; // thinned points shared with the group per update
 const TRAIL_ARCHIVE_MAX_POINTS = 2500; // thinned points stored per archived ride
-const TRAIL_ARCHIVE_BUDGET = 50 * 1024 * 1024; // ~50 MB IndexedDB total
+const TRAIL_ARCHIVE_BUDGET = 50 * 1024 * 1024; // ~50 MB IndexedDB total (secondary safety cap)
+const TRAIL_RETENTION_MS = 24 * 60 * 60 * 1000;  // strict TTL: ride expires at savedAt + 24 h (legacy: endedAt, else startedAt)
+const TRAIL_PURGE_INTERVAL_MS = 60 * 60 * 1000;  // hourly backstop; exact deletes use a timer to the soonest expiry
 const TRAIL_DB_NAME = 'water-tracker-trails';
 const TRAIL_DB_STORE = 'rides';
 const remoteTrails = {}; // rider id -> L.polyline
@@ -535,7 +537,7 @@ function saveRideDraft(){
     const all = breadcrumb.concat(breadcrumbPending);
     if (all.length < 2) return;
     const ride = { id: rideId(), startedAt: rideStartedAt || all[0].t || Date.now(), endedAt: Date.now(),
-      group: myGroup || '', points: thinTrail(all, TRAIL_ARCHIVE_MAX_POINTS), reason: 'session-end' };
+      group: myGroup || '', points: thinTrail(all, TRAIL_ARCHIVE_MAX_POINTS), reason: 'session-end', savedAt: Date.now() };
     ride.bytes = estimateRideBytes(ride);
     localStorage.setItem(RIDE_DRAFT_KEY, JSON.stringify(ride));
   } catch(_){}
@@ -543,7 +545,8 @@ function saveRideDraft(){
 async function recoverRideDraft(){
   let ride = null;
   try { ride = JSON.parse(localStorage.getItem(RIDE_DRAFT_KEY) || 'null'); } catch(_){}
-  if (!ride || !ride.id || !Array.isArray(ride.points) || ride.points.length < 2){ localStorage.removeItem(RIDE_DRAFT_KEY); return; }
+  if (ride && !ride.savedAt) ride.savedAt = ride.endedAt || ride.startedAt; // TTL counts from the last backup, not recovery
+  if (!ride || !ride.id || !Array.isArray(ride.points) || ride.points.length < 2 || rideExpired(ride)){ localStorage.removeItem(RIDE_DRAFT_KEY); return; }
   try {
     const db = await openTrailDb();
     await new Promise((resolve, reject) => {
@@ -596,7 +599,38 @@ async function listArchivedRides(){
     req.onerror = () => reject(req.error);
   });
 }
+function rideExpiresAt(r){ return ((r && (r.savedAt || r.endedAt || r.startedAt)) || 0) + TRAIL_RETENTION_MS; }
+function rideExpired(r, now){ return rideExpiresAt(r) <= (now || Date.now()); }
+let purgeTimer = null;
+function schedulePurge(nextExpiry){
+  if (purgeTimer){ clearTimeout(purgeTimer); purgeTimer = null; }
+  if (!isFinite(nextExpiry)) return;
+  const wait = Math.min(Math.max(nextExpiry - Date.now() + 250, 0), 2147483000);
+  purgeTimer = setTimeout(() => { purgeTimer = null; purgeExpiredRides(); }, wait);
+}
+// Delete archived rides past TRAIL_RETENTION_MS. Pass an open db, or omit to open/close one.
+async function purgeExpiredRides(db){
+  let own = false;
+  try {
+    if (!db){ db = await openTrailDb(); own = true; }
+    const now = Date.now();
+    const tx = db.transaction(TRAIL_DB_STORE, 'readwrite');
+    const store = tx.objectStore(TRAIL_DB_STORE);
+    let n = 0, next = Infinity;
+    await new Promise((resolve, reject) => {
+      const req = store.getAll();
+      req.onsuccess = () => { (req.result || []).forEach(r => {
+        if (rideExpired(r, now)){ store.delete(r.id); n++; } else next = Math.min(next, rideExpiresAt(r)); }); };
+      tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error);
+    });
+    schedulePurge(next); // timer to the soonest remaining expiry
+    return n;
+  } catch(e){ console.warn('trail purge failed', e); return 0; }
+  finally { if (own){ try { db.close(); } catch(_){} } }
+}
+setInterval(() => { purgeExpiredRides(); }, TRAIL_PURGE_INTERVAL_MS);
 async function enforceArchiveBudget(db){
+  await purgeExpiredRides(db); // 24 h retention first; size cap below is the secondary safety
   const rides = await new Promise((resolve, reject) => {
     const tx = db.transaction(TRAIL_DB_STORE, 'readonly');
     const req = tx.objectStore(TRAIL_DB_STORE).getAll();
@@ -638,6 +672,7 @@ async function archiveCurrentRide(reason){
     id: rideId(),
     startedAt: rideStartedAt || (breadcrumb[0] && breadcrumb[0].t) || Date.now(),
     endedAt: Date.now(),
+    savedAt: Date.now(),
     group: myGroup || '',
     points,
     reason: reason || 'end'
@@ -1176,7 +1211,7 @@ function enhanceSelect(id, cls){
   setInterval(() => { if (!menu.classList.contains('open')) render(); }, 500);
 }
 document.addEventListener('click', () => document.querySelectorAll('.cmenu.open').forEach(m => m.classList.remove('open')));
-window.addEventListener('DOMContentLoaded', () => { recoverRideDraft();
+window.addEventListener('DOMContentLoaded', () => { recoverRideDraft().finally(() => purgeExpiredRides());
   enhanceSelect('startGroup'); enhanceSelect('groupDisplay','g'); });
 
 function updateMyMarker(lat, lon){
@@ -1701,6 +1736,7 @@ setInterval(() => {
 
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden' && trailOn) saveRideDraft(); // OS may kill a hidden page with no unload
+  if (document.visibilityState === 'visible') purgeExpiredRides(); // timers may have slept past an expiry
   if (!sharing) return;
   if (document.visibilityState === 'visible') {
     if (!ws || ws.readyState !== 1) {
@@ -1854,7 +1890,7 @@ function setTrailOn(on){
   trailOn = next;
   localStorage.setItem('trackerTrail', trailOn ? '1' : '0');
   if (trailOn){
-    status('Trail on — auto-saves each ride (~50 MB archive cap)');
+    status('Trail on — auto-saves each ride (kept 24 h)');
     if (myLatLng && sharing){
       if (!rideStartedAt) rideStartedAt = Date.now();
       breadcrumb.push({lat: myLatLng[0], lon: myLatLng[1], t: Date.now()});
