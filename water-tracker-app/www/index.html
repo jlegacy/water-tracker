@@ -524,7 +524,42 @@ function syncTrailDuringMapMotion(){
   if (!trailOn || !breadcrumbLine || !myLatLng || isHidden()) return;
   updateMyTrailLine();
 }
+// Unload-safe ride draft: IndexedDB writes started in pagehide/beforeunload are
+// usually killed before they commit, so keep a synchronous localStorage copy and
+// move it into IndexedDB on the next load (same id => no duplicate ride).
+const RIDE_DRAFT_KEY = 'trackerRideDraft';
+let currentRideId = null;
+function rideId(){ return currentRideId || (currentRideId = 'ride-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8)); }
+function saveRideDraft(){
+  try {
+    const all = breadcrumb.concat(breadcrumbPending);
+    if (all.length < 2) return;
+    const ride = { id: rideId(), startedAt: rideStartedAt || all[0].t || Date.now(), endedAt: Date.now(),
+      group: myGroup || '', points: thinTrail(all, TRAIL_ARCHIVE_MAX_POINTS), reason: 'session-end' };
+    ride.bytes = estimateRideBytes(ride);
+    localStorage.setItem(RIDE_DRAFT_KEY, JSON.stringify(ride));
+  } catch(_){}
+}
+async function recoverRideDraft(){
+  let ride = null;
+  try { ride = JSON.parse(localStorage.getItem(RIDE_DRAFT_KEY) || 'null'); } catch(_){}
+  if (!ride || !ride.id || !Array.isArray(ride.points) || ride.points.length < 2){ localStorage.removeItem(RIDE_DRAFT_KEY); return; }
+  try {
+    const db = await openTrailDb();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(TRAIL_DB_STORE, 'readwrite');
+      tx.objectStore(TRAIL_DB_STORE).put(ride);
+      tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error);
+    });
+    await enforceArchiveBudget(db);
+    try { db.close(); } catch(_){}
+    localStorage.removeItem(RIDE_DRAFT_KEY);
+  } catch(e){ console.warn('ride draft recovery failed', e); }
+}
+setInterval(() => { if (sharing && trailOn) saveRideDraft(); }, 10000);
 function clearLiveTrailBuffer(){
+  currentRideId = null;
+  try { localStorage.removeItem(RIDE_DRAFT_KEY); } catch(_){}
   breadcrumb = [];
   breadcrumbPending = [];
   rideStartedAt = null;
@@ -600,7 +635,7 @@ async function archiveCurrentRide(reason){
     return false;
   }
   const ride = {
-    id: 'ride-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+    id: rideId(),
     startedAt: rideStartedAt || (breadcrumb[0] && breadcrumb[0].t) || Date.now(),
     endedAt: Date.now(),
     group: myGroup || '',
@@ -877,6 +912,7 @@ function updateHeading(lat, lon, heading, speed){
 }
 
 function onFix(lat, lon, heading, speed){
+  if (locErrText){ if (document.getElementById('status').textContent === locErrText) status(''); locErrText = null; }
   const fixNow = Date.now();
   if (lastFixAcceptedAt && fixNow - lastFixAcceptedAt < FIX_MIN_INTERVAL_MS) return;
   lastFixAcceptedAt = fixNow;
@@ -1140,7 +1176,8 @@ function enhanceSelect(id, cls){
   setInterval(() => { if (!menu.classList.contains('open')) render(); }, 500);
 }
 document.addEventListener('click', () => document.querySelectorAll('.cmenu.open').forEach(m => m.classList.remove('open')));
-window.addEventListener('DOMContentLoaded', () => { enhanceSelect('startGroup'); enhanceSelect('groupDisplay','g'); });
+window.addEventListener('DOMContentLoaded', () => { recoverRideDraft();
+  enhanceSelect('startGroup'); enhanceSelect('groupDisplay','g'); });
 
 function updateMyMarker(lat, lon){
   myLatLng = [lat, lon];
@@ -1617,6 +1654,15 @@ setInterval(() => {
 // Browser location watch (non-Capacitor): restartable, since iPhone Safari
 // can stop delivering watchPosition after the page is backgrounded.
 let lastFixAt = 0, lastWebRestart = 0, webRestartTimer = null, webWatchId = null;
+let locErrText = null; // footer text we set for a location error (cleared on next good fix)
+function showLocError(e){
+  const code = e && e.code;
+  locErrText = code === 1 ? 'Location permission denied — allow location for this site'
+    : code === 2 ? 'Location unavailable — waiting for GPS signal…'
+    : code === 3 ? 'Location timed out — retrying…'
+    : 'Location error (unknown)';
+  status(locErrText);
+}
 function webFix(p){
   lastFixAt = Date.now();
   onFix(p.coords.latitude, p.coords.longitude, p.coords.heading, p.coords.speed); // throttled send happens in onFix
@@ -1627,7 +1673,7 @@ function startWebWatch(){
   lastWebRestart = Date.now();
   lastFixAt = Date.now(); // grace period before the watchdog fires again
   webWatchId = navigator.geolocation.watchPosition(webFix, e => {
-    status('Location error: ' + e.message);
+    showLocError(e);
     if (e.code === 2 || e.code === 3) scheduleWebRestart();
   }, {enableHighAccuracy:true, maximumAge:10000, timeout:20000});
 }
@@ -1646,7 +1692,7 @@ function nativeOneShot(){
   if (nativeOneShotBusy || !navigator.geolocation) return;
   nativeOneShotBusy = true;
   navigator.geolocation.getCurrentPosition(p => { nativeOneShotBusy = false; webFix(p); },
-    e => { nativeOneShotBusy = false; status('Location error: ' + e.message); },
+    e => { nativeOneShotBusy = false; showLocError(e); },
     {enableHighAccuracy:true, maximumAge:5000, timeout:15000});
 }
 setInterval(() => {
@@ -1654,6 +1700,7 @@ setInterval(() => {
 }, 10000);
 
 document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden' && trailOn) saveRideDraft(); // OS may kill a hidden page with no unload
   if (!sharing) return;
   if (document.visibilityState === 'visible') {
     if (!ws || ws.readyState !== 1) {
@@ -1681,6 +1728,7 @@ let wakeLock = null;
 let leftPage = false;
 function leaveOnClose(){
   // Best-effort auto-archive current ride (IndexedDB txn usually completes during unload)
+  try { saveRideDraft(); } catch(e){}
   try { if (trailOn || breadcrumb.length || breadcrumbPending.length) archiveCurrentRide('session-end'); } catch(e){}
   if (!sharing || leftPage || isNativeApp()) return;
   leftPage = true;
