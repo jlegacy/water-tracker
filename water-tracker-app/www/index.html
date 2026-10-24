@@ -85,7 +85,6 @@ function wsUrl(path) {
   /* Group + buttons share one non-wrapping row (SOS never drops); Riders has its own row below */
   #bar .row:first-child{flex-wrap:nowrap}
   #bar .row:first-child button{padding:8px 9px;font-size:13px;flex:0 0 auto}
-  #bar select#groupDisplay{flex:1 1 0 !important;min-width:90px;max-width:none;font-size:13px;padding:8px 6px;text-overflow:ellipsis}
   #riderPick{position:relative;flex:1 1 auto;min-width:0;width:100%}
   #bar #riderBtn{width:100%;font-weight:400;display:flex;align-items:center;gap:6px;text-align:left;font-size:13px;padding:8px 6px;border-radius:8px;border:1px solid #2a4a6f;background:#132a45;color:#e8eef7;cursor:pointer}
   #bar #riderBtn .lbl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -224,18 +223,7 @@ function wsUrl(path) {
 <body>
 <div id="nameScreen">
   <h1>Water Tracker</h1>
-  <div class="groupLabel">Group</div>
-  <select id="startGroup" required>
-    <option value="" disabled selected>-- Select your group --</option>
-    <option value="Buoy Band">Buoy Band</option>
-    <option value="Full Send Fleet">Full Send Fleet</option>
-    <option value="Rooster Tail Rebels">Rooster Tail Rebels</option>
-    <option value="Salty Seadogs">Salty Seadogs</option>
-    <option value="Spray &amp; Pray">Spray &amp; Pray</option>
-    <option value="Throttle Bottoms">Throttle Bottoms</option>
-    <option value="Wake Me Up">Wake Me Up</option>
-    <option value="Wet Willies">Wet Willies</option>
-  </select>
+  <div class="groupLabel" id="rangeNote">You'll see every rider within 25 miles of you.</div>
   <div class="groupLabel">Your Name</div>
   <input id="startName" placeholder="Enter your name" autocomplete="off" autocorrect="off">
   <button onclick="startApp()">Start</button>
@@ -243,7 +231,6 @@ function wsUrl(path) {
 <div id="banner"></div>
 <div id="bar">
   <div class="row">
-    <select id="groupDisplay" onchange="switchGroup(this.value)" aria-label="Group" style="font-weight:600"></select>
     <button class="center" onclick="centerOnMe()">Center</button>
     <button id="findBtn" class="find" onclick="toggleFind()" style="display:none">Find</button>
     <button id="leaderBtn" class="leader" onclick="toggleLeader()">Leader</button>
@@ -269,7 +256,7 @@ function wsUrl(path) {
 <div id="trailDisclosure" role="dialog" aria-modal="true" aria-labelledby="trailDiscTitle">
   <div class="box">
     <h2 id="trailDiscTitle">Save trail?</h2>
-    <p>Water Tracker collects location data to save your ride trail even when the app is closed or not in use. Each ride is auto-saved on your device (IndexedDB). Saved rides are kept for about 1 day (24 hours) and then deleted automatically (with a ~50&nbsp;MB safety cap that removes the oldest rides first). While Trail is on, a thinned live path is shared with riders in your group.</p>
+    <p>Water Tracker collects location data to save your ride trail even when the app is closed or not in use. Each ride is auto-saved on your device (IndexedDB). Saved rides are kept for about 1 day (24 hours) and then deleted automatically (with a ~50&nbsp;MB safety cap that removes the oldest rides first). While Trail is on, a thinned live path is shared with riders within 25 miles of you.</p>
     <div class="actions">
       <button type="button" class="cancel" onclick="cancelTrailDisclosure()">Cancel</button>
       <button type="button" class="ok" onclick="confirmTrailDisclosure()">Continue</button>
@@ -395,7 +382,7 @@ const MOVE_STOP_MS = 0.89;    // < ~2 mph counts as stopped
 const FOLLOW_GRACE_MS = 5000;
 let isMoving = false;
 let meIconKind = null; // 'circle' | 'arrow' | 'sos' for YOU marker
-let sosOn = false; // SOS: show 🆘 on my marker and broadcast to the group
+let sosOn = false; // SOS: show 🆘 on my marker and broadcast to riders within 25 mi
 let lastUserPanAt = 0;
 const motionFixes = [];       // recent {lat, lon, t, spd}
 function userMovedMap(){ lastUserPanAt = Date.now(); setFollow(false); }
@@ -540,7 +527,7 @@ function saveRideDraft(){
     const all = breadcrumb.concat(breadcrumbPending);
     if (all.length < 2) return;
     const ride = { id: rideId(), startedAt: rideStartedAt || all[0].t || Date.now(), endedAt: Date.now(),
-      group: myGroup || '', points: thinTrail(all, TRAIL_ARCHIVE_MAX_POINTS), reason: 'session-end', savedAt: Date.now() };
+      points: thinTrail(all, TRAIL_ARCHIVE_MAX_POINTS), reason: 'session-end', savedAt: Date.now() };
     ride.bytes = estimateRideBytes(ride);
     localStorage.setItem(RIDE_DRAFT_KEY, JSON.stringify(ride));
   } catch(_){}
@@ -676,7 +663,6 @@ async function archiveCurrentRide(reason){
     startedAt: rideStartedAt || (breadcrumb[0] && breadcrumb[0].t) || Date.now(),
     endedAt: Date.now(),
     savedAt: Date.now(),
-    group: myGroup || '',
     points,
     reason: reason || 'end'
   };
@@ -964,6 +950,7 @@ function roughFirstFix(){
   } catch(_){}
 }
 function onFix(lat, lon, heading, speed){
+  if (!preciseFixSeen && document.getElementById('status').textContent === WAITING_TEXT) status(joined ? SHARING_TEXT : '');
   preciseFixSeen = true;
   if (myApprox){ myApprox = false; if (riders[me]) riders[me].setOpacity(1); }
   if (locErrText){ if (document.getElementById('status').textContent === locErrText) status(''); locErrText = null; }
@@ -1239,7 +1226,7 @@ function enhanceSelect(id, cls){
 }
 document.addEventListener('click', () => document.querySelectorAll('.cmenu.open').forEach(m => m.classList.remove('open')));
 window.addEventListener('DOMContentLoaded', () => { recoverRideDraft().finally(() => purgeExpiredRides());
-  enhanceSelect('startGroup'); enhanceSelect('groupDisplay','g'); });
+ });
 
 function updateMyMarker(lat, lon){
   myLatLng = [lat, lon];
@@ -1302,7 +1289,6 @@ function connect(){
       type: 'join',
       id: me,
       name: myName,
-      code: myGroup,
       leader: leader,
       sos: sosOn
     }));
@@ -1319,10 +1305,8 @@ function connect(){
     if (m.type === 'joined'){
       joined = true;
       setAppOffline(false);
-      switchFrom = null;
       reconnectDelay = 1000; // reset backoff on success
-      status('Sharing — ' + myGroup);
-      fetchGroupCounts();
+      status(preciseFixSeen ? SHARING_TEXT : WAITING_TEXT);
       // Send positions queued while offline, oldest first; server keeps the newest
       if (posQueue.length){
         wsSend({type:'posbatch', positions: posQueue});
@@ -1332,11 +1316,7 @@ function connect(){
       if (myLatLng && !isHidden()) renderMe();
     }
     else if (m.type === 'error'){
-      if (m.msg === 'Unknown group' && switchFrom){
-        const back = switchFrom; switchFrom = null;
-        status('Unknown group, staying in ' + back);
-        setTimeout(() => switchGroup(back, true), 0);
-      } else status(m.msg);
+      status(m.msg);
     }
     else if (m.type === 'riders'){
       if (isHidden()) return; // background: ignore others, resync on return
@@ -1799,8 +1779,8 @@ function leaveOnClose(){
   leftPage = true;
   try { if (ws && ws.readyState === 1) ws.send(JSON.stringify({type:'leave'})); } catch(e){}
   try {
-    if (navigator.sendBeacon && myGroup) navigator.sendBeacon(apiUrl('/api/leave'),
-      new Blob([JSON.stringify({group: myGroup, id: me})], {type:'text/plain'}));
+    if (navigator.sendBeacon) navigator.sendBeacon(apiUrl('/api/leave'),
+      new Blob([JSON.stringify({id: me})], {type:'text/plain'}));
   } catch(e){}
 }
 window.addEventListener('beforeunload', leaveOnClose);
@@ -1969,28 +1949,7 @@ if (window.visualViewport) window.visualViewport.addEventListener('resize', sche
 // Header height changes (message row shown/hidden, group switch): keep the map right under it
 if (window.ResizeObserver) new ResizeObserver(scheduleMapLayout).observe(document.getElementById('bar'));
 
-let myGroup = '';
-let groupCounts = {}; // code -> active rider count (not stale, has a fix)
-let groupCountsReady = false; // true after the first successful /api/groups poll
-function groupLabel(code, active){
-  if (!groupCountsReady) return code + ' (\u2026)';
-  const n = (active == null || active === '') ? 0 : active;
-  return code + ' (' + n + ')';
-}
-function updateGroupSelects(){
-  ['startGroup', 'groupDisplay'].forEach(id => {
-    const sel = document.getElementById(id);
-    if (!sel) return;
-    // Don't touch the join form while the user is mid-composition (mobile IME/autocorrect)
-    if (id === 'startGroup' && nameComposing) return;
-    // Update labels in place, only when they changed; never reassign value/selection
-    [...sel.options].forEach(o => {
-      if (!o.value) return; // keep placeholder
-      const label = groupLabel(o.value, groupCounts[o.value] || 0);
-      if (o.textContent !== label) o.textContent = label;
-    });
-  });
-}
+const SHARING_TEXT = 'Sharing — riders within 25 mi', WAITING_TEXT = 'Waiting for location…';
 // Join-screen name: guard against background refreshes + keep a draft
 let nameComposing = false;
 (function guardStartName(){
@@ -1998,104 +1957,16 @@ let nameComposing = false;
   if (!i) return;
   try { const d = sessionStorage.getItem('startNameDraft'); if (d && !i.value) i.value = d; } catch(_){}
   i.addEventListener('compositionstart', () => { nameComposing = true; });
-  i.addEventListener('compositionend', () => { nameComposing = false; updateGroupSelects(); });
+  i.addEventListener('compositionend', () => { nameComposing = false; });
   i.addEventListener('input', () => { try { sessionStorage.setItem('startNameDraft', i.value); } catch(_){} });
 })();
-function applyGroupCounts(list){
-  const map = {};
-  (list || []).forEach(g => { if (g && g.code) map[g.code] = g.active|0; });
-  // ensure every known option has a number (empty groups show 0)
-  ['startGroup', 'groupDisplay'].forEach(id => {
-    const sel = document.getElementById(id);
-    if (!sel) return;
-    [...sel.options].forEach(o => { if (o.value && map[o.value] == null) map[o.value] = 0; });
-  });
-  groupCounts = map;
-  groupCountsReady = true;
-  updateGroupSelects();
-}
-async function fetchGroupCounts(){
-  try {
-    const r = await fetch(apiUrl('/api/groups'));
-    if (!r.ok) return;
-    const data = await r.json();
-    applyGroupCounts(data.groups || data);
-  } catch (e) {}
-}
-// Header group switcher: same names as the start screen (alphabetical)
-(function fillGroupSwitcher(){
-  const sel = document.getElementById('groupDisplay');
-  [...document.getElementById('startGroup').options].forEach(o => {
-    if (!o.value) return;
-    const opt = document.createElement('option');
-    opt.value = o.value; opt.textContent = groupLabel(o.value, 0);
-    sel.appendChild(opt);
-  });
-  // Start screen shows (…) until the first poll lands
-  updateGroupSelects();
-  fetchGroupCounts();
-  setInterval(fetchGroupCounts, 5000);
-})();
-let switchFrom = null; // old group while a switch is pending (to revert on 'Unknown group')
-function resetGroupState(){
-  for (const id in riders){ if (id !== me){ map.removeLayer(riders[id]); delete riders[id]; } }
-  for (const id in positions) if (id !== me) delete positions[id];
-  for (const id in lastSeen) if (id !== me) delete lastSeen[id];
-  for (const id in pendingRiders) delete pendingRiders[id];
-  for (const id in riderMotion) delete riderMotion[id];
-  for (const id of Object.keys(remoteTrails)) clearRemoteTrail(id);
-  clearFindLine(); clearRampRoute();
-  const sel = document.getElementById('riderList');
-  sel.value = '';
-  lastListKey = null; updateRiderList(); clearRiderSelection();
-  const b = document.getElementById('banner');
-  if (bannerTimer){ clearTimeout(bannerTimer); bannerTimer = null; }
-  b.style.display = 'none'; b.classList.remove('alert');
-  document.getElementById('msgText').value = '';
-}
-function switchGroup(grp, revert){
-  if (!grp || grp === myGroup || !sharing) return;
-  try { archiveCurrentRide('switch-group'); } catch(e){}
-  switchFrom = revert ? null : myGroup;
-  // Explicit leave on the old socket, so the old group drops us at once (no ghost/alert)
-  const old = ws; ws = null; joined = false;
-  if (pingTimer){ clearInterval(pingTimer); pingTimer = null; }
-  if (reconnectTimer){ clearTimeout(reconnectTimer); reconnectTimer = null; }
-  if (old){
-    old.onclose = null; old.onmessage = null;
-    try { if (old.readyState === 1) old.send(JSON.stringify({type:'leave'})); } catch(e){}
-    try { old.close(); } catch(e){}
-  }
-  resetGroupState();
-  if (leader){ leader = false; localStorage.setItem('trackerLeader', '0'); updateLeaderBtn(); releaseWakeLock(); }
-  if (sosOn){ sosOn = false; updateSosBtn(); meIconKind = null; }
-  updateSosBar();
-  posQueue = [];
-  myGroup = grp;
-  document.getElementById('groupDisplay').value = myGroup;
-  status('Switching to ' + myGroup + '...');
-  if (myLatLng) pendingFix = {lat: myLatLng[0], lon: myLatLng[1], ts: Date.now()};
-  reconnectDelay = 1000;
-  connect();
-  if (rampsOn){ toggleRamps(); toggleRamps(); } // ramps are location-based: refetch here
-  requestAnimationFrame(fixMapLayout);
-  setTimeout(fixMapLayout, 300);
-}
 function startApp(){
   const name = document.getElementById('startName').value.trim();
   if (!name){
     document.getElementById('startName').focus();
     return;
   }
-  const grp = document.getElementById('startGroup').value;
-  if (!grp){
-    alert('Please select your group first.');
-    document.getElementById('startGroup').focus();
-    return;
-  }
   myName = name;
-  myGroup = grp;
-  document.getElementById('groupDisplay').value = myGroup;
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   document.getElementById('nameScreen').style.display = 'none';
   document.getElementById('map').style.display = 'block';
@@ -2110,6 +1981,7 @@ function startApp(){
   setTimeout(fixMapLayout, 1000);
   sharing = true;
   preciseFixSeen = false;
+  status(WAITING_TEXT);
   roughFirstFix(); // circle in ~1s instead of waiting on cold GPS
   connect();
   requestWakeLock();
@@ -2120,7 +1992,7 @@ function startApp(){
     lastFixAt = Date.now(); // grace period before the native watchdog fires
     BackgroundGeolocation.addWatcher(
       {
-        backgroundMessage: "Tracking your location for " + myGroup,
+        backgroundMessage: "Sharing your location with riders within 25 miles",
         backgroundTitle: "Water Tracker",
         requestPermissions: true,
         stale: false,

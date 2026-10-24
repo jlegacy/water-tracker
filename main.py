@@ -27,11 +27,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-groups = {}
-
-# Allowed group names. Each is its own isolated group; matching is case-insensitive.
-GROUP_CODES = ["Wake Me Up", "Spray & Pray", "Throttle Bottoms", "Salty Seadogs", "Wet Willies", "Full Send Fleet", "Buoy Band", "Rooster Tail Rebels"]
-GROUP_BY_UPPER = {c.upper(): c for c in GROUP_CODES}
+# One shared world, no groups: riders see everyone within RANGE_MI of them.
+riders = {}   # rider_id -> {name, lat, lon, ts, updated, ws, stale, leader, sos}
+links = set() # frozenset({a, b}) for each pair currently shown to each other
+RANGE_MI = float(os.environ.get("RANGE_MI", "25"))       # appear at/inside this distance
+HIDE_MI = float(os.environ.get("HIDE_MI", "27"))         # hysteresis: only hide past this
 
 # ---- Boat ramps & marinas (OpenStreetMap / Overpass) ----
 import math, sys, urllib.request, urllib.parse
@@ -83,42 +83,19 @@ except Exception as e:
 def _in_local_region(lat, lon):
     return any(s <= lat <= n and w <= lon <= e for s, w, n, e in LOCAL_BBOXES.values())
 
-def active_count(code):
-    """Riders the list would show as present (have a fix) and not stale."""
-    now = time.time()
-    n = 0
-    for r in groups.get(code, {}).values():
-        if r.get("lat") is None:
-            continue
-        age = now - r["updated"]
-        if r.get("stale") or age > STALE_SECS:
-            continue
-        n += 1
-    return n
-
-@app.get("/api/groups")
-async def api_groups():
-    # Active = has a position and not stale (same bar as the rider list).
-    return {"groups": [{"code": c, "active": active_count(c)} for c in GROUP_CODES]}
-
 @app.post("/api/leave")
 async def api_leave(request: Request):
-    # sendBeacon backup for a closing tab: remove only this rider id in this group
+    # sendBeacon backup for a closing tab: remove only this rider id (any 'group' field is ignored)
     try:
         data = json.loads(await request.body() or b"{}")
     except Exception:
         return {"ok": False}
     if not isinstance(data, dict):
         return {"ok": False}
-    code = GROUP_BY_UPPER.get(" ".join(str(data.get("group") or "").split()).upper())
     rid = str(data.get("id") or "")
-    g = groups.get(code) if code else None
-    if not g or rid not in g:
+    if rid not in riders:
         return {"ok": False}
-    g.pop(rid, None)
-    await broadcast(code, {"type": "leave", "id": rid})
-    if not g:
-        groups.pop(code, None)
+    await drop_rider(rid)
     return {"ok": True}
 
 @app.get("/api/ramps")
@@ -209,27 +186,103 @@ async def stale_monitor():
 
 async def check_stale():
     now = time.time()
-    for code in list(groups.keys()):
-        g = groups.get(code, {})
-        for rid, r in list(g.items()):
-            age = now - r["updated"]
-            if age > PURGE_SECS and r.get("ws") is None:
-                g.pop(rid, None)
-                await broadcast(code, {"type": "leave", "id": rid})
-                continue
-            if r["lat"] is not None and age > STALE_SECS and not r.get("stale"):
-                r["stale"] = True
-                await broadcast(code, {"type": "alert", "id": rid, "name": r["name"],
-                                       "lastSeen": r["updated"]})
-                # TODO(push): also send APNs/FCM push to the group's registered devices here.
-        if not g:
-            groups.pop(code, None)
+    for rid, r in list(riders.items()):
+        age = now - r["updated"]
+        if age > PURGE_SECS and r.get("ws") is None:
+            await drop_rider(rid)
+            continue
+        if r["lat"] is not None and age > STALE_SECS and not r.get("stale"):
+            r["stale"] = True
+            await send_near(rid, {"type": "alert", "id": rid, "name": r["name"],
+                                  "lastSeen": r["updated"]})
+            # TODO(push): also send APNs/FCM push to nearby riders' registered devices here.
 
-async def mark_fresh(code, rid):
-    r = groups.get(code, {}).get(rid)
+async def mark_fresh(rid):
+    r = riders.get(rid)
     if r and r.get("stale"):
         r["stale"] = False
-        await broadcast(code, {"type": "recovered", "id": rid, "name": r["name"]})
+        await send_near(rid, {"type": "recovered", "id": rid, "name": r["name"]})
+
+# ---- 25-mile proximity (replaces groups) ----
+def pair_in_range(dist_mi, shown):
+    """Hysteresis: appear at <= RANGE_MI, and once shown stay until > HIDE_MI."""
+    return dist_mi <= RANGE_MI or (shown and dist_mi <= HIDE_MI)
+
+def neighbors(rid):
+    """Riders currently linked (shown) to rid."""
+    out = []
+    for k in links:
+        if rid in k:
+            o = next((x for x in k if x != rid), None)
+            if o in riders:
+                out.append(o)
+    return out
+
+def entry(rid, r, now=None):
+    now = now or time.time()
+    return {"id": rid, "name": r["name"], "lat": r["lat"], "lon": r["lon"],
+            "age": round(now - r["updated"], 1), "stale": bool(r.get("stale")),
+            "leader": bool(r.get("leader")), "sos": bool(r.get("sos"))}
+
+def update_links(rid):
+    """Recompute rid's pairs after it moved. Returns (added, removed) other-rider ids."""
+    r = riders.get(rid)
+    added, removed = [], []
+    for oid, o in riders.items():
+        if oid == rid:
+            continue
+        k = frozenset((rid, oid))
+        was = k in links
+        now_in = (r is not None and r["lat"] is not None and o["lat"] is not None and
+                  pair_in_range(_miles(r["lat"], r["lon"], o["lat"], o["lon"]), was))
+        if now_in and not was:
+            links.add(k); added.append(oid)
+        elif was and not now_in:
+            links.discard(k); removed.append(oid)
+    return added, removed
+
+async def send_to(rid, msg):
+    r = riders.get(rid)
+    if not r or r.get("ws") is None:
+        return
+    try:
+        await r["ws"].send_text(msg if isinstance(msg, str) else json.dumps(msg))
+    except Exception:
+        r["ws"] = None  # keep the rider (for stale/last-seen), just drop the dead socket
+
+async def send_near(rid, msg, include_self=False):
+    payload = json.dumps(msg)
+    targets = neighbors(rid) + ([rid] if include_self else [])
+    for oid in targets:
+        await send_to(oid, payload)
+
+async def apply_link_changes(rid, added, removed):
+    for oid in removed:
+        await send_to(oid, {"type": "leave", "id": rid})
+        await send_to(rid, {"type": "leave", "id": oid})
+    now = time.time()
+    for oid in added:  # introduce both ends to each other right away
+        o, r = riders.get(oid), riders.get(rid)
+        if o and o["lat"] is not None:
+            await send_to(rid, dict(entry(oid, o, now), type="pos"))
+        if r and r["lat"] is not None:
+            await send_to(oid, dict(entry(rid, r, now), type="pos"))
+
+async def drop_rider(rid):
+    for oid in neighbors(rid):
+        await send_to(oid, {"type": "leave", "id": rid})
+    for k in [k for k in links if rid in k]:
+        links.discard(k)
+    riders.pop(rid, None)
+
+def public_list(rid):
+    """Snapshot for one viewer: only riders in range of them."""
+    now = time.time()
+    return [entry(oid, riders[oid], now) for oid in neighbors(rid) if riders[oid]["lat"] is not None]
+
+def new_rider(name, ws, leader=False, sos=False):
+    return {"name": name, "lat": None, "lon": None, "ts": None, "updated": time.time(),
+            "ws": ws, "stale": False, "leader": bool(leader), "sos": bool(sos)}
 
 
 def sanitize_trail(raw, max_pts=60):
@@ -269,61 +322,47 @@ def apply_pos(r, lat, lon, ts):
 async def periodic_broadcast():
     while True:
         await asyncio.sleep(6)
-        for code in list(groups.keys()):
-            if groups.get(code):
-                await broadcast(code, {"type": "riders", "riders": public_list(code)})
+        for rid in list(riders.keys()):
+            if rid in riders and riders[rid].get("ws") is not None:
+                await send_to(rid, {"type": "riders", "riders": public_list(rid)})
 
 @app.websocket("/ws")
 async def ws_endpoint(ws: WebSocket):
     await ws.accept()
     rider_id = None
-    code = None
     try:
         raw = await ws.receive_text()
         msg = json.loads(raw)
         if msg.get("type") != "join":
             await ws.close()
             return
-        rider_id = msg.get("id") or str(uuid.uuid4())[:8]
+        rider_id = str(msg.get("id") or str(uuid.uuid4())[:8])
         name = (msg.get("name") or "Rider").strip()[:20] or "Rider"
-        code = GROUP_BY_UPPER.get(" ".join(str(msg.get("code") or "").split()).upper())
-        if not code:
-            await ws.send_text(json.dumps({"type": "error", "msg": "Unknown group"}))
-            await ws.close()
-            return
-        if code not in groups:
-            groups[code] = {}
-        prev = groups[code].get(rider_id)
+        # Old clients may still send a group "code": accepted and ignored (one-release compat).
+        prev = riders.get(rider_id)
         if prev:  # rejoin after a drop: keep last known position
             prev.update({"name": name, "ws": ws, "leader": bool(msg.get("leader")),
                          "sos": bool(msg.get("sos"))})
         else:
-            groups[code][rider_id] = {"name": name, "lat": None, "lon": None, "ts": None,
-                                      "updated": time.time(), "ws": ws, "stale": False,
-                                      "leader": bool(msg.get("leader")),
-                                      "sos": bool(msg.get("sos"))}
-        await ws.send_text(json.dumps({"type": "joined", "id": rider_id, "code": code}))
-        await broadcast(code, {"type": "riders", "riders": public_list(code)})
+            riders[rider_id] = new_rider(name, ws, msg.get("leader"), msg.get("sos"))
+        await ws.send_text(json.dumps({"type": "joined", "id": rider_id, "range": RANGE_MI}))
+        await ws.send_text(json.dumps({"type": "riders", "riders": public_list(rider_id)}))
 
         while True:
             raw = await ws.receive_text()
             msg = json.loads(raw)
             t = msg.get("type")
-            if t != "leave" and rider_id and rider_id not in groups.get(code, {}):
-                # Removed by a /api/leave beacon while this socket is still alive
-                # (e.g. same rider open in another tab): put the rider back.
-                groups.setdefault(code, {})[rider_id] = {"name": name, "lat": None, "lon": None,
-                    "ts": None, "updated": time.time(), "ws": ws, "stale": False, "leader": False,
-                    "sos": False}
-            g = groups.get(code, {})
-            if rider_id in g:
-                g[rider_id]["updated"] = time.time()  # any message counts as keep-alive
-                if g[rider_id].get("ws") is not ws:
-                    g[rider_id]["ws"] = ws
-                await mark_fresh(code, rider_id)
+            if t != "leave" and rider_id not in riders:
+                # Removed by a /api/leave beacon while this socket is still alive: put the rider back.
+                riders[rider_id] = new_rider(name, ws)
+            r = riders.get(rider_id)
+            if r:
+                r["updated"] = time.time()  # any message counts as keep-alive
+                if r.get("ws") is not ws:
+                    r["ws"] = ws
+                await mark_fresh(rider_id)
             if t in ("pos", "posbatch"):
-                if rider_id in g:
-                    r = g[rider_id]
+                if r:
                     items = [msg] if t == "pos" else (msg.get("positions") or [])[-50:]
                     changed = False
                     for p in sorted(items, key=lambda p: p.get("ts") or 0):
@@ -332,111 +371,57 @@ async def ws_endpoint(ws: WebSocket):
                         except (KeyError, TypeError, ValueError):
                             pass
                     if changed:
-                        out = {"type": "pos", "id": rider_id,
-                               "name": r["name"], "lat": r["lat"], "lon": r["lon"],
-                               "ts": r.get("ts"), "leader": bool(r.get("leader")),
-                               "sos": bool(r.get("sos"))}
-                        # Best-effort thinned trail share (from this pos message only)
+                        added, removed = update_links(rider_id)
+                        await apply_link_changes(rider_id, added, removed)
+                        out = dict(entry(rider_id, r), type="pos", ts=r.get("ts"))
                         trail = sanitize_trail(msg.get("trail") if t == "pos" else None)
                         if trail and len(trail) >= 2:
                             out["trail"] = trail
-                        await broadcast(code, out)
+                        await send_near(rider_id, out)
             elif t == "trail":
-                # Explicit trail update / clear from a rider
                 pts = sanitize_trail(msg.get("points") if msg.get("points") is not None else msg.get("trail"))
-                await broadcast(code, {"type": "trail", "id": rider_id,
-                                       "points": pts or []})
+                await send_near(rider_id, {"type": "trail", "id": rider_id, "points": pts or []})
             elif t == "leader":
-                if rider_id in g:
-                    g[rider_id]["leader"] = bool(msg.get("on"))
-                    await broadcast(code, {"type": "leader", "id": rider_id,
-                                           "on": g[rider_id]["leader"]})
+                if r:
+                    r["leader"] = bool(msg.get("on"))
+                    await send_near(rider_id, {"type": "leader", "id": rider_id, "on": r["leader"]})
             elif t == "sos":
-                if rider_id in g:
-                    g[rider_id]["sos"] = bool(msg.get("on"))
-                    await broadcast(code, {"type": "sos", "id": rider_id,
-                                           "on": g[rider_id]["sos"]})
+                if r:
+                    r["sos"] = bool(msg.get("on"))
+                    await send_near(rider_id, {"type": "sos", "id": rider_id, "on": r["sos"]})
             elif t == "ping":
                 await ws.send_text(json.dumps({"type": "pong"}))
             elif t == "sync":
-                await ws.send_text(json.dumps({"type": "riders", "riders": public_list(code)}))
+                await ws.send_text(json.dumps({"type": "riders", "riders": public_list(rider_id)}))
             elif t == "leave":
-                g.pop(rider_id, None)
-                await broadcast(code, {"type": "leave", "id": rider_id})
+                await drop_rider(rider_id)
                 rider_id = None
                 break
             elif t == "msg":
+                # Direct message by rider id (any distance)
                 to_id = msg.get("to")
                 text = (msg.get("text") or "").strip()[:200]
-                if to_id and text and code in groups and to_id in groups[code]:
-                    target = groups[code][to_id]
-                    if target.get("ws") is None:
-                        continue
-                    try:
-                        await target["ws"].send_text(json.dumps({
-                            "type": "msg",
-                            "from": groups[code][rider_id]["name"],
-                            "fromId": rider_id,
-                            "text": text
-                        }))
-                    except Exception:
-                        pass
+                if to_id and text and r and to_id in riders and to_id != rider_id:
+                    await send_to(to_id, {"type": "msg", "from": r["name"], "fromId": rider_id, "text": text})
             elif t == "broadcast":
+                # "All" = everyone currently in range
                 text = (msg.get("text") or "").strip()[:200]
-                if text and code in groups:
-                    payload = json.dumps({
-                        "type": "msg",
-                        "from": groups[code][rider_id]["name"] + " (all)",
-                        "fromId": None,
-                        "text": text
-                    })
-                    for rid, r in list(groups[code].items()):
-                        if rid == rider_id or r.get("ws") is None:
-                            continue
-                        try:
-                            await r["ws"].send_text(payload)
-                        except Exception:
-                            pass
+                if text and r:
+                    await send_near(rider_id, {"type": "msg", "from": r["name"] + " (all)",
+                                               "fromId": None, "text": text})
     except WebSocketDisconnect:
         pass
+    except Exception:
+        pass
     finally:
-        # A dropped connection is not a leave: keep the rider so the group can see
+        # A dropped connection is not a leave: keep the rider so nearby riders see
         # 'last seen' and get a stale alert. Explicit 'leave' or the 30 min purge removes them.
-        if rider_id and code:
-            r = groups.get(code, {}).get(rider_id)
+        if rider_id:
+            r = riders.get(rider_id)
             if r and r.get("ws") is ws:
                 r["ws"] = None
                 if r["lat"] is None:
-                    groups[code].pop(rider_id, None)
-                    if not groups[code]:
-                        groups.pop(code, None)
-
-def public_list(code):
-    now = time.time()
-    out = []
-    for rid, r in groups.get(code, {}).items():
-        if r["lat"] is None:
-            continue
-        out.append({"id": rid, "name": r["name"], "lat": r["lat"],
-                    "lon": r["lon"], "age": round(now - r["updated"], 1),
-                    "stale": bool(r.get("stale")), "leader": bool(r.get("leader")),
-                    "sos": bool(r.get("sos"))})
-    return out
-
-async def broadcast(code, msg):
-    payload = json.dumps(msg)
-    dead = []
-    for rid, r in list(groups.get(code, {}).items()):
-        if r.get("ws") is None:
-            continue
-        try:
-            await r["ws"].send_text(payload)
-        except Exception:
-            dead.append(rid)
-    for rid in dead:  # keep the rider (for stale/last-seen), just drop the dead socket
-        r = groups.get(code, {}).get(rid)
-        if r:
-            r["ws"] = None
+                    await drop_rider(rider_id)
 
 # Bundled client assets (same files Capacitor loads from webDir)
 app.mount("/leaflet", StaticFiles(directory=WWW_DIR / "leaflet"), name="www_leaflet")
