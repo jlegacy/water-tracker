@@ -90,8 +90,11 @@ function wsUrl(path) {
   #bar #riderBtn{width:100%;font-weight:400;display:flex;align-items:center;gap:6px;text-align:left;font-size:13px;padding:8px 6px;border-radius:8px;border:1px solid #2a4a6f;background:#132a45;color:#e8eef7;cursor:pointer}
   #bar #riderBtn .lbl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   #riderBtn .car{opacity:.7;font-size:10px}
+  #bar #riderBtn:disabled{opacity:.45;cursor:not-allowed}
   #riderMenu{display:none;position:absolute;left:0;right:0;top:100%;margin-top:4px;max-height:50vh;overflow-y:auto;background:#132a45;border:1px solid #2a4a6f;border-radius:8px;z-index:2000;box-shadow:0 4px 14px rgba(0,0,0,.4)}
   #riderMenu.open{display:block}
+  /* open dropdowns must sit above the map buttons (North Up / Re-center, z 1000, later in DOM) */
+  #bar:has(#riderMenu.open), #bar:has(.cmenu.open){z-index:2500}
   #riderMenu div{display:flex;align-items:center;gap:6px;padding:9px 8px;font-size:13px;color:#e8eef7;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #riderMenu div.sel{background:#1e3a5f}
   #riderMenu div.sos{color:#f87171;font-weight:700}
@@ -251,7 +254,7 @@ function wsUrl(path) {
       <option value="">-- Riders --</option>
     </select>
     <div id="riderPick">
-      <button type="button" id="riderBtn" onclick="toggleRiderMenu(event)" aria-haspopup="listbox" aria-label="Riders"><span class="lbl">-- Riders --</span><span class="car">▼</span></button>
+      <button type="button" id="riderBtn" disabled aria-disabled="true" onclick="toggleRiderMenu(event)" aria-haspopup="listbox" aria-label="Riders"><span class="lbl">-- Riders --</span><span class="car">▼</span></button>
       <div id="riderMenu" role="listbox"></div>
     </div>
   </div>
@@ -946,7 +949,23 @@ function updateHeading(lat, lon, heading, speed){
   }
 }
 
+// Quick rough first fix: shows YOUR circle at once while precise GPS warms up.
+// Display only: never sent, never a breadcrumb, never touches motion/heading.
+let preciseFixSeen = false, myApprox = false;
+function roughFirstFix(){
+  if (!navigator.geolocation) return;
+  try {
+    navigator.geolocation.getCurrentPosition(p => {
+      if (preciseFixSeen || !sharing) return; // a precise fix already won
+      myApprox = true;
+      myLatLng = [p.coords.latitude, p.coords.longitude];
+      if (!isHidden()) renderMe();
+    }, () => {}, {enableHighAccuracy:false, maximumAge:300000, timeout:5000});
+  } catch(_){}
+}
 function onFix(lat, lon, heading, speed){
+  preciseFixSeen = true;
+  if (myApprox){ myApprox = false; if (riders[me]) riders[me].setOpacity(1); }
   if (locErrText){ if (document.getElementById('status').textContent === locErrText) status(''); locErrText = null; }
   const fixNow = Date.now();
   if (lastFixAcceptedAt && fixNow - lastFixAcceptedAt < FIX_MIN_INTERVAL_MS) return;
@@ -1118,6 +1137,7 @@ function updateRiderList(){
   }
   others.sort((a,b) => (a.dist == null || b.dist == null) ? a.name.localeCompare(b.name) : a.dist - b.dist);
   const key = (leader ? 'L|' : '') + others.map(o => o.id + ':' + o.name + ':' + (o.dist == null ? '-' : Math.round(o.dist)) + (o.stale ? ':q' : '') + (o.sos ? ':s' : '')).join('|');
+  setRiderPickEnabled(others.length > 0);
   if (key === lastListKey){ updateSosBar(); return; }
   lastListKey = key;
 
@@ -1165,8 +1185,15 @@ function renderRiderPicker(){
     menu.appendChild(d);
   });
 }
+function setRiderPickEnabled(on){
+  const sel = document.getElementById('riderList'), btn = document.getElementById('riderBtn');
+  if (sel) sel.disabled = !on;
+  if (btn){ btn.disabled = !on; btn.setAttribute('aria-disabled', on ? 'false' : 'true'); }
+  if (!on){ const m = document.getElementById('riderMenu'); if (m) m.classList.remove('open'); }
+}
 function toggleRiderMenu(e){
   if (e) e.stopPropagation();
+  if (document.getElementById('riderBtn').disabled) return; // no riders: nothing to pick
   renderRiderPicker();
   const rm = document.getElementById('riderMenu'), wasOpen = rm.classList.contains('open');
   document.querySelectorAll('.cmenu.open').forEach(m => m.classList.remove('open'));
@@ -1252,6 +1279,8 @@ function renderMe(){
     riders[me] = L.marker(myLatLng,{icon: buildMeIcon(meKind), zIndexOffset:2000}).addTo(map).bindPopup(myName + ' (you)');
     riders[me].on('click', () => clearRiderSelection());
   }
+  riders[me].setOpacity(myApprox ? 0.5 : 1); // faded = approximate (rough first fix)
+  if (myApprox) return; // rough fix: draw the circle only
   if (isMoving && !followMe && Date.now() - lastUserPanAt >= FOLLOW_GRACE_MS) setFollow(true);
   if (followMe) map.panTo(myLatLng);
   rotateArrows();
@@ -2080,6 +2109,8 @@ function startApp(){
   setTimeout(fixMapLayout, 300);
   setTimeout(fixMapLayout, 1000);
   sharing = true;
+  preciseFixSeen = false;
+  roughFirstFix(); // circle in ~1s instead of waiting on cold GPS
   connect();
   requestWakeLock();
 
