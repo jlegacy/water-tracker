@@ -167,6 +167,15 @@ async def api_ramps(lat: float, lon: float, radius_km: float = 40):
 async def index():
     return FileResponse(WWW_DIR / "index.html")
 
+@app.get("/ramps_us.json")
+async def ramps_us_json():
+    """Bundled ramp/marina extract for the web client (native apps load it from www/)."""
+    f = WWW_DIR / "ramps_us.json"
+    if not f.exists():
+        f = pathlib.Path(__file__).parent / "data" / "ramps_us.json"
+    return FileResponse(f, media_type="application/json",
+                        headers={"Cache-Control": "public, max-age=86400"})
+
 @app.get("/manifest.json")
 async def manifest():
     return FileResponse(pathlib.Path(__file__).parent / "manifest.json", media_type="application/manifest+json")
