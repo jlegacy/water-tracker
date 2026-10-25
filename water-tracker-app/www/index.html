@@ -1667,12 +1667,12 @@ function upsert(r){
 
 function remove(id){
   if (id === me) return;
-  if (riders[id]){
-    map.removeLayer(riders[id]);
-    delete riders[id];
-    delete lastSeen[id];
-    delete positions[id];
-  }
+  // Always forget the rider, even if no marker was ever drawn (pending / not yet rendered);
+  // otherwise a leftover positions[] entry keeps the rider picker enabled.
+  if (riders[id]){ try { map.removeLayer(riders[id]); } catch(_){} }
+  delete riders[id];
+  delete lastSeen[id];
+  delete positions[id];
   delete pendingRiders[id];
   delete riderMotion[id];
   clearRemoteTrail(id);
@@ -1682,18 +1682,22 @@ function remove(id){
 }
 
 // Silent riders are greyed out with 'last seen', not removed; forget them after 30 min
-setInterval(() => {
-  if (isHidden()) return;
+function pruneRiders(){
   const now = Date.now();
-  for (const id in lastSeen){
+  // Union of everything we track, so an entry missing lastSeen can't linger forever
+  const ids = new Set([...Object.keys(lastSeen), ...Object.keys(positions), ...Object.keys(riders)]);
+  for (const id of ids){
     if (id === me) continue;
+    if (lastSeen[id] == null) lastSeen[id] = now; // start its silence clock now
     const age = now - lastSeen[id];
     if (age > REMOVE_MS) remove(id);
     else if (age > STALE_MS && positions[id] && !positions[id].stale){
       positions[id].stale = true; setRiderStale(id, true);
     }
   }
-}, 15000);
+  updateRiderList(); // re-sync picker enabled state every pass
+}
+setInterval(() => { if (!isHidden()) pruneRiders(); }, 15000);
 
 // Browser location watch (non-Capacitor): restartable, since iPhone Safari
 // can stop delivering watchPosition after the page is backgrounded.
