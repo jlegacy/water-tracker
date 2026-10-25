@@ -150,3 +150,72 @@ def test_leave_beacon_by_id(url):
         assert gone
         await a.close(); await b.close()
     run(go())
+
+# ---- Per-rider viewing range ----
+def test_ranges_24_32_48_52(url):
+    async def go():
+        m25 = await C(url, "g25").open(0)                       # old client: no range -> 25
+        m35 = await C(url, "g35").open(0.1, range=35)
+        m50 = await C(url, "g50").open(0.2, range=50)
+        bad = await C(url, "gbad").open(0.3, range=99)          # invalid -> 25
+        assert m25.of("joined")[0]["range"] == 25 and bad.of("joined")[0]["range"] == 25
+        assert m50.of("joined")[0]["range"] == 50 and m50.of("joined")[0]["ranges"] == [25, 30, 35, 40, 45, 50]
+        r = {mi: await C(url, f"g{mi}mi").open(mi if mi != 52 else -52) for mi in (24, 32, 48, 52)}
+        far = lambda s: sorted(x for x in s if x.endswith("mi"))
+        assert far(await m25.snapshot()) == ["g24mi"]
+        assert far(await bad.snapshot()) == ["g24mi"]
+        assert far(await m35.snapshot()) == ["g24mi", "g32mi"]
+        assert far(await m50.snapshot()) == ["g24mi", "g32mi", "g48mi"]
+        for x in (m25, m35, m50, bad, *r.values()): await x.close()
+    run(go())
+
+def test_switch_range_live(url):
+    async def go():
+        me = await C(url, "w_me").open(0)
+        r32, r48 = await C(url, "w32").open(32), await C(url, "w48").open(48)
+        assert (await me.snapshot()) == []
+        me.clear(); await me.send(type="range", range=50); await asyncio.sleep(0.15)
+        assert me.of("range", range=50) and me.of("pos", id="w32") and me.of("pos", id="w48")
+        assert (await me.snapshot()) == ["w32", "w48"]
+        me.clear(); await me.send(type="range", range=30); await asyncio.sleep(0.15)
+        assert me.of("leave", id="w48") and not me.of("leave", id="w32")    # 32 <= 30+2 hysteresis
+        me.clear(); await me.send(type="range", range=25); await asyncio.sleep(0.15)
+        assert me.of("leave", id="w32") and (await me.snapshot()) == []
+        me.clear(); await me.send(type="range", range=77); await asyncio.sleep(0.15)
+        assert me.of("range", range=25)                                       # invalid -> default
+        for x in (me, r32, r48): await x.close()
+    run(go())
+
+def test_sos_leader_by_recipient_range(url):
+    async def go():
+        sos = await C(url, "k_sos").open(0, leader=True)                     # default 25
+        d25 = await C(url, "k25").open(29)                                   # 29 mi, range 25: no
+        d40 = await C(url, "k40").open(-38, range=40)                        # 38 mi, range 40: yes
+        d50 = await C(url, "k50").open(51, range=50)                         # 51 mi: no
+        await sos.send(type="sos", on=True); await asyncio.sleep(0.15)
+        assert d40.of("sos", id="k_sos", on=True) and not d25.of("sos") and not d50.of("sos")
+        snap = {e["id"]: e for e in (d40.clear() or (await d40.send(type="sync")) or (await asyncio.sleep(0.15)) or d40.of("riders")[-1]["riders"])}
+        assert snap["k_sos"]["leader"] and snap["k_sos"]["sos"]
+        await sos.send(type="broadcast", text="all-r"); await asyncio.sleep(0.15)
+        assert d40.of("msg", text="all-r") and not d25.of("msg") and not d50.of("msg")
+        # k_sos (range 25) does not see k40 — asymmetric
+        assert "k40" not in await sos.snapshot()
+        # d25 widens to 30 live -> immediately gets the SOS rider with flags
+        d25.clear(); await d25.send(type="range", range=30); await asyncio.sleep(0.15)
+        assert any(m.get("id") == "k_sos" and m.get("sos") and m.get("leader") for m in d25.of("pos"))
+        await sos.send(type="sos", on=False)
+        for x in (d25, d40, d50): await x.close()
+        await sos.close()
+    run(go())
+
+def test_stale_alert_by_recipient_range(url):
+    async def go():
+        q = await C(url, "z_quiet").open(0)
+        wide, narrow = await C(url, "z_wide").open(45, range=50), await C(url, "z_narrow").open(-45)
+        await q.ws.close()
+        for _ in range(60):
+            if wide.of("alert", id="z_quiet"): break
+            await wide.send(type="ping"); await narrow.send(type="ping"); await asyncio.sleep(0.2)
+        assert wide.of("alert", id="z_quiet") and not narrow.of("alert")
+        for x in (wide, narrow): await x.close()
+    run(go())

@@ -35,27 +35,61 @@ def test_pair_in_range_hysteresis():
     assert p(26.5, True) and p(27.0, True)
     assert not p(27.1, True)
 
+def both(a, b, added):
+    return sorted([(a, b, added), (b, a, added)])
+
 def test_links_enter_hold_leave():
     reset(); add("me", 0); add("a24", 24); add("a26", -26); add("a28", -28)  # opposite side of me
-    added, removed = main.update_links("me")
-    assert sorted(added) == ["a24"] and removed == []
-    # a24 drifts to 26.5 mi: still shown (hysteresis)
-    main.riders["a24"]["lat"] = at(26.5)[0]
-    assert main.update_links("a24") == ([], [])
-    assert frozenset(("me", "a24")) in main.links
-    # past 27: dropped
-    main.riders["a24"]["lat"] = at(27.5)[0]
-    assert main.update_links("a24") == ([], ["me"])
-    # back to 26 (outside 25): not re-shown until <= 25
-    main.riders["a24"]["lat"] = at(26)[0]
-    assert main.update_links("a24") == ([], [])
+    assert sorted(main.update_links("me")) == both("me", "a24", True)
+    main.riders["a24"]["lat"] = at(26.5)[0]          # 26.5: still shown (hysteresis)
+    assert main.update_links("a24") == []
+    assert ("me", "a24") in main.links and ("a24", "me") in main.links
+    main.riders["a24"]["lat"] = at(27.5)[0]          # past 27: dropped
+    assert sorted(main.update_links("a24")) == both("a24", "me", False)
+    main.riders["a24"]["lat"] = at(26)[0]            # 26 (outside 25): not re-shown
+    assert main.update_links("a24") == []
     main.riders["a24"]["lat"] = at(24.99)[0]
-    assert main.update_links("a24") == (["me"], [])
+    assert sorted(main.update_links("a24")) == both("a24", "me", True)
+
+def test_valid_range():
+    v = main.valid_range
+    assert [v(x) for x in (25, 30, 35, 40, 45, 50)] == [25, 30, 35, 40, 45, 50]
+    assert v(None) == 25 and v("40") == 40 and v(27) == 25 and v(100) == 25 and v("x") == 25 and v(-5) == 25
+    assert main.new_rider("x", None)["range"] == 25          # old client default
+    assert main.new_rider("x", None, rng=50)["range"] == 50
+
+def test_pair_in_range_custom_range():
+    p = main.pair_in_range
+    assert p(40, False, 40) and not p(40.1, False, 40)
+    assert p(41.9, True, 40) and not p(42.1, True, 40)
+    assert not p(26, False, 25) and p(26, False, 30)
+
+def test_asymmetric_ranges():
+    reset(); add("me", 0); add("r24", 24); add("r32", 32); add("r48", 48); add("r52", -52)
+    main.riders["me"]["range"] = 50
+    for r in list(main.riders): main.update_links(r)
+    assert sorted(e["id"] for e in main.public_list("me")) == ["r24", "r32", "r48"]  # 52 > 50
+    # r32 (default 25) does not see me back; r24 does
+    assert "me" not in [e["id"] for e in main.public_list("r32")]
+    assert "me" in [e["id"] for e in main.public_list("r24")]
+    # my broadcasts reach only riders whose range includes me
+    assert sorted(main.viewers("me")) == ["r24"]
+    assert sorted(main.viewers("r48")) == ["me", "r24", "r32"]   # r24/r32 are 24/16 mi from r48
+    assert "me" not in main.viewers("r52") and main.viewers("r52") == []
+    # shrink live to 30: 48 drops; 32 is kept by hysteresis (<= 30 + 2)
+    main.riders["me"]["range"] = 30
+    ch = main.update_links("me")
+    assert sorted(x for x in ch if x[0] == "me") == [("me", "r48", False)]
+    main.riders["me"]["range"] = 25                   # 32 > 27: drops
+    assert sorted(x for x in main.update_links("me") if x[0] == "me") == [("me", "r32", False)]
+    main.riders["me"]["range"] = 35
+    ch = main.update_links("me")
+    assert ("me", "r32", True) in ch and ("me", "r48", True) not in ch
 
 def test_no_fix_sees_nobody():
     reset(); add("me", 0); add("nofix")
-    assert main.update_links("nofix") == ([], [])
-    assert main.update_links("me") == ([], [])
+    assert main.update_links("nofix") == []
+    assert main.update_links("me") == []
     assert main.public_list("nofix") == [] and main.public_list("me") == []
 
 def test_public_list_is_per_viewer():
@@ -67,7 +101,7 @@ def test_public_list_is_per_viewer():
 def test_drop_rider_clears_links():
     reset(); add("me", 0); add("near", 1); main.update_links("me")
     asyncio.run(main.drop_rider("near"))
-    assert "near" not in main.riders and not main.links and main.neighbors("me") == []
+    assert "near" not in main.riders and not main.links and main.viewers("me") == [] and main.seen_by("me") == []
 
 def test_no_group_api():
     paths = {getattr(r, "path", None) for r in main.app.routes}
