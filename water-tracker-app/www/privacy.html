@@ -1,0 +1,104 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Water Tracker Privacy Policy</title><style>body{margin:0;background:#0b1d33;font-family:-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;color:#1f2937;line-height:1.55}
+main{max-width:760px;margin:0 auto;background:#fff;padding:28px 22px 40px;min-height:100vh;box-sizing:border-box}
+h1{color:#0B1D51;font-size:26px;border-bottom:3px solid #0D9488;padding-bottom:8px;margin-top:0}
+h2{color:#0B1D51;font-size:19px;margin-top:28px}a{color:#0D9488}
+table{border-collapse:collapse;width:100%;font-size:14px;display:block;overflow-x:auto}
+th{background:#0B1D51;color:#fff;text-align:left}th,td{border:1px solid #cbd5e1;padding:6px 8px;vertical-align:top}
+tr:nth-child(even) td{background:#f0f9f8}</style></head><body><main><h1>Water Tracker Privacy Policy</h1>
+<p><strong>Effective date:</strong> October 25, 2026 (<strong>TODO</strong>: confirm)
+<strong>Provider:</strong> <strong>TODO</strong>: legal name of the person or entity publishing Water Tracker
+<strong>Contact:</strong> <strong>TODO</strong>: confirm contact email (suggested: jlegacy007@gmail.com)</p>
+<p>Water Tracker is a live map that lets people on boats, jet skis and kayaks see each other on the water. This policy explains what the app uses, who can see it, and how long it is kept.</p>
+<h2>The short version</h2>
+<ul>
+<li><strong>No accounts.</strong> No sign-up, email, phone number or password.</li>
+<li><strong>No tracking, ads or analytics.</strong> We don't sell data or share it with advertisers or data brokers.</li>
+<li><strong>Live positions live in server memory only</strong>, and are dropped when you leave or after 30 minutes of silence.</li>
+<li><strong>Ride trails stay on your phone</strong> and are deleted automatically after 24 hours.</li>
+</ul>
+<h2>What the app uses</h2>
+<table>
+<thead>
+<tr>
+<th>Data</th>
+<th>Why</th>
+<th>Where it goes</th>
+<th>How long</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Display name you type</td>
+<td>Shown to nearby riders</td>
+<td>Our server (memory), nearby riders</td>
+<td>Until you leave or 30 min of silence</td>
+</tr>
+<tr>
+<td>Precise location (foreground and background)</td>
+<td>Show you to riders in range; SOS and "gone quiet" alerts</td>
+<td>Our server (memory), riders whose range includes you</td>
+<td>Until you leave or 30 min of silence</td>
+</tr>
+<tr>
+<td>Leader badge and SOS status</td>
+<td>Shown to riders in range</td>
+<td>Our server (memory), riders in range</td>
+<td>Same as above</td>
+</tr>
+<tr>
+<td>Messages you send</td>
+<td>Delivered to the rider you pick, or to riders in range for a broadcast</td>
+<td>Relayed by our server; not stored</td>
+<td>Not stored after delivery</td>
+</tr>
+<tr>
+<td>Random rider ID</td>
+<td>Lets a reconnect resume the same rider</td>
+<td>Your device (local storage), our server (memory)</td>
+<td>On device until you clear app data</td>
+</tr>
+<tr>
+<td>Ride trail (GPS points and times)</td>
+<td>Draw your path; let you view past rides</td>
+<td>Your device (IndexedDB). A thinned recent segment is shared live with riders in range while Trail is on</td>
+<td>Deleted 24 h after saving (~50 MB cap, oldest first)</td>
+</tr>
+<tr>
+<td>Viewing range and name preference</td>
+<td>Remember your settings</td>
+<td>Your device only</td>
+<td>Until you clear app data</td>
+</tr>
+</tbody>
+</table>
+<h2>Who can see you</h2>
+<ul>
+<li>There are no groups. Each rider picks a viewing range of 25, 30, 35, 40, 45 or 50 miles (default 25).</li>
+<li>While you are sharing, any rider whose range includes you (so anyone up to about <strong>50 miles</strong> away) sees your name, position, Leader badge, SOS status and, if Trail is on, your recent trail.</li>
+<li>A rider stops seeing you about 2 miles past their chosen range.</li>
+<li>SOS and "gone quiet" alerts go to riders within range. Direct messages go only to the rider you pick.</li>
+</ul>
+<h2>Background location</h2>
+<p>If you allow "Always" location, the app keeps sharing your position while it is in the background, so other riders can still find you with your phone in a pocket or dry bag. Sharing stops when you leave the session or turn off location for Water Tracker in Settings.</p>
+<h2>Third parties</h2>
+<ul>
+<li><strong>Map tiles</strong> are loaded from OpenStreetMap's tile servers (tile.openstreetmap.org). Those servers receive your IP address and the map area being viewed, under the <a href="https://osmfoundation.org/wiki/Privacy_Policy">OSMF privacy policy</a>.</li>
+<li><strong>Boat ramps and marinas</strong> come from OpenStreetMap data bundled with the app. If the bundled file can't load, the app asks our server for ramps near the map center.</li>
+<li><strong>Hosting:</strong> our server runs on Render (render.com), which may keep standard request logs such as IP addresses.</li>
+<li>We use no advertising, analytics or crash-reporting SDKs.</li>
+</ul>
+<h2>Security</h2>
+<p>All traffic uses HTTPS and secure WebSockets (WSS). We keep no database of positions or location history.</p>
+<h2>Your choices</h2>
+<ul>
+<li>Leave a session at any time to stop sharing and be removed from other riders' maps.</li>
+<li>Deny or limit location access in iOS Settings; the app can't show you to others without it.</li>
+<li>Delete the app or clear its data to remove saved trails, the rider ID and preferences from your device.</li>
+</ul>
+<h2>Children</h2>
+<p>Water Tracker is not directed at children under 13, and we don't knowingly collect personal information from them.</p>
+<h2>Changes</h2>
+<p>If this policy changes, we'll update the effective date above and post the new version at https://water-tracker-yz68.onrender.com/privacy.</p>
+<h2>Contact</h2>
+<p><strong>TODO</strong>: confirm contact email (suggested: jlegacy007@gmail.com). Source code: github.com/jlegacy/water-tracker.</p></main></body></html>

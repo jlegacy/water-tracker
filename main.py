@@ -167,6 +167,12 @@ async def api_ramps(lat: float, lon: float, radius_km: float = 40):
 async def index():
     return FileResponse(WWW_DIR / "index.html")
 
+@app.get("/privacy")
+async def privacy_page():
+    """Public privacy policy (generated from PRIVACY.md by tools/build_privacy.py)."""
+    return FileResponse(WWW_DIR / "privacy.html", media_type="text/html",
+                        headers={"Cache-Control": "public, max-age=3600"})
+
 @app.get("/ramps_us.json")
 async def ramps_us_json():
     """Bundled ramp/marina extract for the web client (native apps load it from www/)."""
