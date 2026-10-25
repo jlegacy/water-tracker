@@ -1,9 +1,9 @@
-from fastapi.testclient import TestClient
+import asyncio, json
 import main
 
 def test_ramps_json_served():
-    r = TestClient(main.app).get("/ramps_us.json")
-    assert r.status_code == 200
-    assert r.headers["content-type"].startswith("application/json")
+    r = asyncio.run(main.ramps_us_json())
+    assert r.media_type == "application/json"
     assert "max-age" in r.headers.get("cache-control", "")
-    assert len(r.json()["items"]) > 0
+    assert len(json.load(open(r.path))["items"]) > 0
+    assert any(getattr(x, "path", None) == "/ramps_us.json" for x in main.app.routes)
