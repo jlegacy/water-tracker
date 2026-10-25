@@ -121,7 +121,6 @@ function wsUrl(path) {
     background:#2f9e6b;color:#fff;font-weight:600;font-size:14px;
     white-space:nowrap;
   }
-  #bar button.center{background:#3b82f6}
   #bar button.find{background:#f59e0b}
   #bar button.msg{background:#8b5cf6}
   #bar button.broadcast{background:#ec4899}
@@ -235,7 +234,6 @@ function wsUrl(path) {
 <div id="banner"></div>
 <div id="bar">
   <div class="row">
-    <button class="center" onclick="centerOnMe()">Center</button>
     <button id="findBtn" class="find" onclick="toggleFind()" style="display:none">Find</button>
     <button id="leaderBtn" class="leader" onclick="toggleLeader()">Leader</button>
     <button id="sosBtn" class="sos" onclick="toggleSos()">SOS</button>
@@ -810,10 +808,6 @@ function toggleRampRoute(i){
   rampRoute = it;
   updateRampRoute();
   map.closePopup();
-}
-
-function centerOnMe(){
-  recenter();
 }
 
 function setFollow(on){
