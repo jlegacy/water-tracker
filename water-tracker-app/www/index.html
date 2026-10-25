@@ -2126,8 +2126,17 @@ async function toggleRamps(){
   const c = myLatLng || [map.getCenter().lat, map.getCenter().lng];
   rampsLoading = true; btn.textContent = 'Loading…'; btn.disabled = true;
   try {
-    await loadLocalRamps();
-    const items = queryLocalRamps(c[0], c[1], 40);
+    let items;
+    try {
+      await loadLocalRamps();
+      items = queryLocalRamps(c[0], c[1], 40);
+    } catch (localErr) {
+      // Bundled file unavailable (e.g. old server): ask the API instead
+      rampLocalPromise = null;
+      const r = await fetch(apiUrl('/api/ramps') + '?lat=' + c[0] + '&lon=' + c[1] + '&radius_km=40');
+      if (!r.ok) throw new Error('api ramps http ' + r.status);
+      items = ((await r.json()).results || []);
+    }
     if (!items.length) { rampToast('No ramps or marinas found nearby'); return; }
     rampLayer = L.layerGroup();
     rampItems = items;
