@@ -2,7 +2,7 @@
 
 The server now detects riders who go quiet (`stale_monitor` in `main.py`): no update for
 `STALE_SECS` (default 90 s) marks them stale and sends `{type:'alert', id, name, lastSeen}`
-once to riders within 25 miles over the WebSocket, then `{type:'recovered'}` when they report again.
+once to riders whose chosen range (25–50 mi) includes the quiet rider over the WebSocket, then `{type:'recovered'}` when they report again.
 Silent riders stay on the map greyed out with "last seen"; they are purged after
 `PURGE_SECS` (default 30 min) or on an explicit `{type:'leave'}`.
 

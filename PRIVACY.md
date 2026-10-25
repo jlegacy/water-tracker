@@ -14,7 +14,7 @@ This note covers the **Trail** feature (trial).
 - Turning Trail off clears the live path after archiving; it does not wipe past rides.
 
 ## Sharing
-- While Trail is on, a **thinned** recent segment of your path may be shared with other riders within about 25 miles of you over the encrypted WebSocket connection (WSS), together with normal position updates.
+- While Trail is on, a **thinned** recent segment of your path may be shared with other nearby riders (up to about 50 miles away) over the encrypted WebSocket connection (WSS), together with normal position updates.
 - Other riders’ live trails are shown as a gray dashed line on the map. Past rides stay on your device unless you load one onto your own map.
 
 ## Security and retention
@@ -28,6 +28,6 @@ For privacy questions about this app, contact the app owner (repository: github.
 
 
 ## Who can see you
-- There are no groups. While you are sharing, every Water Tracker rider within about **25 miles** of you sees your name, position, Leader badge, and SOS status, and you see theirs. Riders drop off each other's maps a little past 25 miles (about 27 miles).
+- There are no groups. Each rider picks a viewing range of 25, 30, 35, 40, 45, or 50 miles (default 25). While you are sharing, any Water Tracker rider whose chosen range includes you — so anyone up to about **50 miles** away — sees your name, position, Leader badge, and SOS status. You see every rider within your own chosen range. Riders drop off a map about 2 miles past that viewer's range.
 - Your SOS and "gone quiet" alerts go to riders within that range. Direct messages go only to the rider you pick.
 - The server keeps live positions in memory only; they are dropped when you leave or after 30 minutes of silence.

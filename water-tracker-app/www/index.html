@@ -85,6 +85,8 @@ function wsUrl(path) {
   /* Group + buttons share one non-wrapping row (SOS never drops); Riders has its own row below */
   #bar .row:first-child{flex-wrap:nowrap}
   #bar .row:first-child button{padding:8px 9px;font-size:13px;flex:0 0 auto}
+  #bar select#rangeSel{flex:0 0 auto;width:auto;margin-left:auto;font-size:13px;padding:8px 10px;border-radius:8px;border:1px solid #2a4a6f;background:#132a45;color:#e8eef7;-webkit-appearance:none;appearance:none;font-weight:600}
+  #nameScreen select{font-size:16px;padding:10px;border-radius:8px;border:1px solid #2a4a6f;background:#132a45;color:#e8eef7}
   #riderPick{position:relative;flex:1 1 auto;min-width:0;width:100%}
   #bar #riderBtn{width:100%;font-weight:400;display:flex;align-items:center;gap:6px;text-align:left;font-size:13px;padding:8px 6px;border-radius:8px;border:1px solid #2a4a6f;background:#132a45;color:#e8eef7;cursor:pointer}
   #bar #riderBtn .lbl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -224,6 +226,7 @@ function wsUrl(path) {
 <div id="nameScreen">
   <h1>Water Tracker</h1>
   <div class="groupLabel" id="rangeNote">You'll see every rider within 25 miles of you.</div>
+  <select id="startRange" aria-label="Viewing range" onchange="setRange(this.value)"><option value="25">25 mi</option><option value="30">30 mi</option><option value="35">35 mi</option><option value="40">40 mi</option><option value="45">45 mi</option><option value="50">50 mi</option></select>
   <div class="groupLabel">Your Name</div>
   <input id="startName" placeholder="Enter your name" autocomplete="off" autocorrect="off">
   <button onclick="startApp()">Start</button>
@@ -235,6 +238,7 @@ function wsUrl(path) {
     <button id="findBtn" class="find" onclick="toggleFind()" style="display:none">Find</button>
     <button id="leaderBtn" class="leader" onclick="toggleLeader()">Leader</button>
     <button id="sosBtn" class="sos" onclick="toggleSos()">SOS</button>
+    <select id="rangeSel" aria-label="Viewing range" title="See riders within" onchange="setRange(this.value)"><option value="25">25 mi</option><option value="30">30 mi</option><option value="35">35 mi</option><option value="40">40 mi</option><option value="45">45 mi</option><option value="50">50 mi</option></select>
   </div>
   <div class="row" id="riderRow">
     <select id="riderList" onchange="onRiderSelect()" aria-label="Riders" style="display:none">
@@ -256,7 +260,7 @@ function wsUrl(path) {
 <div id="trailDisclosure" role="dialog" aria-modal="true" aria-labelledby="trailDiscTitle">
   <div class="box">
     <h2 id="trailDiscTitle">Save trail?</h2>
-    <p>Water Tracker collects location data to save your ride trail even when the app is closed or not in use. Each ride is auto-saved on your device (IndexedDB). Saved rides are kept for about 1 day (24 hours) and then deleted automatically (with a ~50&nbsp;MB safety cap that removes the oldest rides first). While Trail is on, a thinned live path is shared with riders within 25 miles of you.</p>
+    <p>Water Tracker collects location data to save your ride trail even when the app is closed or not in use. Each ride is auto-saved on your device (IndexedDB). Saved rides are kept for about 1 day (24 hours) and then deleted automatically (with a ~50&nbsp;MB safety cap that removes the oldest rides first). While Trail is on, a thinned live path is shared with nearby riders (within the range each rider picks, up to 50 miles).</p>
     <div class="actions">
       <button type="button" class="cancel" onclick="cancelTrailDisclosure()">Cancel</button>
       <button type="button" class="ok" onclick="confirmTrailDisclosure()">Continue</button>
@@ -382,7 +386,7 @@ const MOVE_STOP_MS = 0.89;    // < ~2 mph counts as stopped
 const FOLLOW_GRACE_MS = 5000;
 let isMoving = false;
 let meIconKind = null; // 'circle' | 'arrow' | 'sos' for YOU marker
-let sosOn = false; // SOS: show 🆘 on my marker and broadcast to riders within 25 mi
+let sosOn = false; // SOS: show 🆘 on my marker and broadcast to riders whose range includes me
 let lastUserPanAt = 0;
 const motionFixes = [];       // recent {lat, lon, t, spd}
 function userMovedMap(){ lastUserPanAt = Date.now(); setFollow(false); }
@@ -950,7 +954,7 @@ function roughFirstFix(){
   } catch(_){}
 }
 function onFix(lat, lon, heading, speed){
-  if (!preciseFixSeen && document.getElementById('status').textContent === WAITING_TEXT) status(joined ? SHARING_TEXT : '');
+  if (!preciseFixSeen && document.getElementById('status').textContent === WAITING_TEXT) status(joined ? sharingText() : '');
   preciseFixSeen = true;
   if (myApprox){ myApprox = false; if (riders[me]) riders[me].setOpacity(1); }
   if (locErrText){ if (document.getElementById('status').textContent === locErrText) status(''); locErrText = null; }
@@ -1290,7 +1294,8 @@ function connect(){
       id: me,
       name: myName,
       leader: leader,
-      sos: sosOn
+      sos: sosOn,
+      range: myRange
     }));
     lastSendAt = Date.now();
     // Keep-alive only when nothing else has been sent for a while; positions double as keep-alive
@@ -1306,7 +1311,7 @@ function connect(){
       joined = true;
       setAppOffline(false);
       reconnectDelay = 1000; // reset backoff on success
-      status(preciseFixSeen ? SHARING_TEXT : WAITING_TEXT);
+      status(preciseFixSeen ? sharingText() : WAITING_TEXT);
       // Send positions queued while offline, oldest first; server keeps the newest
       if (posQueue.length){
         wsSend({type:'posbatch', positions: posQueue});
@@ -1949,7 +1954,28 @@ if (window.visualViewport) window.visualViewport.addEventListener('resize', sche
 // Header height changes (message row shown/hidden, group switch): keep the map right under it
 if (window.ResizeObserver) new ResizeObserver(scheduleMapLayout).observe(document.getElementById('bar'));
 
-const SHARING_TEXT = 'Sharing — riders within 25 mi', WAITING_TEXT = 'Waiting for location…';
+const WAITING_TEXT = 'Waiting for location…';
+// Viewing range: each rider picks how far out they see others (server validates the same set)
+const RANGES = [25, 30, 35, 40, 45, 50];
+function validRange(v){ v = parseInt(v, 10); return RANGES.includes(v) ? v : 25; }
+let myRange = validRange((function(){ try { return localStorage.getItem('trackerRange'); } catch(e){ return null; } })());
+function sharingText(){ return 'Sharing — riders within ' + myRange + ' mi'; }
+function syncRangeUi(){
+  ['startRange','rangeSel'].forEach(id => { const el = document.getElementById(id); if (el) el.value = String(myRange); });
+  const n = document.getElementById('rangeNote');
+  if (n) n.textContent = "You'll see every rider within " + myRange + " miles of you.";
+}
+function setRange(v){
+  const old = myRange;
+  myRange = validRange(v);
+  try { localStorage.setItem('trackerRange', String(myRange)); } catch(e){}
+  syncRangeUi();
+  if (old === myRange) return;
+  if (ws && ws.readyState === 1 && joined) wsSend({type:'range', range: myRange}); // live, no rejoin
+  const st = document.getElementById('status');
+  if (st && /^Sharing — riders within/.test(st.textContent)) status(sharingText());
+}
+syncRangeUi();
 // Join-screen name: guard against background refreshes + keep a draft
 let nameComposing = false;
 (function guardStartName(){
@@ -1992,7 +2018,7 @@ function startApp(){
     lastFixAt = Date.now(); // grace period before the native watchdog fires
     BackgroundGeolocation.addWatcher(
       {
-        backgroundMessage: "Sharing your location with riders within 25 miles",
+        backgroundMessage: "Sharing your location with nearby riders (up to 50 miles)",
         backgroundTitle: "Water Tracker",
         requestPermissions: true,
         stale: false,

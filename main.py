@@ -29,9 +29,19 @@ app.add_middleware(
 
 # One shared world, no groups: riders see everyone within RANGE_MI of them.
 riders = {}   # rider_id -> {name, lat, lon, ts, updated, ws, stale, leader, sos}
-links = set() # frozenset({a, b}) for each pair currently shown to each other
-RANGE_MI = float(os.environ.get("RANGE_MI", "25"))       # appear at/inside this distance
-HIDE_MI = float(os.environ.get("HIDE_MI", "27"))         # hysteresis: only hide past this
+links = set() # (viewer, subject): viewer currently sees subject (directed; ranges differ per rider)
+RANGE_MI = float(os.environ.get("RANGE_MI", "25"))       # default viewing range (old clients)
+HIDE_PAD_MI = float(os.environ.get("HIDE_PAD_MI", "2"))  # hysteresis: only hide past range + pad
+HIDE_MI = RANGE_MI + HIDE_PAD_MI
+ALLOWED_RANGES = (25, 30, 35, 40, 45, 50)
+
+def valid_range(v):
+    """Clamp a client-sent range to the allowed set; anything else -> default."""
+    try:
+        v = int(float(v))
+    except (TypeError, ValueError):
+        return int(RANGE_MI)
+    return v if v in ALLOWED_RANGES else int(RANGE_MI)
 
 # ---- Boat ramps & marinas (OpenStreetMap / Overpass) ----
 import math, sys, urllib.request, urllib.parse
@@ -203,20 +213,21 @@ async def mark_fresh(rid):
         r["stale"] = False
         await send_near(rid, {"type": "recovered", "id": rid, "name": r["name"]})
 
-# ---- 25-mile proximity (replaces groups) ----
-def pair_in_range(dist_mi, shown):
-    """Hysteresis: appear at <= RANGE_MI, and once shown stay until > HIDE_MI."""
-    return dist_mi <= RANGE_MI or (shown and dist_mi <= HIDE_MI)
+# ---- Per-rider viewing range (replaces groups) ----
+def pair_in_range(dist_mi, shown, rng=None):
+    """Hysteresis: appear at <= rng, and once shown stay until > rng + HIDE_PAD_MI."""
+    rng = RANGE_MI if rng is None else rng
+    return dist_mi <= rng or (shown and dist_mi <= rng + HIDE_PAD_MI)
 
-def neighbors(rid):
-    """Riders currently linked (shown) to rid."""
-    out = []
-    for k in links:
-        if rid in k:
-            o = next((x for x in k if x != rid), None)
-            if o in riders:
-                out.append(o)
-    return out
+def viewers(rid):
+    """Riders who currently see rid (they receive rid's pos/SOS/leader/all/alerts)."""
+    return [v for (v, s_) in links if s_ == rid and v in riders]
+
+def seen_by(rid):
+    """Riders rid currently sees (rid's list)."""
+    return [s_ for (v, s_) in links if v == rid and s_ in riders]
+
+neighbors = viewers  # back-compat name
 
 def entry(rid, r, now=None):
     now = now or time.time()
@@ -225,21 +236,25 @@ def entry(rid, r, now=None):
             "leader": bool(r.get("leader")), "sos": bool(r.get("sos"))}
 
 def update_links(rid):
-    """Recompute rid's pairs after it moved. Returns (added, removed) other-rider ids."""
+    """Recompute both directions between rid and every other rider.
+    Returns a list of (viewer, subject, added_bool) changes."""
     r = riders.get(rid)
-    added, removed = [], []
+    changes = []
     for oid, o in riders.items():
         if oid == rid:
             continue
-        k = frozenset((rid, oid))
-        was = k in links
-        now_in = (r is not None and r["lat"] is not None and o["lat"] is not None and
-                  pair_in_range(_miles(r["lat"], r["lon"], o["lat"], o["lon"]), was))
-        if now_in and not was:
-            links.add(k); added.append(oid)
-        elif was and not now_in:
-            links.discard(k); removed.append(oid)
-    return added, removed
+        d = None
+        if r is not None and r["lat"] is not None and o["lat"] is not None:
+            d = _miles(r["lat"], r["lon"], o["lat"], o["lon"])
+        for v, sub, vr in ((rid, oid, r), (oid, rid, o)):
+            k = (v, sub)
+            was = k in links
+            now_in = d is not None and pair_in_range(d, was, (vr or {}).get("range", RANGE_MI))
+            if now_in and not was:
+                links.add(k); changes.append((v, sub, True))
+            elif was and not now_in:
+                links.discard(k); changes.append((v, sub, False))
+    return changes
 
 async def send_to(rid, msg):
     r = riders.get(rid)
@@ -251,38 +266,38 @@ async def send_to(rid, msg):
         r["ws"] = None  # keep the rider (for stale/last-seen), just drop the dead socket
 
 async def send_near(rid, msg, include_self=False):
+    """Send to every rider whose own range currently includes rid."""
     payload = json.dumps(msg)
-    targets = neighbors(rid) + ([rid] if include_self else [])
+    targets = viewers(rid) + ([rid] if include_self else [])
     for oid in targets:
         await send_to(oid, payload)
 
-async def apply_link_changes(rid, added, removed):
-    for oid in removed:
-        await send_to(oid, {"type": "leave", "id": rid})
-        await send_to(rid, {"type": "leave", "id": oid})
+async def apply_link_changes(changes):
     now = time.time()
-    for oid in added:  # introduce both ends to each other right away
-        o, r = riders.get(oid), riders.get(rid)
-        if o and o["lat"] is not None:
-            await send_to(rid, dict(entry(oid, o, now), type="pos"))
-        if r and r["lat"] is not None:
-            await send_to(oid, dict(entry(rid, r, now), type="pos"))
+    for v, sub, added in changes:
+        if not added:
+            await send_to(v, {"type": "leave", "id": sub})
+        else:
+            o = riders.get(sub)
+            if o and o["lat"] is not None:
+                await send_to(v, dict(entry(sub, o, now), type="pos"))
 
 async def drop_rider(rid):
-    for oid in neighbors(rid):
+    for oid in viewers(rid):
         await send_to(oid, {"type": "leave", "id": rid})
     for k in [k for k in links if rid in k]:
         links.discard(k)
     riders.pop(rid, None)
 
 def public_list(rid):
-    """Snapshot for one viewer: only riders in range of them."""
+    """Snapshot for one viewer: only riders within that viewer's range."""
     now = time.time()
-    return [entry(oid, riders[oid], now) for oid in neighbors(rid) if riders[oid]["lat"] is not None]
+    return [entry(oid, riders[oid], now) for oid in seen_by(rid) if riders[oid]["lat"] is not None]
 
-def new_rider(name, ws, leader=False, sos=False):
+def new_rider(name, ws, leader=False, sos=False, rng=None):
     return {"name": name, "lat": None, "lon": None, "ts": None, "updated": time.time(),
-            "ws": ws, "stale": False, "leader": bool(leader), "sos": bool(sos)}
+            "ws": ws, "stale": False, "leader": bool(leader), "sos": bool(sos),
+            "range": valid_range(rng)}
 
 
 def sanitize_trail(raw, max_pts=60):
@@ -339,13 +354,16 @@ async def ws_endpoint(ws: WebSocket):
         rider_id = str(msg.get("id") or str(uuid.uuid4())[:8])
         name = (msg.get("name") or "Rider").strip()[:20] or "Rider"
         # Old clients may still send a group "code": accepted and ignored (one-release compat).
+        my_range = valid_range(msg.get("range"))
         prev = riders.get(rider_id)
         if prev:  # rejoin after a drop: keep last known position
             prev.update({"name": name, "ws": ws, "leader": bool(msg.get("leader")),
-                         "sos": bool(msg.get("sos"))})
+                         "sos": bool(msg.get("sos")), "range": valid_range(msg.get("range"))})
+            await apply_link_changes(update_links(rider_id))
         else:
-            riders[rider_id] = new_rider(name, ws, msg.get("leader"), msg.get("sos"))
-        await ws.send_text(json.dumps({"type": "joined", "id": rider_id, "range": RANGE_MI}))
+            riders[rider_id] = new_rider(name, ws, msg.get("leader"), msg.get("sos"), msg.get("range"))
+        await ws.send_text(json.dumps({"type": "joined", "id": rider_id,
+                                       "range": riders[rider_id]["range"], "ranges": list(ALLOWED_RANGES)}))
         await ws.send_text(json.dumps({"type": "riders", "riders": public_list(rider_id)}))
 
         while True:
@@ -354,7 +372,7 @@ async def ws_endpoint(ws: WebSocket):
             t = msg.get("type")
             if t != "leave" and rider_id not in riders:
                 # Removed by a /api/leave beacon while this socket is still alive: put the rider back.
-                riders[rider_id] = new_rider(name, ws)
+                riders[rider_id] = new_rider(name, ws, rng=my_range)
             r = riders.get(rider_id)
             if r:
                 r["updated"] = time.time()  # any message counts as keep-alive
@@ -371,8 +389,7 @@ async def ws_endpoint(ws: WebSocket):
                         except (KeyError, TypeError, ValueError):
                             pass
                     if changed:
-                        added, removed = update_links(rider_id)
-                        await apply_link_changes(rider_id, added, removed)
+                        await apply_link_changes(update_links(rider_id))
                         out = dict(entry(rider_id, r), type="pos", ts=r.get("ts"))
                         trail = sanitize_trail(msg.get("trail") if t == "pos" else None)
                         if trail and len(trail) >= 2:
@@ -389,6 +406,13 @@ async def ws_endpoint(ws: WebSocket):
                 if r:
                     r["sos"] = bool(msg.get("on"))
                     await send_near(rider_id, {"type": "sos", "id": rider_id, "on": r["sos"]})
+            elif t == "range":
+                # Change my viewing range live (no rejoin)
+                if r:
+                    r["range"] = my_range = valid_range(msg.get("range"))
+                    await apply_link_changes(update_links(rider_id))
+                    await ws.send_text(json.dumps({"type": "range", "range": r["range"]}))
+                    await ws.send_text(json.dumps({"type": "riders", "riders": public_list(rider_id)}))
             elif t == "ping":
                 await ws.send_text(json.dumps({"type": "pong"}))
             elif t == "sync":

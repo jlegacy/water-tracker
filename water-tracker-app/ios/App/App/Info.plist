@@ -27,7 +27,7 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Water Tracker uses your location to show you and riders within 25 miles of you on the map.</string>
+	<string>Water Tracker uses your location to show you and nearby riders (up to 50 miles) on the map.</string>
 	
 <key>UIBackgroundModes</key>
 <array>
@@ -35,7 +35,7 @@
   <string>fetch</string>
 </array>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Water Tracker keeps sharing your position with riders within 25 miles while the app is in the background, so riders can find each other on the water.</string>
+	<string>Water Tracker keeps sharing your position with nearby riders (up to 50 miles) while the app is in the background, so riders can find each other on the water.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
