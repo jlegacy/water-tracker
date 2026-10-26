@@ -284,6 +284,9 @@ function wsUrl(path) {
 <div id="stylePanel" role="dialog" aria-label="Marker color" onclick="if(event.target===this)closeStylePanel()"><div class="box">
   <h3><span id="stylePrev"></span>Your marker</h3>
   <div class="lbl2">Color</div><div class="grid" id="styleColors"></div>
+  <!-- TEMP-DELETE-TRAILS start -->
+  <button type="button" id="tempDeleteTrailsBtn" onclick="tempDeleteTrails()" style="display:block;width:100%;margin:10px 0 4px;padding:10px;border:1px solid #dc2626;border-radius:8px;background:#fff;color:#dc2626;font-weight:600">Delete my trails</button>
+  <!-- TEMP-DELETE-TRAILS end -->
   <button type="button" class="done" onclick="closeStylePanel()">Done</button>
 </div></div>
 <div id="sosBar" role="button" tabindex="0" onclick="jumpToSos()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();jumpToSos();}" aria-label="Jump to SOS"></div></div>
@@ -2040,6 +2043,7 @@ function fixMapLayout(){
     if (banner) banner.style.top = (top + 10) + 'px';
   }
   map.invalidateSize();
+  if (typeof updateMinZoom === 'function') updateMinZoom();
 }
 let layoutTimer = null;
 function scheduleMapLayout(){
@@ -2074,6 +2078,7 @@ const MI_M = 1609.344;
 var rangeCircle = null, rangeFitPending = false;
 function drawRangeCircle(){
   if (!myLatLng) return;
+  updateMinZoom();
   const r = myViewR * MI_M;
   if (rangeCircle){ rangeCircle.setLatLng(myLatLng); rangeCircle.setRadius(r); }
   else rangeCircle = L.circle(myLatLng, {radius: r, interactive: false, pane: 'overlayPane', color: '#0ea5e9', weight: 1.5, opacity: 0.55, fillColor: '#0ea5e9', fillOpacity: 0.06}).addTo(map);
@@ -2094,12 +2099,20 @@ function rangeZoomFor(r){
   const lat = myLatLng ? myLatLng[0] : map.getCenter().lat;
   return Math.log2(40075016.686 * Math.cos(lat * Math.PI / 180) * px / (256 * 2 * r * MI_M));
 }
+// Zoom-out lock: minZoom = zoom where the 50 mi circle spans 92% of the screen width.
+// Leaflet then clamps pinch/scroll/+- and every fitBounds/setView, so the radius never exceeds 50 mi.
+// Recomputed on resize/orientation (fixMapLayout) and as my latitude changes (drawRangeCircle).
+function updateMinZoom(){
+  const sz = map.getSize(); if (!sz.x) return;
+  const z = rangeZoomFor(MAX_RANGE_MI);
+  if (isFinite(z) && Math.abs(z - map.getMinZoom()) > 1e-4) map.setMinZoom(z);
+}
 // Inverse: radius (mi) of the circle spanning 92% of the screen width at zoom z
 function radiusForZoom(z){
   const w = map.getSize().x || 1, lat = myLatLng ? myLatLng[0] : map.getCenter().lat;
   return 40075016.686 * Math.cos(lat * Math.PI / 180) * 0.92 * w / (256 * Math.pow(2, z) * 2 * MI_M);
 }
-function showRangeVal(r){ const el = document.getElementById('rangeVal'); if (el){ const t = fmtMi(r); if (el.textContent !== t) el.textContent = t; } }
+function showRangeVal(r){ r = Math.min(r, MAX_RANGE_MI); const el = document.getElementById('rangeVal'); if (el){ const t = fmtMi(r); if (el.textContent !== t) el.textContent = t; } }
 // --- Pinch/scroll/+- zoom sets the radius continuously (no snapping); server range clamped 1-50 ---
 var rangeZoomGuard = false, userZoomAt = 0;
 function markUserZoom(){ userZoomAt = Date.now(); }
@@ -2110,7 +2123,7 @@ function onUserZoomEnd(){
   userZoomAt = 0;
   if (typeof appOffline !== 'undefined' && appOffline) return;
   rangeFitPending = false;
-  setRange(radiusForZoom(map.getZoom()), {noFit: true}); // map stays at the user's zoom
+  setRange(Math.min(MAX_RANGE_MI, radiusForZoom(map.getZoom())), {noFit: true}); // map stays at the user's zoom
 }
 (function wireUserZoom(){
   const c = map.getContainer();
@@ -2372,6 +2385,22 @@ async function toggleRamps(){
 function u(){var h=st.offsetParent&&getComputedStyle(st).display!=='none'?st.offsetHeight+12:0;document.documentElement.style.setProperty('--statusH',h+'px');}
 new MutationObserver(u).observe(st,{attributes:true,childList:true,characterData:true,subtree:true});
 window.addEventListener('resize',u);u();})();
+</script>
+<script>
+// TEMP-DELETE-TRAILS start: phone-only wipe of my saved rides, draft and live trail (nothing sent to server)
+async function tempDeleteTrails(){
+  if (!confirm('Delete all your saved trails on this phone?')) return;
+  try { localStorage.removeItem(RIDE_DRAFT_KEY); } catch(_){}
+  breadcrumb = []; breadcrumbPending = []; currentRideId = null; rideStartedAt = null;
+  try { clearMyTrailLine(); } catch(_){}
+  try { clearPastOverlay(true); } catch(_){}
+  try {
+    const db = await openTrailDb();
+    await new Promise((res, rej) => { const tx = db.transaction(TRAIL_DB_STORE, 'readwrite'); tx.objectStore(TRAIL_DB_STORE).clear(); tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
+  } catch(_){}
+  rampToast('Your trails were deleted');
+}
+// TEMP-DELETE-TRAILS end
 </script>
 </body>
 </html>
