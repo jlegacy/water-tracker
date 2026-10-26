@@ -358,6 +358,7 @@ if (map.touchRotate) map.touchRotate.enable();
 
 // Any user pan/zoom turns off follow-me (programmatic moves don't fire these)
 map.on('dragstart', () => userMovedMap());
+map.on('click', () => blurActiveInput()); // tapping the map drops the keyboard/undo focus
 map.on('rotate', () => rotateArrows());
 // Trail must refresh during zoom/pan frames (not only zoomend) or it detaches then snaps back
 map.on('zoom zoomanim move zoomend moveend', syncTrailDuringMapMotion);
@@ -781,6 +782,7 @@ async function openPastRides(){
   panel.classList.add('show');
 }
 function closePastRides(){
+  blurActiveInput();
   const panel = document.getElementById('pastRides');
   if (panel) panel.classList.remove('show');
 }
@@ -1169,6 +1171,7 @@ function sendMessage(){
   {
     ws.send(JSON.stringify({type:'msg', to:to, text:text}));
     document.getElementById('msgText').value = '';
+    scrubInputUndo(); // sent: nothing left for shake-to-undo
     status('Message sent');
   }
 }
@@ -1180,6 +1183,7 @@ function broadcastMessage(){
   {
     ws.send(JSON.stringify({type:'broadcast', text:text}));
     document.getElementById('msgText').value = '';
+    scrubInputUndo(); // sent: nothing left for shake-to-undo
     status('Broadcast sent');
   }
 }
@@ -1391,6 +1395,7 @@ function connect(){
     const m = JSON.parse(ev.data);
     if (m.type === 'joined'){
       joined = true;
+      if (!document.activeElement || document.activeElement.id !== 'msgText') scrubInputUndo(); // rejoin/auto-join too
       setAppOffline(false);
       reconnectDelay = 1000; // reset backoff on success
       status(preciseFixSeen ? sharingText() : WAITING_TEXT);
@@ -1984,10 +1989,12 @@ function toggleSos(){
 }
 updateSosBtn();
 function cancelTrailDisclosure(){
+  blurActiveInput();
   const d = document.getElementById('trailDisclosure');
   if (d) d.classList.remove('show');
 }
 function confirmTrailDisclosure(){
+  blurActiveInput();
   const d = document.getElementById('trailDisclosure');
   if (d) d.classList.remove('show');
   setTrailOn(true);
@@ -2158,7 +2165,7 @@ function openStylePanel(){
   document.querySelectorAll('.cmenu.open,#riderMenu.open').forEach(m => m.classList.remove('open'));
   renderStylePanel(); document.getElementById('stylePanel').classList.add('open');
 }
-function closeStylePanel(){ document.getElementById('stylePanel').classList.remove('open'); }
+function closeStylePanel(){ document.getElementById('stylePanel').classList.remove('open'); blurActiveInput(); }
 function setMyStyle(o){
   myStyle = validStyle(o);
   try { localStorage.setItem('trackerStyle', JSON.stringify(myStyle)); } catch(e){}
@@ -2195,8 +2202,27 @@ let nameComposing = false;
   try { const d = sessionStorage.getItem('startNameDraft'); if (d && !i.value) i.value = d; } catch(_){}
   i.addEventListener('compositionstart', () => { nameComposing = true; });
   i.addEventListener('compositionend', () => { nameComposing = false; });
-  i.addEventListener('input', () => { try { sessionStorage.setItem('startNameDraft', i.value); } catch(_){} });
+  // Delegated so it survives scrubInputUndo() replacing the node
+  document.addEventListener('input', e => { if (e.target && e.target.id === 'startName') { try { sessionStorage.setItem('startNameDraft', e.target.value); } catch(_){} } });
 })();
+// --- iOS shake-to-undo: pocketing the phone shook up an 'Undo Typing' pop-up from join typing ---
+function blurActiveInput(){
+  const a = document.activeElement;
+  if (a && /^(INPUT|TEXTAREA)$/.test(a.tagName) && a.blur) a.blur();
+}
+// Blur every input/textarea and replace each with a clone (same value, attributes, inline handlers)
+// so WebKit's undo stack, which is tied to the old node, has nothing left to undo.
+function scrubInputUndo(){
+  blurActiveInput();
+  document.querySelectorAll('input, textarea').forEach(el => {
+    if (el.type === 'checkbox' || el.type === 'radio' || el.type === 'file') return;
+    try { const c = el.cloneNode(true); c.value = el.value; el.replaceWith(c); } catch(_){}
+  });
+}
+// Belt and braces: refuse undo/redo input events (shake-to-undo fires historyUndo)
+document.addEventListener('beforeinput', e => {
+  if (e.inputType === 'historyUndo' || e.inputType === 'historyRedo') e.preventDefault();
+}, true);
 function startApp(){
   const name = document.getElementById('startName').value.trim();
   if (!name){
@@ -2204,7 +2230,7 @@ function startApp(){
     return;
   }
   myName = name;
-  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  scrubInputUndo();
   document.getElementById('nameScreen').style.display = 'none';
   document.getElementById('map').style.display = 'block';
   document.getElementById('bar').style.display = 'flex';
