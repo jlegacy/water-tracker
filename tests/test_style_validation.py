@@ -19,3 +19,9 @@ def test_entry_defaults_for_old_riders():
     e = main.entry("x", r); assert (e["color"], e["icon"]) == ("default", "initial")
     r2 = main.new_rider("N", None, color="sky", icon="pirate"); r2.update(lat=1.0, lon=2.0)
     assert (main.entry("y", r2)["color"], main.entry("y", r2)["icon"]) == ("sky", "pirate")
+
+def test_new_options_present():
+    assert {"navy", "mint", "amber", "black"} <= set(main.STYLE_COLORS)
+    assert main.STYLE_ICONS[1:4] == ("jetski", "jetski_rider", "jetski_spray")
+    assert {"turtle", "octopus", "crab", "whale", "surfer", "trident", "palm", "sun", "fire", "skull"} <= set(main.STYLE_ICONS)
+    assert len(set(main.STYLE_ICONS)) == len(main.STYLE_ICONS)

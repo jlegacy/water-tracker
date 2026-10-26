@@ -18,10 +18,11 @@ with sync_playwright() as p:
     A=mk(35.807); B=mk(35.82)
     A.goto(sys.argv[1]); A.wait_for_timeout(800)
     A.click('#styleOpenJoin'); A.wait_for_timeout(200)
-    vis=A.evaluate("()=>{const p=document.getElementById('stylePanel');const r=p.querySelector('.box').getBoundingClientRect();return [p.classList.contains('open'),r.left>=0&&r.right<=innerWidth,document.querySelectorAll('#styleColors .sw').length,document.querySelectorAll('#styleIcons .ic').length,[...document.querySelectorAll('#styleColors .sw')].map(x=>getComputedStyle(x).backgroundColor)]}")
+    vis=A.evaluate("()=>{const p=document.getElementById('stylePanel');const r=p.querySelector('.box').getBoundingClientRect();return [p.classList.contains('open'),r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight&&document.documentElement.scrollWidth<=innerWidth,document.querySelectorAll('#styleColors .sw').length,document.querySelectorAll('#styleIcons .ic').length,[...document.querySelectorAll('#styleColors .sw')].map(x=>getComputedStyle(x).backgroundColor)]}")
     bad=[c for c in vis[4] if c in ('rgb(220, 38, 38)','rgb(139, 92, 246)','rgb(239, 68, 68)')]
-    ok(f'{n} join picker opens on-screen, 10 colors / 9 icons, no SOS red/leader purple',vis[0] and vis[1] and vis[2]==10 and vis[3]==9 and not bad,vis[:4])
-    A.click("#styleColors .sw[data-c='orange']"); A.click("#styleIcons .ic[data-i='shark']"); A.screenshot(path=f'/workspace/style_{n}_picker.png')
+    ok(f'{n} join picker opens on-screen, 14 colors / 22 icons, no SOS red/leader purple',vis[0] and vis[1] and vis[2]==14 and vis[3]==22 and not bad,vis[:4])
+    A.click("#styleColors .sw[data-c='navy']"); A.click("#styleIcons .ic[data-i='jetski_rider']"); A.screenshot(path=f'/workspace/style_{n}_picker.png')
+    A.click("#styleColors .sw[data-c='orange']"); A.click("#styleIcons .ic[data-i='shark']")
     A.click('#stylePanel .done')
     A.fill('#startName','QA Styler '+n); A.evaluate('startApp()'); A.wait_for_timeout(1500)
     me=A.evaluate("()=>{const el=riders[me]._icon;return [el.textContent.replace(/\\s+/g,''),[...el.querySelectorAll('*')].map(x=>getComputedStyle(x).backgroundColor),JSON.parse(localStorage.getItem('trackerStyle'))]}")
@@ -38,6 +39,12 @@ with sync_playwright() as p:
     A.click('#lookBtn'); A.click("#styleColors .sw[data-c='green']"); A.click("#styleIcons .ic[data-i='anchor']"); A.click('#stylePanel .done'); A.wait_for_timeout(2500)
     m=B.evaluate(MARK,aid); ok(f'{n} live change propagates (green anchor)',m and m['txt']=='⚓' and 'rgb(22, 163, 74)' in m['bgs'],m)
     B.screenshot(path=f'/workspace/style_{n}_observer_map.png')
+    for ji in ('jetski','jetski_rider','jetski_spray'):
+      A.click('#lookBtn'); A.click(f"#styleIcons .ic[data-i='{ji}']"); A.click('#stylePanel .done'); A.wait_for_timeout(1300)
+      sv=B.evaluate("(id)=>{const s=riders[id]._icon.querySelector('svg');if(!s)return null;const r=s.getBoundingClientRect();return [r.width>=12&&r.width<=24,getComputedStyle(s).fill,s.querySelectorAll('path,circle').length]}",aid)
+      ok(f'{n} custom SVG {ji} renders white on other rider marker',sv and sv[0] and sv[1]=='rgb(255, 255, 255)',sv)
+      if ji=='jetski_spray': B.screenshot(path=f'/workspace/style_{n}_observer_jetski.png')
+    A.click('#lookBtn'); A.click("#styleIcons .ic[data-i='anchor']"); A.click('#stylePanel .done'); A.wait_for_timeout(1300)
     # leader override: purple + star, custom icon hidden
     A.click('#leaderBtn'); A.wait_for_timeout(2500)
     m=B.evaluate(MARK,aid); ok(f'{n} leader overrides style (purple + star)',m and '★' in m['txt'] and '⚓' not in m['txt'] and 'rgb(139, 92, 246)' in m['bgs'],m)

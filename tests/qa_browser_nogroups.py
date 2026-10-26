@@ -3,9 +3,10 @@ from playwright.async_api import async_playwright
 URL=sys.argv[1]; WS=URL.replace('http','ws')+'ws'
 BROWSERS=sys.argv[2:] or ['chromium','webkit']
 LAT0,LON0=35.807,-77.378; MI=1/69.05
+LON=[LON0]  # per-browser area (5 deg lon apart) so riders left by one browser run never show in the next
 INIT="""(()=>{const mk=()=>({coords:{latitude:%f,longitude:%f,accuracy:5,heading:null,speed:null},timestamp:Date.now()});
 const g={getCurrentPosition(ok){setTimeout(()=>ok(mk()),3000)},watchPosition(ok){setTimeout(()=>ok(mk()),3000);setInterval(()=>ok(mk()),4000);return 1},clearWatch(){}};
-Object.defineProperty(navigator,'geolocation',{get:()=>g});})()"""%(LAT0,LON0)
+Object.defineProperty(navigator,'geolocation',{get:()=>g});})()"""
 R=[]
 def ok(n,k,v,d=''): R.append((n+' '+k,bool(v))); print(n,k,'PASS' if v else 'FAIL',d if not v else '')
 class F:
@@ -17,14 +18,15 @@ class F:
     try:
       async for m in s.ws: s.msgs.append(json.loads(m))
     except Exception: pass
-  async def move(s,mi): await s.ws.send(json.dumps(dict(type='pos',lat=LAT0+mi*MI,lon=LON0,ts=time.time()*1000)))
+  async def move(s,mi): await s.ws.send(json.dumps(dict(type='pos',lat=LAT0+mi*MI,lon=LON[0],ts=time.time()*1000)))
   async def send(s,**m): await s.ws.send(json.dumps(m))
   async def close(s): await s.send(type='leave'); await s.ws.close()
 async def run(p,n):
+  LON[0]=LON0+5*BROWSERS.index(n)
   if n=='webkit':
     dev=dict(p.devices['iPhone 15']); dev.pop('default_browser_type',None); b=await p.webkit.launch(); c=await b.new_context(**dev)
   else: b=await p.chromium.launch(); c=await b.new_context()
-  await c.route('**/*onrender.com*/**',lambda r:r.abort()); await c.add_init_script(INIT)
+  await c.route('**/*onrender.com*/**',lambda r:r.abort()); await c.add_init_script(INIT%(LAT0,LON[0]))
   pg=await c.new_page(); errs=[]; pg.on('pageerror',lambda e:errs.append(str(e)))
   await pg.goto(URL); await pg.wait_for_timeout(1500)
   gone=await pg.evaluate("()=>[!!document.getElementById('startGroup'),!!document.getElementById('groupDisplay'),typeof switchGroup]")

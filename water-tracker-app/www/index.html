@@ -155,10 +155,10 @@ function wsUrl(path) {
   #msgBox #lookBtn + #rampsBtn{margin-left:0}
   #stylePanel{position:fixed;inset:0;z-index:3000;display:none;align-items:center;justify-content:center;background:rgba(2,6,23,.6)}
   #stylePanel.open{display:flex}
-  #stylePanel .box{background:#0f2038;color:#e8eef7;border:1px solid #2a4a6f;border-radius:14px;padding:14px;width:min(340px,92vw);box-sizing:border-box;font-family:-apple-system,system-ui,sans-serif}
+  #stylePanel .box{max-height:92vh;overflow-y:auto;background:#0f2038;color:#e8eef7;border:1px solid #2a4a6f;border-radius:14px;padding:14px;width:min(340px,92vw);box-sizing:border-box;font-family:-apple-system,system-ui,sans-serif}
   #stylePanel h3{margin:0 0 8px;font-size:17px;display:flex;align-items:center;gap:10px}
   #stylePanel .lbl2{font-size:13px;color:#9fb3c8;margin:10px 0 6px}
-  #stylePanel .grid{display:flex;flex-wrap:wrap;gap:8px}
+  #stylePanel .grid{display:flex;flex-wrap:wrap;gap:7px}
   #stylePanel .sw{width:34px;height:34px;border-radius:50%;border:2px solid #2a4a6f;padding:0;cursor:pointer;color:#fff;font:bold 13px/1 system-ui;box-sizing:border-box}
   #stylePanel .ic{width:40px;height:40px;border-radius:10px;border:2px solid #2a4a6f;background:#132a45;font-size:22px;line-height:1;padding:0;cursor:pointer;color:#fff;font-weight:700}
   #stylePanel .sw.sel,#stylePanel .ic.sel{border-color:#fff;box-shadow:0 0 0 2px #38bdf8}
@@ -368,8 +368,8 @@ let myName = '';
 let myLatLng = null;
 // --- Rider marker style (color + icon). PREMIUM-GATE: free for now; to gate, make styleAllowed() check premium. ---
 // Must match main.py STYLE_COLORS / STYLE_ICONS (server validates). No SOS red, no leader purple, no star.
-const STYLE_COLORS = {default:null, blue:'#2563eb', sky:'#0ea5e9', teal:'#0d9488', green:'#16a34a', lime:'#65a30d', yellow:'#ca8a04', orange:'#ea580c', brown:'#92400e', slate:'#475569'};
-const STYLE_ICONS = {initial:'', boat:'🚤', wave:'🌊', anchor:'⚓', flag:'🏁', pirate:'🏴‍☠️', dolphin:'🐬', shark:'🦈', fish:'🐟'};
+const STYLE_COLORS = {default:null, blue:'#2563eb', sky:'#0ea5e9', teal:'#0d9488', green:'#16a34a', lime:'#65a30d', yellow:'#ca8a04', orange:'#ea580c', brown:'#92400e', slate:'#475569', navy:'#1e3a8a', mint:'#10b981', amber:'#d97706', black:'#111827'};
+const STYLE_ICONS = {initial:'', jetski:'<svg viewBox="0 0 24 24" width="1.15em" height="1.15em" style="display:block;margin:auto" fill="currentColor" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M3 15h16.5c1.6 0 2.4 1 1.8 2l-1 1.6c-.3.5-.8.9-1.4.9H5c-1.2 0-2-.9-2-2z"/><path stroke="none" d="M6.5 15l1.8-3.6h5.4l2.6 3.6z"/><path fill="none" stroke-width="1.6" d="M14 11.4l1.2-3.2h2.3"/></svg>', jetski_rider:'<svg viewBox="0 0 24 24" width="1.15em" height="1.15em" style="display:block;margin:auto" fill="currentColor" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M3 15h16.5c1.6 0 2.4 1 1.8 2l-1 1.6c-.3.5-.8.9-1.4.9H5c-1.2 0-2-.9-2-2z"/><path stroke="none" d="M6.5 15l1.8-3.6h5.4l2.6 3.6z"/><path fill="none" stroke-width="1.6" d="M14 11.4l1.2-3.2h2.3"/><circle stroke="none" cx="10.5" cy="4.2" r="1.9"/><path fill="none" stroke-width="1.8" d="M10.3 6.6l-.6 4.3M10.1 7.8l5.4.5"/></svg>', jetski_spray:'<svg viewBox="-3 0 27 24" width="1.15em" height="1.15em" style="display:block;margin:auto" fill="currentColor" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M3 15h16.5c1.6 0 2.4 1 1.8 2l-1 1.6c-.3.5-.8.9-1.4.9H5c-1.2 0-2-.9-2-2z"/><path stroke="none" d="M6.5 15l1.8-3.6h5.4l2.6 3.6z"/><path fill="none" stroke-width="1.6" d="M14 11.4l1.2-3.2h2.3"/><path fill="none" stroke-width="1.4" d="M1.5 13.5c-1.2-.8-2-2.2-2-3.8M-.6 15.6c-1.4.2-2.2-.4-2.6-1.4"/><circle stroke="none" cx="-1.8" cy="9.6" r=".9"/><circle stroke="none" cx="0.4" cy="7.6" r=".7"/></svg>', boat:'🚤', wave:'🌊', anchor:'⚓', flag:'🏁', pirate:'🏴‍☠️', dolphin:'🐬', shark:'🦈', fish:'🐟', turtle:'🐢', octopus:'🐙', crab:'🦀', whale:'🐳', surfer:'🏄', trident:'🔱', palm:'🌴', sun:'☀️', fire:'🔥', skull:'💀'};
 function styleAllowed(){ return true; }
 function validStyle(o){ o = o || {}; return {c: Object.prototype.hasOwnProperty.call(STYLE_COLORS, o.c) ? o.c : 'default', i: Object.prototype.hasOwnProperty.call(STYLE_ICONS, o.i) ? o.i : 'initial'}; }
 let myStyle = validStyle((function(){ try { return JSON.parse(localStorage.getItem('trackerStyle') || '{}'); } catch(e){ return {}; } })());
@@ -2057,7 +2057,7 @@ function renderStylePanel(){
   Object.keys(STYLE_ICONS).forEach(i => {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'ic' + (myStyle.i === i ? ' sel' : '');
     b.dataset.i = i; b.title = i; b.setAttribute('aria-label', 'Icon ' + i);
-    b.textContent = STYLE_ICONS[i] || 'Aa'; if (!STYLE_ICONS[i]) b.style.fontSize = '15px';
+    b.innerHTML = STYLE_ICONS[i] || 'Aa'; if (!STYLE_ICONS[i]) b.style.fontSize = '15px';
     b.onclick = () => setMyStyle({c: myStyle.c, i}); is.appendChild(b);
   });
   ['stylePrev','styleJoinPrev'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = stylePreviewHtml(); });
