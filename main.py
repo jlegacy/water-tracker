@@ -46,8 +46,11 @@ def valid_range(v):
 # ---- Rider marker style (color + icon) ----
 # PREMIUM-GATE: rider styles are free for now; gate here (force defaults) if premium returns.
 # Colors exclude SOS red and leader purple. "default" = classic blue (others) / teal (you).
-STYLE_COLORS = ("default", "blue", "sky", "teal", "green", "lime", "yellow", "orange", "brown", "slate")
-STYLE_ICONS = ("initial", "boat", "wave", "anchor", "flag", "pirate", "dolphin", "shark", "fish")
+STYLE_COLORS = ("default", "blue", "sky", "teal", "green", "lime", "yellow", "orange", "brown", "slate",
+                "navy", "mint", "amber", "black")
+STYLE_ICONS = ("initial", "jetski", "jetski_rider", "jetski_spray", "boat", "wave", "anchor", "flag", "pirate",
+               "dolphin", "shark", "fish", "turtle", "octopus", "crab", "whale", "surfer", "trident", "palm",
+               "sun", "fire", "skull")
 
 def valid_color(v):
     return v if isinstance(v, str) and v in STYLE_COLORS else "default"
