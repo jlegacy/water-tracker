@@ -85,7 +85,9 @@ function wsUrl(path) {
   /* Group + buttons share one non-wrapping row (SOS never drops); Riders has its own row below */
   #bar .row:first-child{flex-wrap:nowrap}
   #bar .row:first-child button{padding:8px 9px;font-size:13px;flex:0 0 auto}
-  #bar select#rangeSel{flex:0 0 auto;width:auto;margin-left:auto;font-size:13px;padding:8px 10px;border-radius:8px;border:1px solid #2a4a6f;background:#132a45;color:#e8eef7;-webkit-appearance:none;appearance:none;font-weight:600}
+  /* Range picker uses the same custom component as the riders list (enhanceSelect) */
+  #bar .cpick.rng{flex:0 0 auto;margin-left:auto;width:84px}
+  #bar .cpick.rng .cmenu{left:auto;right:0;min-width:100%}
   #nameScreen select{font-size:16px;padding:10px;border-radius:8px;border:1px solid #2a4a6f;background:#132a45;color:#e8eef7}
   #riderPick{position:relative;flex:1 1 auto;min-width:0;width:100%}
   #bar #riderBtn{width:100%;font-weight:400;display:flex;align-items:center;gap:6px;text-align:left;font-size:13px;padding:8px 6px;border-radius:8px;border:1px solid #2a4a6f;background:#132a45;color:#e8eef7;cursor:pointer}
@@ -1224,6 +1226,8 @@ function enhanceSelect(id, cls){
   setInterval(() => { if (!menu.classList.contains('open')) render(); }, 500);
 }
 document.addEventListener('click', () => document.querySelectorAll('.cmenu.open').forEach(m => m.classList.remove('open')));
+enhanceSelect('rangeSel', 'rng');
+enhanceSelect('startRange', 'rng-start');
 window.addEventListener('DOMContentLoaded', () => { recoverRideDraft().finally(() => purgeExpiredRides());
  });
 
