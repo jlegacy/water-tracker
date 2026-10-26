@@ -30,10 +30,14 @@ app.add_middleware(
 # One shared world, no groups: riders see everyone within RANGE_MI of them.
 riders = {}   # rider_id -> {name, lat, lon, ts, updated, ws, stale, leader, sos}
 links = set() # (viewer, subject): viewer currently sees subject (directed; ranges differ per rider)
-RANGE_MI = float(os.environ.get("RANGE_MI", "25"))       # default viewing range (old clients)
+RANGE_MI = float(os.environ.get("RANGE_MI", "5"))       # default viewing range (old clients)
 HIDE_PAD_MI = float(os.environ.get("HIDE_PAD_MI", "2"))  # hysteresis: only hide past range + pad
 HIDE_MI = RANGE_MI + HIDE_PAD_MI
-ALLOWED_RANGES = (25, 30, 35, 40, 45, 50)
+ALLOWED_RANGES = (1, 5, 10, 15, 25, 30, 35, 40, 45, 50)
+HIDE_PAD_FRAC = 0.2  # small ranges: pad = 20% of range, capped at HIDE_PAD_MI (1 mi -> 0.2, 5 -> 1, 10+ -> 2)
+
+def hide_pad(rng):
+    return min(HIDE_PAD_MI, HIDE_PAD_FRAC * rng)
 
 def valid_range(v):
     """Clamp a client-sent range to the allowed set; anything else -> default."""
@@ -244,9 +248,9 @@ async def mark_fresh(rid):
 
 # ---- Per-rider viewing range (replaces groups) ----
 def pair_in_range(dist_mi, shown, rng=None):
-    """Hysteresis: appear at <= rng, and once shown stay until > rng + HIDE_PAD_MI."""
+    """Hysteresis: appear at <= rng, and once shown stay until > rng + hide_pad(rng)."""
     rng = RANGE_MI if rng is None else rng
-    return dist_mi <= rng or (shown and dist_mi <= rng + HIDE_PAD_MI)
+    return dist_mi <= rng or (shown and dist_mi <= rng + hide_pad(rng))
 
 def viewers(rid):
     """Riders who currently see rid (they receive rid's pos/SOS/leader/all/alerts)."""

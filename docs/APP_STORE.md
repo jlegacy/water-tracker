@@ -21,13 +21,13 @@ Matches the app as of #92 (commit 5427167). Bundle ID `com.encsr.watertracker`, 
 | Keywords (≤100) | `boat,jet ski,pwc,kayak,river,lake,ramp,marina,rider,group ride,location,sos,map,trail,water` |
 
 **Promotional text (≤170)**
-> See every rider near you on the water, pick a 25–50 mile range, mark the leader, and send an SOS to everyone around you. No account needed.
+> See every rider near you on the water, pick a 1–50 mile range, mark the leader, and send an SOS to everyone around you. No account needed.
 
 **Description**
 > Water Tracker puts you and the riders around you on one live map, so a day on the river or lake stays together.
 >
 > - No sign-up. Enter a display name and you're on the map.
-> - Pick your range. Choose 25, 30, 35, 40, 45 or 50 miles; you see every rider inside it.
+> - Pick your range. Choose 1, 5, 10, 15, 25, 30, 35, 40, 45 or 50 miles (default 5); you see every rider inside it.
 > - Fast start. A rough location circle appears right away, then sharpens as precise GPS locks on.
 > - Leader badge. Anyone can mark themselves Leader so the group knows who to follow.
 > - SOS. One tap alerts every rider within range, and riders who go quiet are flagged.
@@ -78,10 +78,10 @@ Notes:
 **Sign-in:** No login and no demo account are needed.
 
 **How to test**
-1. Launch the app, enter any display name, keep the default 25 mi range, and tap Start.
+1. Launch the app, enter any display name, keep the default 5 mi range, and tap Start.
 2. Allow location ("While Using", then "Always" when prompted). A faded rough circle appears at once and turns solid once precise GPS locks on.
-3. Change the range with the drop-down in the top button row (25–50 mi). Riders farther than the chosen range drop off about 2 mi past it.
-4. To see other riders, open the app on a second device within 25 mi, or the web version at **TODO**: give reviewers the URL, or confirm the web build may be shared. Both riders appear with names.
+3. Change the range with the drop-down in the top button row (1–50 mi). Riders drop off a little past the chosen range (20% of it, at most 2 mi).
+4. To see other riders, open the app on a second device within 5 mi, or the web version at **TODO**: give reviewers the URL, or confirm the web build may be shared. Both riders appear with names.
 5. Tap Leader to show the leader badge on your marker for other riders.
 6. Tap SOS. Every rider within range receives the alert. Tap again to cancel.
 7. Tap Ramps to show nearby boat ramps/marinas. A toast shows the count ("N ramps/marinas nearby").

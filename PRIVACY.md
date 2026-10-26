@@ -25,9 +25,9 @@ Water Tracker is a live map that lets people on boats, jet skis and kayaks see e
 | Viewing range and name preference | Remember your settings | Your device only | Until you clear app data |
 
 ## Who can see you
-- There are no groups. Each rider picks a viewing range of 25, 30, 35, 40, 45 or 50 miles (default 25).
+- There are no groups. Each rider picks a viewing range of 1, 5, 10, 15, 25, 30, 35, 40, 45 or 50 miles (default 5).
 - While you are sharing, any rider whose range includes you (so anyone up to about **50 miles** away) sees your name, position, Leader badge, SOS status and, if Trail is on, your recent trail.
-- A rider stops seeing you about 2 miles past their chosen range.
+- A rider stops seeing you a little past their chosen range (20% of the range, at most 2 miles).
 - SOS and "gone quiet" alerts go to riders within range. Direct messages go only to the rider you pick.
 
 ## Background location
