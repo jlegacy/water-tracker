@@ -76,15 +76,15 @@ def test_25_mile_list_and_hysteresis(url):
 def test_sos_and_alerts_reach_only_nearby(url):
     async def go():
         sos = await C(url, "s_sos").open(0)
-        near, far = await C(url, "s_near").open(20), await C(url, "s_far").open(-30)
+        near, far = await C(url, "s_near").open(20), await C(url, "s_far").open(-60)
         await sos.send(type="sos", on=True); await asyncio.sleep(0.1)
-        assert near.of("sos", id="s_sos", on=True) and not far.of("sos")
+        assert near.of("sos", id="s_sos", on=True) and not far.of("sos")   # 60 mi: beyond max range
         # SOS flag carried in snapshot / pos for riders arriving later
         late = await C(url, "s_late").open(5)
         assert any(m.get("id") == "s_sos" and m.get("sos") for m in late.of("pos"))
         # far rider drives into range -> sees SOS rider with sos flag
-        far.clear(); await far.move(-10)
-        assert any(m.get("id") == "s_sos" and m.get("sos") for m in far.of("pos"))
+        far.clear(); await far.move(-45)   # 45 mi: inside max range
+        assert any(m.get("id") == "s_sos" and m.get("sos") for m in far.of("pos"))  # SOS reaches up to 50 mi
         await sos.send(type="sos", on=False)
         for x in (near, far, late): await x.close()
         await sos.close()
@@ -193,21 +193,20 @@ def test_switch_range_live(url):
 def test_sos_leader_by_recipient_range(url):
     async def go():
         sos = await C(url, "k_sos").open(0, leader=True)                     # default 25
-        d25 = await C(url, "k25").open(29)                                   # 29 mi, range 25: no
+        d25 = await C(url, "k25").open(29)                                   # 29 mi, range 25: SOS still reaches (max 50)
         d40 = await C(url, "k40").open(-38, range=40)                        # 38 mi, range 40: yes
         d50 = await C(url, "k50").open(51, range=50)                         # 51 mi: no
         await sos.send(type="sos", on=True); await asyncio.sleep(0.15)
-        assert d40.of("sos", id="k_sos", on=True) and not d25.of("sos") and not d50.of("sos")
+        assert d40.of("sos", id="k_sos", on=True) and d25.of("sos", id="k_sos", on=True) and not d50.of("sos")
+        assert any(m.get("id") == "k_sos" and m.get("sos") for m in d25.of("pos"))   # marker delivered with SOS flag
         snap = {e["id"]: e for e in (d40.clear() or (await d40.send(type="sync")) or (await asyncio.sleep(0.15)) or d40.of("riders")[-1]["riders"])}
         assert snap["k_sos"]["leader"] and snap["k_sos"]["sos"]
         await sos.send(type="broadcast", text="all-r"); await asyncio.sleep(0.15)
-        assert d40.of("msg", text="all-r") and not d25.of("msg") and not d50.of("msg")
+        assert d40.of("msg", text="all-r") and not d50.of("msg")
         # k_sos (range 25) does not see k40 — asymmetric
         assert "k40" not in await sos.snapshot()
-        # d25 widens to 30 live -> immediately gets the SOS rider with flags
-        d25.clear(); await d25.send(type="range", range=30); await asyncio.sleep(0.15)
-        assert any(m.get("id") == "k_sos" and m.get("sos") and m.get("leader") for m in d25.of("pos"))
-        await sos.send(type="sos", on=False)
+        d25.clear(); await sos.send(type="sos", on=False); await asyncio.sleep(0.15)
+        assert d25.of("sos", id="k_sos", on=False) and d25.of("leave", id="k_sos")   # cleared -> hidden again (29 > 25)
         for x in (d25, d40, d50): await x.close()
         await sos.close()
     run(go())
@@ -243,4 +242,35 @@ def test_style_propagates_and_validates(url):
         far = await C(url, "st_far").open(-40); await a.send(type="style", color="lime", icon="fish"); await asyncio.sleep(0.1)
         assert not far.of("style")                               # out of range: not sent
         for x in (a, b, far): await x.close()
+    run(go())
+
+def test_sos_reaches_max_range_then_hides(url):
+    async def go():
+        rx = await C(url, "m_rx").open(0, range=5)
+        normal = await C(url, "m_norm").open(30, range=50)
+        sos = await C(url, "m_sos").open(-30, range=5)
+        assert (await rx.snapshot()) == []                                   # 30 mi: neither visible at 5 mi
+        rx.clear(); await sos.send(type="sos", on=True); await asyncio.sleep(0.15)
+        assert rx.of("sos", id="m_sos", on=True) and any(m.get("id") == "m_sos" and m.get("sos") for m in rx.of("pos"))
+        assert (await rx.snapshot()) == ["m_sos"]                            # normal rider at 30 still hidden
+        rx.clear(); await sos.move(-31); assert rx.of("pos", id="m_sos")     # position updates use max range
+        rx.clear(); await sos.move(-53); assert rx.of("leave", id="m_sos")   # past 50 + 2: gone even in SOS
+        await sos.move(-30); assert (await rx.snapshot()) == ["m_sos"]
+        rx.clear(); await sos.send(type="sos", on=False); await asyncio.sleep(0.15)
+        assert rx.of("sos", id="m_sos", on=False) and rx.of("leave", id="m_sos")
+        assert (await rx.snapshot()) == []
+        for x in (rx, normal, sos): await x.close()
+    run(go())
+
+def test_sos_rider_quiet_alert_reaches_max_range(url):
+    async def go():
+        rx = await C(url, "q_rx").open(0, range=5)
+        sos = await C(url, "q_sos").open(40)
+        await sos.send(type="sos", on=True); await asyncio.sleep(0.15)
+        await sos.ws.close()
+        for _ in range(60):
+            if rx.of("alert", id="q_sos"): break
+            await rx.send(type="ping"); await asyncio.sleep(0.2)
+        assert rx.of("alert", id="q_sos")
+        await rx.close()
     run(go())

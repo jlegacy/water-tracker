@@ -2029,13 +2029,17 @@ if (window.ResizeObserver) new ResizeObserver(scheduleMapLayout).observe(documen
 const WAITING_TEXT = 'Waiting for location…';
 // Viewing range: each rider picks how far out they see others (server validates the same set)
 const RANGES = [1, 5, 10, 15, 25, 30, 35, 40, 45, 50];
+// SOS override: the server delivers any rider in SOS to everyone within MAX_RANGE_MI (main.py MAX_RANGE_MI),
+// whatever range they picked. The client draws every rider the server sends (no local distance filter),
+// so an SOS rider outside my circle still gets a marker, a riders-list entry and the SOS bar.
+const MAX_RANGE_MI = Math.max(...RANGES);
 function validRange(v){ v = parseInt(v, 10); return RANGES.includes(v) ? v : 5; }
 let myRange = validRange((function(){ try { return localStorage.getItem('trackerRange'); } catch(e){ return null; } })());
 function sharingText(){ return 'Sharing — riders within ' + myRange + ' mi'; }
 function syncRangeUi(){
   ['startRange','rangeSel'].forEach(id => { const el = document.getElementById(id); if (el) el.value = String(myRange); });
   const n = document.getElementById('rangeNote');
-  if (n) n.textContent = "You'll see every rider within " + myRange + " miles of you.";
+  if (n) n.textContent = "You'll see every rider within " + myRange + " miles of you." + (myRange < MAX_RANGE_MI ? " SOS alerts reach you from up to " + MAX_RANGE_MI + " miles." : "");
 }
 // --- Faint range circle: always shown around me, radius = viewing range; auto-fit only on range change ---
 const MI_M = 1609.344;
