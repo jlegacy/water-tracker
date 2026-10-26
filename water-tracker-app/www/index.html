@@ -139,6 +139,14 @@ function wsUrl(path) {
     padding:6px 10px;border-radius:8px;background:rgba(11,29,51,.9);
     font-size:12px;color:#9fb3c8;text-align:center;display:none;
   }
+  #locBar{
+    position:absolute;bottom:44px;left:8px;right:8px;z-index:1000;
+    padding:8px 10px;border-radius:8px;background:rgba(11,29,51,.9);
+    font-size:14px;color:#e2ecf5;text-align:center;display:none;
+  }
+  #locBar .spin{display:inline-block;width:13px;height:13px;margin-right:8px;vertical-align:-2px;border:2px solid rgba(255,255,255,.3);border-top-color:#0ea5e9;border-radius:50%;animation:locspin .8s linear infinite}
+  #locBar.hint{color:#fde68a}
+  @keyframes locspin{to{transform:rotate(360deg)}}
   #banner{
     position:absolute;top:170px;left:8px;right:8px;z-index:1001;
     padding:10px 12px;border-radius:8px;background:#8b5cf6;color:#fff;
@@ -303,6 +311,7 @@ function wsUrl(path) {
   </div>
 </div>
 <div id="map"></div>
+<div id="locBar" role="status" aria-live="polite"><span class="spin"></span><span id="locBarText">Searching for your location…</span></div>
 <div id="status"></div>
 <div id="rampToast"></div>
 <button id="headingBtn" class="mapBtn" onclick="toggleHeadingMode()">North Up</button>
@@ -987,7 +996,7 @@ function updateHeading(lat, lon, heading, speed){
 
 // Quick rough first fix: shows YOUR circle at once while precise GPS warms up.
 // Display only: never sent, never a breadcrumb, never touches motion/heading.
-let preciseFixSeen = false, myApprox = false;
+let preciseFixSeen = false, myApprox = false, lastPosSavedAt = 0;
 function roughFirstFix(){
   if (!navigator.geolocation) return;
   try {
@@ -995,9 +1004,27 @@ function roughFirstFix(){
       if (preciseFixSeen || !sharing) return; // a precise fix already won
       myApprox = true;
       myLatLng = [p.coords.latitude, p.coords.longitude];
+      firstFixArrived();
       if (!isHidden()) renderMe();
-    }, () => {}, {enableHighAccuracy:false, maximumAge:300000, timeout:5000});
+    }, () => {}, {enableHighAccuracy:false, maximumAge:Infinity, timeout:8000}); // any cached OS fix is fine for a first view
   } catch(_){}
+}
+// --- Cold start: map shows at once (last-known view), "Searching" bar until the first fix ---
+let firstFixPending = false, locBarTimer = null;
+function showLocBar(){
+  const b = document.getElementById('locBar'); if (!b) return;
+  b.classList.remove('hint'); document.getElementById('locBarText').textContent = 'Searching for your location…';
+  b.style.display = 'block';
+  clearTimeout(locBarTimer);
+  locBarTimer = setTimeout(() => { if (!firstFixPending) return; b.classList.add('hint');
+    document.getElementById('locBarText').textContent = 'Still searching… Check that Location is allowed for this app (Settings › Privacy › Location Services) and that you have a clear view of the sky.'; }, 15000);
+}
+function hideLocBar(){ clearTimeout(locBarTimer); const b = document.getElementById('locBar'); if (b) b.style.display = 'none'; }
+function saveLastPos(lat, lon){ try { localStorage.setItem('trackerLastPos', JSON.stringify({lat, lon, t: Date.now()})); } catch(_){} }
+function firstFixArrived(){
+  if (!firstFixPending) return;
+  firstFixPending = false; hideLocBar();
+  if (myLatLng){ saveLastPos(myLatLng[0], myLatLng[1]); drawRangeCircle(); fitRangeCircle(); } // center + fit once on the real spot
 }
 function onFix(lat, lon, heading, speed){
   if (!preciseFixSeen && document.getElementById('status').textContent === WAITING_TEXT) status(joined ? sharingText() : '');
@@ -1011,6 +1038,8 @@ function onFix(lat, lon, heading, speed){
   updateMotion(lat, lon, speed);
   if (!isHidden()) updateHeading(lat, lon, heading, speed);
   updateMyMarker(lat, lon);
+  if (firstFixPending){ myLatLng = [lat, lon]; firstFixArrived(); }
+  else if (fixNow - lastPosSavedAt > 60000){ lastPosSavedAt = fixNow; saveLastPos(lat, lon); }
   if (!isHidden()) applyBearing();
   queueSend(lat, lon);
 }
@@ -2147,6 +2176,16 @@ function setRange(v, opts){
   if (st && /^Sharing — riders within/.test(st.textContent)) status(sharingText());
 }
 syncRangeUi();
+// Cold start: open the map on the last-known spot at the saved range's zoom (no wait on GPS)
+(function restoreLastView(){
+  try {
+    const lp = JSON.parse(localStorage.getItem('trackerLastPos') || 'null');
+    if (!lp || !isFinite(lp.lat) || !isFinite(lp.lon)) return;
+    const sz = map.getSize(), px = 0.92 * Math.min(sz.x || 390, sz.y || 800);
+    const z = Math.log2(40075016.686 * Math.cos(lp.lat * Math.PI / 180) * px / (256 * 2 * myRange * MI_M));
+    map.setView([lp.lat, lp.lon], Math.min(z, map.getMaxZoom()), {animate: false});
+  } catch(_){}
+})();
 // Join-screen name: guard against background refreshes + keep a draft
 let nameComposing = false;
 (function guardStartName(){
@@ -2179,6 +2218,7 @@ function startApp(){
   sharing = true;
   preciseFixSeen = false;
   status(WAITING_TEXT);
+  firstFixPending = true; showLocBar();
   roughFirstFix(); // circle in ~1s instead of waiting on cold GPS
   connect();
   showMyRecentTrails(); // bring back this device's trails from the last 24 h
