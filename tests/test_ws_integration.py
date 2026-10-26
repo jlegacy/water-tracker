@@ -226,16 +226,16 @@ def test_style_propagates_and_validates(url):
         b = await C(url, "st_b").open(3)                        # old client: no style -> defaults
         b.clear(); await b.send(type="sync"); await asyncio.sleep(0.15)
         ra = [r for r in b.of("riders")[-1]["riders"] if r["id"] == "st_a"][0]
-        assert (ra["color"], ra["icon"]) == ("orange", "shark")
+        assert (ra["color"], ra["icon"]) == ("orange", "initial")   # icons removed -> default
         a.clear(); await a.send(type="sync"); await asyncio.sleep(0.15)
         rb = [r for r in a.of("riders")[-1]["riders"] if r["id"] == "st_b"][0]
         assert (rb["color"], rb["icon"]) == ("default", "initial")
         b.clear(); await a.send(type="style", color="green", icon="anchor"); await asyncio.sleep(0.1)
-        assert b.of("style", id="st_a", color="green", icon="anchor")
+        assert b.of("style", id="st_a", color="green", icon="initial")
         b.clear(); await a.send(type="style", color="#ff0000", icon="<script>"); await asyncio.sleep(0.1)
         assert b.of("style", id="st_a", color="default", icon="initial")   # not in allowlist -> defaults
         await a.send(type="style", color="teal", icon="wave"); b.clear(); await a.move(1)
-        p = b.of("pos", id="st_a")[-1]; assert (p["color"], p["icon"]) == ("teal", "wave")   # carried on pos
+        p = b.of("pos", id="st_a")[-1]; assert (p["color"], p["icon"]) == ("teal", "initial")   # carried on pos
         far = await C(url, "st_far").open(-40); await a.send(type="style", color="lime", icon="fish"); await asyncio.sleep(0.1)
         assert not far.of("style")                               # out of range: not sent
         for x in (a, b, far): await x.close()
