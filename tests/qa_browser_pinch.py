@@ -1,4 +1,4 @@
-"""Browser QA: pinch/zoom snaps range (5->50->5), syncs UI/storage/server; programmatic fits do not loop.
+"""Browser QA: continuous pinch radius (display, circle, server clamp 1-50), no snapping, syncs UI/storage/server; programmatic fits do not loop.
 Was: SOS reaches a 5 mi receiver from 30 mi (max range 50); a normal rider at 30 mi stays hidden; cleared SOS hides again.
 Usage: python qa_browser_sos_range.py http://172.30.0.2:8777/ [chromium|webkit]"""
 import asyncio, sys, json, time, websockets
@@ -26,51 +26,47 @@ async def run(p,n,lon):
   else: b=await p.chromium.launch(); c=await b.new_context(viewport={'width':393,'height':852})
   await c.route('**/*onrender.com*/**',lambda r:r.abort()); await c.add_init_script(init(lat,lon))
   pg=await c.new_page(); errs=[]; pg.on('pageerror',lambda e:errs.append(str(e)))
+  await c.add_init_script("try{localStorage.setItem('trackerRange','40')}catch(e){}")
   await pg.goto(URL); await pg.wait_for_timeout(800)
   await pg.fill('#startName',f'QA PZ {n}'); await pg.evaluate("()=>startApp()"); await pg.wait_for_timeout(2500)
-  far=await F(f'{n}-far30',lat+30*MI,lon).open(); await pg.wait_for_timeout(1200)
-  st=lambda: pg.evaluate("()=>({r:myRange,z:map.getZoom(),fit:rangeZoomFor(myRange),sel:document.getElementById('rangeSel').value,ls:localStorage.getItem('trackerRange'),ids:Object.keys(positions).filter(k=>k!==me)})")
-  s=await st(); ok(n,'start 5 mi, far rider hidden',s['r']==5 and f'{n}-far30' not in s['ids'],s)
-  # programmatic setView/fitBounds without user input: no snap, no loop
+  far=await F(f'{n}-far30',lat+30*MI,lon).open(); far7=await F(f'{n}-far7',lat-7*MI,lon).open(); await pg.wait_for_timeout(1200)
+  st=lambda: pg.evaluate("()=>({r:myRange,v:myViewR,z:map.getZoom(),txt:document.getElementById('rangeVal').textContent,circ:rangeCircle&&rangeCircle.getRadius()/1609.344,calc:radiusForZoom(map.getZoom()),ids:Object.keys(positions).filter(k=>k!==me)})")
+  ui=await pg.evaluate("()=>({sel:document.getElementById('rangeSel').tagName==='SELECT'||!!document.querySelector('#bar .cpick.rng select'),menu:document.querySelector('#bar .cpick.rng .cmenu'),opts:document.querySelectorAll('#bar .cpick.rng [role=option]').length,join:!!document.getElementById('startRange')})")
+  ok(n,'range display is read-only (no select/menu/options), none on join',not ui['sel'] and not ui['menu'] and ui['opts']==0 and not ui['join'],ui)
+  s=await st(); ok(n,'session starts at 5 mi fitted to width (ignores stored range)',s['r']==5 and s['txt']=='5.0 mi' and abs(s['calc']-5)<0.05,s)
+  # programmatic zoom: no change
   await pg.evaluate("()=>map.setView(myLatLng, map.getZoom()-3, {animate:false})"); await pg.wait_for_timeout(500)
-  s=await st(); ok(n,'programmatic zoom does not change range',s['r']==5,s)
+  s=await st(); ok(n,'programmatic zoom does not change range',s['r']==5 and s['txt']=='5.0 mi',s)
   await pg.evaluate("()=>fitRangeCircle()"); await pg.wait_for_timeout(300)
-  # simulated pinch-out well past the 50 mi zoom (wide out)
-  await pg.evaluate("()=>{markUserZoom(); map.setZoom(rangeZoomFor(50)-1.5,{animate:false})}"); await pg.wait_for_timeout(1500)
-  s=await st(); ok(n,'pinch out snaps 5 -> 50, dropdown+storage synced, refit',s['r']==50 and s['sel']=='50' and s['ls']=='50' and abs(s['z']-s['fit'])<0.01,s)
-  ok(n,'server got range 50: far rider at 30 mi now shown',f'{n}-far30' in s['ids'],s)
-  # pinch in near the 15 mi zoom
-  await pg.evaluate("()=>{markUserZoom(); map.setZoom(rangeZoomFor(15)-0.1,{animate:false})}"); await pg.wait_for_timeout(1500)
-  s=await st(); ok(n,'pinch in snaps 50 -> 15',s['r']==15 and abs(s['z']-s['fit'])<0.01,s)
-  # pinch in hard past every option (clamped at maxZoom) -> 1 mi
-  await pg.evaluate("()=>{markUserZoom(); map.setZoom(map.getMaxZoom(),{animate:false})}"); await pg.wait_for_timeout(1500)
-  s=await st(); ok(n,'pinch to max zoom sets 1 mi',s['r']==1,s)
-  ok(n,'max zoom raised to 21',await pg.evaluate("()=>map.getMaxZoom()")==21)
-  # from 5 mi, deep pinch past 1 mi fit: range 1, NO snap-back
-  await pg.evaluate("()=>setRange(5)"); await pg.wait_for_timeout(800)
-  await pg.evaluate("()=>{markUserZoom(); map.setZoom(rangeZoomFor(1)+2.5,{animate:false})}"); await pg.wait_for_timeout(1500)
-  want=await pg.evaluate("()=>rangeZoomFor(1)+2.5")
-  s=await st(); ok(n,'deep pinch: range 1, synced, zoom kept (no snap-back)',s['r']==1 and s['sel']=='1' and s['ls']=='1' and abs(s['z']-want)<0.01,s)
-  await sos_pos(pg)  # position update must not refit
-  s2=await st(); ok(n,'position update/resize does not re-zoom',abs(s2['z']-want)<0.01,s2)
-  await pg.evaluate("()=>{markUserZoom(); map.setZoom(map.getZoom()+1,{animate:false})}"); await pg.wait_for_timeout(1200)
-  s=await st(); ok(n,'deeper pinch at 1 mi stays put',abs(s['z']-want-1)<0.01 and s['r']==1,s)
-  # zoom back out above 1 mi level snaps
-  await pg.evaluate("()=>{markUserZoom(); map.setZoom(rangeZoomFor(10),{animate:false})}"); await pg.wait_for_timeout(1500)
-  s=await st(); ok(n,'zoom back out snaps to 10',s['r']==10 and abs(s['z']-s['fit'])<0.01,s)
-  # small nudge -> snaps back to same option
-  await pg.evaluate("()=>{setRange(5)}"); await pg.wait_for_timeout(800)
-  await pg.evaluate("()=>{markUserZoom(); map.setZoom(map.getZoom()+0.3,{animate:false})}"); await pg.wait_for_timeout(1200)
-  s=await st(); ok(n,'small nudge snaps back to 5 mi fit',s['r']==5 and abs(s['z']-s['fit'])<0.01,s)
-  ok(n,'far rider hidden again at 5 mi',f'{n}-far30' not in s['ids'],s)
-  if n=='chromium':  # real wheel input
+  # pinch out to ~7.3 mi: continuous, no snap
+  await pg.evaluate("()=>{markUserZoom(); map.setZoom(rangeZoomFor(7.3),{animate:false})}"); await pg.wait_for_timeout(1500)
+  s=await st(); ok(n,'pinch -> 7.3 mi shown, circle+server follow, zoom kept',s['txt']=='7.3 mi' and abs(s['r']-7.3)<0.05 and abs(s['circ']-7.3)<0.05 and abs(s['calc']-7.3)<0.05,s)
+  ok(n,'rider at 7 mi now shown, 30 mi not',f'{n}-far7' in s['ids'] and f'{n}-far30' not in s['ids'],s)
+  await pg.evaluate("()=>{markUserZoom(); map.setZoom(rangeZoomFor(31.6),{animate:false})}"); await pg.wait_for_timeout(1500)
+  s=await st(); ok(n,'pinch -> 32 mi (whole number >=10), 30 mi rider shown',s['txt']=='32 mi' and abs(s['r']-31.6)<0.1 and f'{n}-far30' in s['ids'],s)
+  # deep pinch below 1 mi: true value shown, server stays 1, no snap-back
+  await pg.evaluate("()=>{markUserZoom(); map.setZoom(rangeZoomFor(0.4),{animate:false})}"); await pg.wait_for_timeout(1500)
+  want=await pg.evaluate("()=>map.getZoom()")
+  s=await st(); ok(n,'deep pinch: shows 0.4 mi, server range 1, circle 0.4',s['txt']=='0.4 mi' and s['r']==1 and abs(s['circ']-0.4)<0.02,s)
+  await pg.evaluate("()=>{window.dispatchEvent(new Event('resize')); drawRangeCircle();}"); await pg.wait_for_timeout(3800)
+  s=await st(); ok(n,'no snap-back after position update/resize',abs(s['z']-want)<0.01,s)
+  ok(n,'max zoom 21',await pg.evaluate("()=>map.getMaxZoom()")==21)
+  # zoom far out beyond 50: display true, server clamped 50
+  await pg.evaluate("()=>{markUserZoom(); map.setZoom(rangeZoomFor(80),{animate:false})}"); await pg.wait_for_timeout(1500)
+  s=await st(); ok(n,'beyond 50: display 80 mi, server 50',s['txt']=='80 mi' and s['r']==50,s)
+  # live display during pinch (zoom event before zoomend)
+  live=await pg.evaluate("()=>new Promise(r=>{markUserZoom();map.once('zoom',()=>r(document.getElementById('rangeVal').textContent));map.setZoom(rangeZoomFor(12),{animate:false})})")
+  ok(n,'display updates live on zoom event',live=='12 mi',live)
+  await pg.evaluate("()=>setRange(5)"); await pg.wait_for_timeout(1200)
+  s=await st(); ok(n,'setRange(5) refits, 30/7 mi riders hidden',s['txt']=='5.0 mi' and abs(s['calc']-5)<0.05 and f'{n}-far30' not in s['ids'] and f'{n}-far7' not in s['ids'],s)
+  if n=='chromium':
     box=await pg.locator('#map').bounding_box()
     await pg.mouse.move(box['x']+box['width']/2,box['y']+box['height']/2)
-    for _ in range(8): await pg.mouse.wheel(0,300); await pg.wait_for_timeout(150)
-    await pg.wait_for_timeout(1500); s=await st(); ok(n,'real wheel zoom-out raises range',s['r']>5 and abs(s['z']-s['fit'])<0.01,s)
+    for _ in range(4): await pg.mouse.wheel(0,200); await pg.wait_for_timeout(150)
+    await pg.wait_for_timeout(1500); s=await st(); ok(n,'real wheel zoom-out raises radius continuously',s['v']>5 and abs(s['calc']-s['v'])<0.05,s)
   await pg.screenshot(path=f'/workspace/pinch_{n}.png')
   ok(n,'no page errors',not errs,errs)
-  await pg.evaluate("()=>{try{leaveApp&&leaveApp()}catch(e){}}"); await far.close(); await b.close()
+  await pg.evaluate("()=>{try{leaveApp&&leaveApp()}catch(e){}}"); await far.close(); await far7.close(); await b.close()
 async def main():
   async with async_playwright() as p:
     for n in BROWSERS: await run(p,n,-78.6)

@@ -250,8 +250,6 @@ function wsUrl(path) {
 <body>
 <div id="nameScreen">
   <h1>Water Tracker</h1>
-  <div class="groupLabel" id="rangeNote">You'll see every rider within 5 miles of you.</div>
-  <select id="startRange" aria-label="Viewing range" onchange="setRange(this.value)"><option value="1">1 mi</option><option value="5">5 mi</option><option value="10">10 mi</option><option value="15">15 mi</option><option value="25">25 mi</option><option value="30">30 mi</option><option value="35">35 mi</option><option value="40">40 mi</option><option value="45">45 mi</option><option value="50">50 mi</option></select>
   <div class="groupLabel">Your Name</div>
   <input id="startName" placeholder="Enter your name" autocomplete="off" autocorrect="off">
   <button type="button" class="styleOpen" id="styleOpenJoin" onclick="openStylePanel()"><span id="styleJoinPrev"></span>Marker color</button>
@@ -264,7 +262,7 @@ function wsUrl(path) {
     <button id="findBtn" class="find" onclick="toggleFind()" style="display:none">Find</button>
     <button id="leaderBtn" class="leader" onclick="toggleLeader()">Leader</button>
     <button id="sosBtn" class="sos" onclick="toggleSos()">SOS</button>
-    <select id="rangeSel" aria-label="Viewing range" title="See riders within" onchange="setRange(this.value)"><option value="1">1 mi</option><option value="5">5 mi</option><option value="10">10 mi</option><option value="15">15 mi</option><option value="25">25 mi</option><option value="30">30 mi</option><option value="35">35 mi</option><option value="40">40 mi</option><option value="45">45 mi</option><option value="50">50 mi</option></select>
+    <div class="cpick rng"><div class="cbtn" id="rangeSel" role="status" aria-label="Viewing radius" title="Pinch to change radius" style="justify-content:center;cursor:default;box-sizing:border-box"><span class="lbl" id="rangeVal" style="text-align:center">5 mi</span></div></div>
   </div>
   <div class="row" id="riderRow">
     <select id="riderList" onchange="onRiderSelect()" aria-label="Riders" style="display:none">
@@ -1307,8 +1305,6 @@ function enhanceSelect(id, cls){
   setInterval(() => { if (!menu.classList.contains('open')) render(); }, 500);
 }
 document.addEventListener('click', () => document.querySelectorAll('.cmenu.open').forEach(m => m.classList.remove('open')));
-enhanceSelect('rangeSel', 'rng');
-enhanceSelect('startRange', 'rng-start');
 window.addEventListener('DOMContentLoaded', () => { recoverRideDraft().finally(() => purgeExpiredRides());
  });
 
@@ -2057,26 +2053,28 @@ if (window.visualViewport) window.visualViewport.addEventListener('resize', sche
 if (window.ResizeObserver) new ResizeObserver(scheduleMapLayout).observe(document.getElementById('bar'));
 
 const WAITING_TEXT = 'Waiting for location…';
-// Viewing range: each rider picks how far out they see others (server validates the same set)
-const RANGES = [1, 5, 10, 15, 25, 30, 35, 40, 45, 50];
+// Viewing radius: set by pinch/zoom (continuous); server range = clamp(radius, 1, 50)
+const MAX_RANGE_MI_CONST = 50; // server max; SOS riders reach you from up to this
 // SOS override: the server delivers any rider in SOS to everyone within MAX_RANGE_MI (main.py MAX_RANGE_MI),
 // whatever range they picked. The client draws every rider the server sends (no local distance filter),
 // so an SOS rider outside my circle still gets a marker, a riders-list entry and the SOS bar.
-const MAX_RANGE_MI = Math.max(...RANGES);
-function validRange(v){ v = parseInt(v, 10); return RANGES.includes(v) ? v : 5; }
-let myRange = validRange((function(){ try { return localStorage.getItem('trackerRange'); } catch(e){ return null; } })());
-function sharingText(){ return 'Sharing — riders within ' + myRange + ' mi'; }
+const MAX_RANGE_MI = MAX_RANGE_MI_CONST;
+const MIN_RANGE_MI = 1, START_RANGE_MI = 5;
+// Server range: any float 1-50 (radius below 1 mi still queries 1 mi)
+function validRange(v){ v = parseFloat(v); return isFinite(v) ? Math.min(MAX_RANGE_MI, Math.max(MIN_RANGE_MI, v)) : START_RANGE_MI; }
+let myViewR = START_RANGE_MI;      // true circle radius in mi (follows pinch; may be < 1 or > 50)
+let myRange = START_RANGE_MI;      // server range = clamp(myViewR, 1, 50); every session starts at 5 mi
+function fmtMi(r){ return (r < 10 ? (Math.round(r * 10) / 10).toFixed(1) : String(Math.round(r))) + ' mi'; }
+function sharingText(){ return 'Sharing — riders within ' + fmtMi(myRange); }
 function syncRangeUi(){
-  ['startRange','rangeSel'].forEach(id => { const el = document.getElementById(id); if (el) el.value = String(myRange); });
-  const n = document.getElementById('rangeNote');
-  if (n) n.textContent = "You'll see every rider within " + myRange + " miles of you." + (myRange < MAX_RANGE_MI ? " SOS alerts reach you from up to " + MAX_RANGE_MI + " miles." : "");
+  showRangeVal(myViewR);
 }
 // --- Faint range circle: always shown around me, radius = viewing range; auto-fit only on range change ---
 const MI_M = 1609.344;
 var rangeCircle = null, rangeFitPending = false;
 function drawRangeCircle(){
   if (!myLatLng) return;
-  const r = myRange * MI_M;
+  const r = myViewR * MI_M;
   if (rangeCircle){ rangeCircle.setLatLng(myLatLng); rangeCircle.setRadius(r); }
   else rangeCircle = L.circle(myLatLng, {radius: r, interactive: false, pane: 'overlayPane', color: '#0ea5e9', weight: 1.5, opacity: 0.55, fillColor: '#0ea5e9', fillOpacity: 0.06}).addTo(map);
   if (rangeFitPending) fitRangeCircle();
@@ -2087,40 +2085,32 @@ function fitRangeCircle(){
   if (typeof appOffline !== 'undefined' && appOffline) return; // map locked while offline
   const sz = map.getSize(); if (!sz.x || !sz.y){ rangeFitPending = true; return; }
   rangeZoomGuard = true; // programmatic: don't let our own zoomend re-snap
-  try { map.setView(myLatLng, Math.min(rangeZoomFor(myRange), map.getMaxZoom()), {animate: false}); }
+  try { map.setView(myLatLng, Math.min(rangeZoomFor(myViewR), map.getMaxZoom()), {animate: false}); }
   finally { setTimeout(() => { rangeZoomGuard = false; }, 0); }
 }
-// Zoom at which a circle of radius r miles spans 92% of min(screen w,h)
+// Zoom at which a circle of radius r miles spans 92% of the screen width
 function rangeZoomFor(r){
-  const sz = map.getSize(), px = 0.92 * Math.min(sz.x || 1, sz.y || 1);
+  const w = map.getSize().x || 1, px = 0.92 * w;
   const lat = myLatLng ? myLatLng[0] : map.getCenter().lat;
   return Math.log2(40075016.686 * Math.cos(lat * Math.PI / 180) * px / (256 * 2 * r * MI_M));
 }
-// --- Pinch/scroll/+- zoom snaps the viewing range to the nearest option, then refits the circle ---
+// Inverse: radius (mi) of the circle spanning 92% of the screen width at zoom z
+function radiusForZoom(z){
+  const w = map.getSize().x || 1, lat = myLatLng ? myLatLng[0] : map.getCenter().lat;
+  return 40075016.686 * Math.cos(lat * Math.PI / 180) * 0.92 * w / (256 * Math.pow(2, z) * 2 * MI_M);
+}
+function showRangeVal(r){ const el = document.getElementById('rangeVal'); if (el){ const t = fmtMi(r); if (el.textContent !== t) el.textContent = t; } }
+// --- Pinch/scroll/+- zoom sets the radius continuously (no snapping); server range clamped 1-50 ---
 var rangeZoomGuard = false, userZoomAt = 0;
 function markUserZoom(){ userZoomAt = Date.now(); }
-function rangeForZoom(z){
-  let best = myRange, bd = Infinity;
-  RANGES.forEach(r => { // respect zoom limits: an option's effective zoom is clamped like the map's
-    const zr = Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), rangeZoomFor(r)));
-    const d = Math.abs(zr - z); if (d < bd - 1e-9){ bd = d; best = r; }
-  });
-  return best;
-}
+function userZooming(){ return !rangeZoomGuard && Date.now() - userZoomAt <= 2000; }
+function onUserZoomLive(){ if (userZooming() && myLatLng) showRangeVal(radiusForZoom(map.getZoom())); } // live during pinch
 function onUserZoomEnd(){
-  if (rangeZoomGuard || !myLatLng) return;
-  if (Date.now() - userZoomAt > 2000) return; // only zooms the user made (not fitBounds/setView elsewhere)
+  if (!userZooming() || !myLatLng) return; // only zooms the user made (not fitBounds/setView elsewhere)
   userZoomAt = 0;
   if (typeof appOffline !== 'undefined' && appOffline) return;
-  const r = rangeForZoom(map.getZoom());
-  const z = map.getZoom(), minR = Math.min(...RANGES);
-  if (z > rangeZoomFor(minR) + 1e-6){ // deeper than the 1 mi fit: set 1 mi, keep the user's zoom
-    rangeFitPending = false;
-    if (myRange !== minR) setRange(minR, {noFit: true});
-    return;
-  }
-  if (r !== myRange) setRange(r); // syncs dropdown, localStorage, server, redraw + refit
-  else fitRangeCircle();          // same option: snap back to its exact fit
+  rangeFitPending = false;
+  setRange(radiusForZoom(map.getZoom()), {noFit: true}); // map stays at the user's zoom
 }
 (function wireUserZoom(){
   const c = map.getContainer();
@@ -2131,6 +2121,7 @@ function onUserZoomEnd(){
   c.addEventListener('keydown', e => { if ('+-=_'.includes(e.key)) markUserZoom(); });
   c.addEventListener('gesturestart', markUserZoom); // iOS Safari pinch
   document.querySelectorAll('.leaflet-control-zoom a').forEach(a => a.addEventListener('click', markUserZoom, true));
+  map.on('zoom', onUserZoomLive);
   map.on('zoomend', onUserZoomEnd);
 })();
 function stylePreviewHtml(){
@@ -2163,15 +2154,15 @@ function setMyStyle(o){
   if (myLatLng && !isHidden()) renderMe(); // meKind includes style -> icon rebuilt
 }
 renderStylePanel();
-function setRange(v, opts){
-  const old = myRange;
-  myRange = validRange(v);
-  try { localStorage.setItem('trackerRange', String(myRange)); } catch(e){}
+function setRange(v, opts){ // v = true radius in mi (any positive float)
+  const oldR = myRange, oldV = myViewR;
+  const f = parseFloat(v); myViewR = (isFinite(f) && f > 0) ? f : START_RANGE_MI;
+  myRange = validRange(myViewR);
   syncRangeUi();
-  if (old === myRange) return;
-  if (opts && opts.noFit){ rangeFitPending = false; drawRangeCircle(); } // deep pinch: never re-zoom
+  if (oldV === myViewR) return;
+  if (opts && opts.noFit){ rangeFitPending = false; drawRangeCircle(); } // user zoom: never re-zoom
   else { drawRangeCircle(); fitRangeCircle(); }
-  if (ws && ws.readyState === 1 && joined) wsSend({type:'range', range: myRange}); // live, no rejoin
+  if (myRange !== oldR && ws && ws.readyState === 1 && joined) wsSend({type:'range', range: myRange}); // live, no rejoin
   const st = document.getElementById('status');
   if (st && /^Sharing — riders within/.test(st.textContent)) status(sharingText());
 }
@@ -2181,8 +2172,8 @@ syncRangeUi();
   try {
     const lp = JSON.parse(localStorage.getItem('trackerLastPos') || 'null');
     if (!lp || !isFinite(lp.lat) || !isFinite(lp.lon)) return;
-    const sz = map.getSize(), px = 0.92 * Math.min(sz.x || 390, sz.y || 800);
-    const z = Math.log2(40075016.686 * Math.cos(lp.lat * Math.PI / 180) * px / (256 * 2 * myRange * MI_M));
+    const px = 0.92 * (map.getSize().x || 390);
+    const z = Math.log2(40075016.686 * Math.cos(lp.lat * Math.PI / 180) * px / (256 * 2 * START_RANGE_MI * MI_M));
     map.setView([lp.lat, lp.lon], Math.min(z, map.getMaxZoom()), {animate: false});
   } catch(_){}
 })();

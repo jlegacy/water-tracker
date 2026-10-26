@@ -33,20 +33,22 @@ links = set() # (viewer, subject): viewer currently sees subject (directed; rang
 RANGE_MI = float(os.environ.get("RANGE_MI", "5"))       # default viewing range (old clients)
 HIDE_PAD_MI = float(os.environ.get("HIDE_PAD_MI", "2"))  # hysteresis: only hide past range + pad
 HIDE_MI = RANGE_MI + HIDE_PAD_MI
-ALLOWED_RANGES = (1, 5, 10, 15, 25, 30, 35, 40, 45, 50)
-MAX_RANGE_MI = max(ALLOWED_RANGES)  # SOS riders reach every viewer within this, whatever range they picked
+MIN_RANGE_MI = 1.0
+MAX_RANGE_MI = 50.0  # continuous range 1-50; SOS riders reach every viewer within this, whatever their range  # SOS riders reach every viewer within this, whatever range they picked
 HIDE_PAD_FRAC = 0.2  # small ranges: pad = 20% of range, capped at HIDE_PAD_MI (1 mi -> 0.2, 5 -> 1, 10+ -> 2)
 
 def hide_pad(rng):
     return min(HIDE_PAD_MI, HIDE_PAD_FRAC * rng)
 
 def valid_range(v):
-    """Clamp a client-sent range to the allowed set; anything else -> default."""
+    """Clamp a client-sent range to any float in [1, 50]; junk -> default."""
     try:
-        v = int(float(v))
+        v = float(v)
     except (TypeError, ValueError):
-        return int(RANGE_MI)
-    return v if v in ALLOWED_RANGES else int(RANGE_MI)
+        return RANGE_MI
+    if v != v or v in (float("inf"), float("-inf")):
+        return RANGE_MI
+    return min(MAX_RANGE_MI, max(MIN_RANGE_MI, v))
 
 # ---- Rider marker style (color + icon) ----
 # PREMIUM-GATE: rider styles are free for now; gate here (force defaults) if premium returns.
@@ -407,7 +409,7 @@ async def ws_endpoint(ws: WebSocket):
                                           msg.get("color"), msg.get("icon"))
         my_style = (riders[rider_id]["color"], riders[rider_id]["icon"])
         await ws.send_text(json.dumps({"type": "joined", "id": rider_id,
-                                       "range": riders[rider_id]["range"], "ranges": list(ALLOWED_RANGES)}))
+                                       "range": riders[rider_id]["range"], "range_min": MIN_RANGE_MI, "range_max": MAX_RANGE_MI}))
         await ws.send_text(json.dumps({"type": "riders", "riders": public_list(rider_id)}))
 
         while True:

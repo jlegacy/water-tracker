@@ -55,8 +55,9 @@ def test_links_enter_hold_leave():
 
 def test_valid_range():
     v = main.valid_range
-    assert [v(x) for x in (1, 5, 10, 15, 25, 30, 35, 40, 45, 50)] == [1, 5, 10, 15, 25, 30, 35, 40, 45, 50]
-    assert v(None) == 5 and v("40") == 40 and v(27) == 5 and v(100) == 5 and v("x") == 5 and v(-5) == 5
+    assert [v(x) for x in (1, 5, 7.3, 27, 49.99, 50)] == [1, 5, 7.3, 27, 49.99, 50]   # any float 1-50
+    assert v(0.4) == 1 and v(-5) == 1 and v(100) == 50 and v("12.5") == 12.5        # clamped
+    assert v(None) == 5 and v("x") == 5 and v(float("nan")) == 5 and v("inf") == 5
     assert main.new_rider("x", None)["range"] == 5          # old client default
     assert main.new_rider("x", None, rng=50)["range"] == 50
 
@@ -119,7 +120,7 @@ def test_small_range_proportional_pad():
     assert p(26.9, True, 25) and not p(27.1, True, 25)
 
 def test_effective_range_sos_uses_max():
-    assert main.MAX_RANGE_MI == 50 == max(main.ALLOWED_RANGES)
+    assert main.MAX_RANGE_MI == 50 and main.MIN_RANGE_MI == 1
     reset(); add("rx", 0)["range"] = 5; add("norm", 30); s = add("sos", -30)
     for r in list(main.riders): main.update_links(r)
     assert main.seen_by("rx") == []

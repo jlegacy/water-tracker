@@ -18,17 +18,17 @@ with sync_playwright() as p:
     ok(f'{n} faint circle shown at start, non-interactive, in overlay pane',s[0] and abs(s[1]-5*1609.344)<1 and s[2] is False and s[3]<=0.08 and s[4] and s[5]=='none',s)
     rad=[]
     for v in (1,5,10,15,30,35,40,45,50,25):
-      pg.click('#bar .cpick.rng .cbtn'); pg.click(f"#bar .cpick.rng .cmenu div:text-is('{v} mi')"); pg.wait_for_timeout(400)
+      pg.evaluate(f"setRange({v})"); pg.wait_for_timeout(400)
       rad.append(round(pg.evaluate('rangeCircle.getRadius()')/1609.344,3))
     ok(f'{n} radius matches each option',rad==[1,5,10,15,30,35,40,45,50,25],rad)
     pg.evaluate("map.setZoom(12)"); pg.wait_for_timeout(300)
     for a,z in ((25,50),(50,1),(1,5),(5,10),(10,15),(15,25)):
-      pg.click('#bar .cpick.rng .cbtn'); pg.click(f"#bar .cpick.rng .cmenu div:text-is('{z} mi')"); pg.wait_for_timeout(700)
+      pg.evaluate(f"setRange({z})"); pg.wait_for_timeout(700)
       bx=pg.evaluate(BOX); ok(f'{n} {a}->{z}: whole circle visible, ~screen width',inview(bx),{k:round(v,2) for k,v in bx.items()})
       pg.screenshot(path=f'/workspace/circle_{n}_{z}.png')
       if z==1: zz=pg.evaluate('[map.getZoom(),map.getMaxZoom()]'); ok(f'{n} 1 mi zoom within limits',zz[0]<=zz[1] and zz[0]>=12,zz)
     pg.evaluate("map.setBearing(40)"); pg.wait_for_timeout(300)
-    pg.click('#bar .cpick.rng .cbtn'); pg.click("#bar .cpick.rng .cmenu div:text-is('40 mi')"); pg.wait_for_timeout(700)
+    pg.evaluate("setRange(40)"); pg.wait_for_timeout(700)
     bx=pg.evaluate(BOX); ok(f'{n} heading-up (bearing 40) fit ok',inview(bx),{k:round(v,2) for k,v in bx.items()}); pg.evaluate("map.setBearing(0)"); pg.wait_for_timeout(500)
     z0=pg.evaluate("map.getZoom()"); pg.evaluate(f"updateMyMarker(35.85,{lon})"); pg.wait_for_timeout(400)
     f=pg.evaluate("()=>[rangeCircle.getLatLng().lat,map.getZoom()]"); ok(f'{n} circle follows position, no re-zoom on move',abs(f[0]-35.85)<1e-9 and f[1]==z0,[f,z0])
