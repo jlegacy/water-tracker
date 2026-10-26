@@ -160,9 +160,9 @@ def test_ranges_24_32_48_52(url):
         m25 = await C(url, "g25").open(0, range=None)            # old client: no range -> 5
         m35 = await C(url, "g35").open(0.1, range=35)
         m50 = await C(url, "g50").open(0.2, range=50)
-        bad = await C(url, "gbad").open(0.3, range=99)          # invalid -> 5
+        bad = await C(url, "gbad").open(0.3, range="x")         # junk -> 5
         assert m25.of("joined")[0]["range"] == 5 and bad.of("joined")[0]["range"] == 5
-        assert m50.of("joined")[0]["range"] == 50 and m50.of("joined")[0]["ranges"] == [1, 5, 10, 15, 25, 30, 35, 40, 45, 50]
+        assert m50.of("joined")[0]["range"] == 50 and m50.of("joined")[0]["range_max"] == 50 and m50.of("joined")[0]["range_min"] == 1
         r = {mi: await C(url, f"g{mi}mi").open(mi if mi != 52 else -52) for mi in (24, 32, 48, 52)}
         far = lambda s: sorted(x for x in s if x.endswith("mi"))
         assert far(await m25.snapshot()) == [] and far(await bad.snapshot()) == []   # 5 mi default
@@ -185,8 +185,12 @@ def test_switch_range_live(url):
         assert me.of("leave", id="w48") and not me.of("leave", id="w32")    # 32 <= 30+2 hysteresis
         me.clear(); await me.send(type="range", range=25); await asyncio.sleep(0.15)
         assert me.of("leave", id="w32") and (await me.snapshot()) == []
+        me.clear(); await me.send(type="range", range=33.5); await asyncio.sleep(0.15)
+        assert me.of("range", range=33.5) and me.of("pos", id="w32")         # any float 1-50
         me.clear(); await me.send(type="range", range=77); await asyncio.sleep(0.15)
-        assert me.of("range", range=5)                                        # invalid -> default (5)
+        assert me.of("range", range=50) and me.of("pos", id="w48")           # clamped to 50
+        me.clear(); await me.send(type="range", range=0.4); await asyncio.sleep(0.15)
+        assert me.of("range", range=1)                                        # clamped to 1
         for x in (me, r32, r48): await x.close()
     run(go())
 

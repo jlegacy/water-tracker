@@ -24,7 +24,7 @@ async def run(p,n,lon):
   await c.route('**/*onrender.com*/**',lambda r:r.abort()); await c.add_init_script(init(lat,lon))
   pg=await c.new_page(); errs=[]; pg.on('pageerror',lambda e:errs.append(str(e)))
   await pg.goto(URL); await pg.wait_for_timeout(800)
-  note=await pg.evaluate("()=>document.getElementById('rangeNote').textContent"); ok(n,'join note mentions SOS 50 mi','SOS alerts reach you from up to 50 miles' in note,note)
+  ok(n,'join screen has no range control',await pg.evaluate("()=>!document.getElementById('startRange')&&!document.getElementById('rangeNote')"))
   await pg.fill('#startName',f'QA SOS {n}'); await pg.evaluate("()=>startApp()"); await pg.wait_for_timeout(2500)
   ok(n,'receiver range is 5 mi',await pg.evaluate("()=>myRange")==5)
   norm=await F(f'{n}-norm30',lat+30*MI,lon).open(); sos=await F(f'{n}-sos30',lat-30*MI,lon).open(); await pg.wait_for_timeout(1500)
