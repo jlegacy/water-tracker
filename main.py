@@ -43,6 +43,18 @@ def valid_range(v):
         return int(RANGE_MI)
     return v if v in ALLOWED_RANGES else int(RANGE_MI)
 
+# ---- Rider marker style (color + icon) ----
+# PREMIUM-GATE: rider styles are free for now; gate here (force defaults) if premium returns.
+# Colors exclude SOS red and leader purple. "default" = classic blue (others) / teal (you).
+STYLE_COLORS = ("default", "blue", "sky", "teal", "green", "lime", "yellow", "orange", "brown", "slate")
+STYLE_ICONS = ("initial", "boat", "wave", "anchor", "flag", "pirate", "dolphin", "shark", "fish")
+
+def valid_color(v):
+    return v if isinstance(v, str) and v in STYLE_COLORS else "default"
+
+def valid_icon(v):
+    return v if isinstance(v, str) and v in STYLE_ICONS else "initial"
+
 # ---- Boat ramps & marinas (OpenStreetMap / Overpass) ----
 import math, sys, urllib.request, urllib.parse
 OVERPASS_URLS = [
@@ -248,7 +260,8 @@ def entry(rid, r, now=None):
     now = now or time.time()
     return {"id": rid, "name": r["name"], "lat": r["lat"], "lon": r["lon"],
             "age": round(now - r["updated"], 1), "stale": bool(r.get("stale")),
-            "leader": bool(r.get("leader")), "sos": bool(r.get("sos"))}
+            "leader": bool(r.get("leader")), "sos": bool(r.get("sos")),
+            "color": valid_color(r.get("color")), "icon": valid_icon(r.get("icon"))}
 
 def update_links(rid):
     """Recompute both directions between rid and every other rider.
@@ -309,10 +322,10 @@ def public_list(rid):
     now = time.time()
     return [entry(oid, riders[oid], now) for oid in seen_by(rid) if riders[oid]["lat"] is not None]
 
-def new_rider(name, ws, leader=False, sos=False, rng=None):
+def new_rider(name, ws, leader=False, sos=False, rng=None, color=None, icon=None):
     return {"name": name, "lat": None, "lon": None, "ts": None, "updated": time.time(),
             "ws": ws, "stale": False, "leader": bool(leader), "sos": bool(sos),
-            "range": valid_range(rng)}
+            "range": valid_range(rng), "color": valid_color(color), "icon": valid_icon(icon)}
 
 
 def sanitize_trail(raw, max_pts=60):
@@ -373,10 +386,13 @@ async def ws_endpoint(ws: WebSocket):
         prev = riders.get(rider_id)
         if prev:  # rejoin after a drop: keep last known position
             prev.update({"name": name, "ws": ws, "leader": bool(msg.get("leader")),
-                         "sos": bool(msg.get("sos")), "range": valid_range(msg.get("range"))})
+                         "sos": bool(msg.get("sos")), "range": valid_range(msg.get("range")),
+                         "color": valid_color(msg.get("color")), "icon": valid_icon(msg.get("icon"))})
             await apply_link_changes(update_links(rider_id))
         else:
-            riders[rider_id] = new_rider(name, ws, msg.get("leader"), msg.get("sos"), msg.get("range"))
+            riders[rider_id] = new_rider(name, ws, msg.get("leader"), msg.get("sos"), msg.get("range"),
+                                          msg.get("color"), msg.get("icon"))
+        my_style = (riders[rider_id]["color"], riders[rider_id]["icon"])
         await ws.send_text(json.dumps({"type": "joined", "id": rider_id,
                                        "range": riders[rider_id]["range"], "ranges": list(ALLOWED_RANGES)}))
         await ws.send_text(json.dumps({"type": "riders", "riders": public_list(rider_id)}))
@@ -387,7 +403,7 @@ async def ws_endpoint(ws: WebSocket):
             t = msg.get("type")
             if t != "leave" and rider_id not in riders:
                 # Removed by a /api/leave beacon while this socket is still alive: put the rider back.
-                riders[rider_id] = new_rider(name, ws, rng=my_range)
+                riders[rider_id] = new_rider(name, ws, rng=my_range, color=my_style[0], icon=my_style[1])
             r = riders.get(rider_id)
             if r:
                 r["updated"] = time.time()  # any message counts as keep-alive
@@ -413,6 +429,11 @@ async def ws_endpoint(ws: WebSocket):
             elif t == "trail":
                 pts = sanitize_trail(msg.get("points") if msg.get("points") is not None else msg.get("trail"))
                 await send_near(rider_id, {"type": "trail", "id": rider_id, "points": pts or []})
+            elif t == "style":
+                if r:
+                    r["color"], r["icon"] = valid_color(msg.get("color")), valid_icon(msg.get("icon"))
+                    my_style = (r["color"], r["icon"])
+                    await send_near(rider_id, {"type": "style", "id": rider_id, "color": r["color"], "icon": r["icon"]})
             elif t == "leader":
                 if r:
                     r["leader"] = bool(msg.get("on"))
