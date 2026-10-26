@@ -18,16 +18,12 @@ def test_entry_defaults_for_old_riders():
     r.pop("color"); r.pop("icon")
     e = main.entry("x", r); assert (e["color"], e["icon"]) == ("default", "initial")
     r2 = main.new_rider("N", None, color="sky", icon="pirate"); r2.update(lat=1.0, lon=2.0)
-    assert (main.entry("y", r2)["color"], main.entry("y", r2)["icon"]) == ("sky", "pirate")
+    assert (main.entry("y", r2)["color"], main.entry("y", r2)["icon"]) == ("sky", "initial")
 
-def test_new_options_present():
-    assert {"navy", "mint", "amber", "black"} <= set(main.STYLE_COLORS)
-    assert main.STYLE_ICONS[1:12] == main.JETSKI_ICONS and len(main.JETSKI_ICONS) == 11
-    for old in ("jetski", "jetski_rider", "jetski_spray"):
-        assert old not in main.STYLE_ICONS and main.valid_icon(old).startswith("jetski_")
+def test_icons_removed_colors_kept():
+    assert {"navy", "mint", "amber", "black"} <= set(main.STYLE_COLORS) and len(main.STYLE_COLORS) == 14
+    assert main.STYLE_ICONS == ("initial",)
+    for old in ("jetski", "jetski_side_blue", "shark", "anchor", "pirate"):
+        assert main.valid_icon(old) == "initial"
     import pathlib
-    d = pathlib.Path(main.WWW_DIR) / "jetski"
-    for i in main.JETSKI_ICONS:
-        assert (d / f"{i}.png").is_file() and (d / f"{i}@2x.png").is_file()
-    assert {"turtle", "octopus", "crab", "whale", "surfer", "trident", "palm", "sun", "fire", "skull"} <= set(main.STYLE_ICONS)
-    assert len(set(main.STYLE_ICONS)) == len(main.STYLE_ICONS)
+    assert not (pathlib.Path(main.WWW_DIR) / "jetski").exists()

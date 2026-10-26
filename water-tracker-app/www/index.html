@@ -161,8 +161,6 @@ function wsUrl(path) {
   #stylePanel .grid{display:flex;flex-wrap:wrap;gap:7px}
   #stylePanel .sw{width:34px;height:34px;border-radius:50%;border:2px solid #2a4a6f;padding:0;cursor:pointer;color:#fff;font:bold 13px/1 system-ui;box-sizing:border-box}
   #stylePanel .ic{width:40px;height:40px;border-radius:10px;border:2px solid #2a4a6f;background:#132a45;font-size:22px;line-height:1;padding:0;cursor:pointer;color:#fff;font-weight:700}
-  #stylePanel .ic.img{background:#e6f0fa;display:inline-flex;align-items:center;justify-content:center}
-  #riderMenu .rico .jsimg,.rico .jsimg{display:inline-block!important;vertical-align:middle}
   #stylePanel .sw.sel,#stylePanel .ic.sel{border-color:#fff;box-shadow:0 0 0 2px #38bdf8}
   #stylePanel .done{margin-top:14px;width:100%;padding:11px;border:0;border-radius:10px;background:#3b82f6;color:#fff;font-weight:700;font-size:16px}
   #stylePrev{display:inline-block;width:28px;height:28px}
@@ -248,7 +246,7 @@ function wsUrl(path) {
   <select id="startRange" aria-label="Viewing range" onchange="setRange(this.value)"><option value="25">25 mi</option><option value="30">30 mi</option><option value="35">35 mi</option><option value="40">40 mi</option><option value="45">45 mi</option><option value="50">50 mi</option></select>
   <div class="groupLabel">Your Name</div>
   <input id="startName" placeholder="Enter your name" autocomplete="off" autocorrect="off">
-  <button type="button" class="styleOpen" id="styleOpenJoin" onclick="openStylePanel()"><span id="styleJoinPrev"></span>Marker look</button>
+  <button type="button" class="styleOpen" id="styleOpenJoin" onclick="openStylePanel()"><span id="styleJoinPrev"></span>Marker color</button>
   <button onclick="startApp()">Start</button>
   <a id="privacyLink" href="https://water-tracker-yz68.onrender.com/privacy" target="_blank" rel="noopener" style="margin-top:18px;color:#9cc3e6;font-size:14px">Privacy Policy</a>
 </div>
@@ -273,14 +271,13 @@ function wsUrl(path) {
     <input id="msgText" placeholder="Message everyone" style="display:none">
     <button id="sendBtn" class="msg" onclick="sendMessage()" style="display:none">Send</button>
     <button id="allBtn" class="broadcast" onclick="broadcastMessage()" style="display:none">All</button>
-    <button id="lookBtn" class="lookBtn" onclick="openStylePanel()" aria-label="Marker look" title="Marker look">🎨</button>
+    <button id="lookBtn" class="lookBtn" onclick="openStylePanel()" aria-label="Marker color" title="Marker color">🎨</button>
     <button id="rampsBtn" class="ramps" onclick="toggleRamps()">Ramps</button>
   </div>
 </div>
-<div id="stylePanel" role="dialog" aria-label="Marker look" onclick="if(event.target===this)closeStylePanel()"><div class="box">
+<div id="stylePanel" role="dialog" aria-label="Marker color" onclick="if(event.target===this)closeStylePanel()"><div class="box">
   <h3><span id="stylePrev"></span>Your marker</h3>
   <div class="lbl2">Color</div><div class="grid" id="styleColors"></div>
-  <div class="lbl2">Icon</div><div class="grid" id="styleIcons"></div>
   <button type="button" class="done" onclick="closeStylePanel()">Done</button>
 </div></div>
 <div id="sosBar" role="button" tabindex="0" onclick="jumpToSos()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();jumpToSos();}" aria-label="Jump to SOS"></div></div>
@@ -369,19 +366,15 @@ if (!me) {
 let myName = '';
 let myLatLng = null;
 // --- Rider marker style (color + icon). PREMIUM-GATE: free for now; to gate, make styleAllowed() check premium. ---
-// Must match main.py STYLE_COLORS / STYLE_ICONS (server validates). No SOS red, no leader purple, no star.
+// Must match main.py STYLE_COLORS (server validates). No SOS red, no leader purple, no star.
 const STYLE_COLORS = {default:null, blue:'#2563eb', sky:'#0ea5e9', teal:'#0d9488', green:'#16a34a', lime:'#65a30d', yellow:'#ca8a04', orange:'#ea580c', brown:'#92400e', slate:'#475569', navy:'#1e3a8a', mint:'#10b981', amber:'#d97706', black:'#111827'};
-const JETSKI_ICONS = ['jetski_side_blue','jetski_side_red','jetski_side_green','jetski_rider_blue','jetski_rider_red','jetski_rider_green','jetski_front_blue','jetski_front_red','jetski_front_green','jetski_rear','jetski_top'];
-const LEGACY_ICONS = {jetski:'jetski_side_blue', jetski_rider:'jetski_rider_blue', jetski_spray:'jetski_rider_green'};
-const STYLE_ICONS = {initial:'', ...Object.fromEntries(JETSKI_ICONS.map(k => [k, 'img'])), boat:'🚤', wave:'🌊', anchor:'⚓', flag:'🏁', pirate:'🏴‍☠️', dolphin:'🐬', shark:'🦈', fish:'🐟', turtle:'🐢', octopus:'🐙', crab:'🦀', whale:'🐳', surfer:'🏄', trident:'🔱', palm:'🌴', sun:'☀️', fire:'🔥', skull:'💀'};
+// Icons removed (user request): markers are the original arrow / dot with initial or YOU; only color is customizable.
+const STYLE_ICONS = {initial:''};
 function styleAllowed(){ return true; }
-function isImgIcon(i){ return STYLE_ICONS[i] === 'img'; }
-// Bundled PNG (relative path works on web + Capacitor). px = rendered box size.
-function imgIconHtml(i, px){ return '<img class="jsimg" src="jetski/' + i + '.png" srcset="jetski/' + i + '.png 1x, jetski/' + i + '@2x.png 2x" width="' + px + '" height="' + px + '" alt="" draggable="false" style="display:block;width:' + px + 'px;height:' + px + 'px;object-fit:contain;pointer-events:none">'; }
-function validStyle(o){ o = Object.assign({}, o || {}); if (LEGACY_ICONS[o.i]) o.i = LEGACY_ICONS[o.i]; return {c: Object.prototype.hasOwnProperty.call(STYLE_COLORS, o.c) ? o.c : 'default', i: Object.prototype.hasOwnProperty.call(STYLE_ICONS, o.i) ? o.i : 'initial'}; }
+function validStyle(o){ o = o || {}; return {c: Object.prototype.hasOwnProperty.call(STYLE_COLORS, o.c) ? o.c : 'default', i: 'initial'}; }
 let myStyle = validStyle((function(){ try { return JSON.parse(localStorage.getItem('trackerStyle') || '{}'); } catch(e){ return {}; } })());
 function styleHex(c, self){ return STYLE_COLORS[c] || (self ? '#0d9488' : '#4aa3ff'); }
-function styleEmoji(i, px){ return isImgIcon(i) ? imgIconHtml(i, px || 18) : (STYLE_ICONS[i] || ''); }
+function styleEmoji(){ return ''; }
 let watchId = null;
 let ws = null;
 let sharing = false;
@@ -1309,7 +1302,7 @@ function renderMe(){
     }
   } else {
     meIconKind = meKind;
-    riders[me] = L.marker(myLatLng,{icon: buildMeIcon(meKind), zIndexOffset:2000}).addTo(map).bindPopup(myName + ' (you)<br><a href="#" onclick="map.closePopup();openStylePanel();return false;">Change marker look</a>');
+    riders[me] = L.marker(myLatLng,{icon: buildMeIcon(meKind), zIndexOffset:2000}).addTo(map).bindPopup(myName + ' (you)<br><a href="#" onclick="map.closePopup();openStylePanel();return false;">Change marker color</a>');
     riders[me].on('click', () => clearRiderSelection());
   }
   riders[me].setOpacity(myApprox ? 0.5 : 1); // faded = approximate (rough first fix)
@@ -1544,7 +1537,6 @@ function escHtml(t){
 function buildMeIcon(kind){
   kind = String(kind).split('|')[0];
   const meHex = styleHex(myStyle.c, true), meEmo = styleEmoji(myStyle.i);
-  if (isImgIcon(myStyle.i) && (kind === 'arrow' || kind === 'circle' || kind === 'dot' || !/leader|sos/.test(kind))) return imgMarkerIcon(meHex, '#fff', 1, myStyle.i, kind === 'arrow', 'me-arrow');
   if (kind === 'arrow-leader' || kind === 'circle-leader'){
     const star = `<div style="position:absolute;top:-6px;right:-6px;width:14px;height:14px;border-radius:50%;background:#fbbf24;border:1px solid #fff;color:#fff;font-size:10px;line-height:14px;text-align:center;box-shadow:0 0 3px rgba(0,0,0,.5);">★</div>`;
     if (kind === 'arrow-leader') return L.divIcon({className:'', html:`<div class="me-arrow" style="width:28px;height:28px;transform-origin:50% 50%;"><div style="
@@ -1592,19 +1584,7 @@ function buildMeIcon(kind){
     iconAnchor:[14,14]
   });
 }
-// Larger marker for jet-ski art: 42px disc, art fills ~95%, optional heading pointer ring.
-const IMG_MK = 42;
-function imgMarkerIcon(bg, border, op, icon, arrow, arrowCls){
-  const S = IMG_MK, pointer = arrow ? `<div class="${arrowCls}" style="position:absolute;left:0;top:0;width:${S}px;height:${S}px;transform-origin:50% 50%;pointer-events:none;">
-      <div style="position:absolute;left:${S/2-7}px;top:-9px;width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:11px solid ${bg};filter:drop-shadow(0 0 1.5px #000);"></div></div>` : '';
-  return L.divIcon({className:'', html:`<div class="img-mk" style="position:relative;width:${S}px;height:${S}px;">${pointer}
-    <div style="box-sizing:border-box;width:${S}px;height:${S}px;border-radius:50%;background:${bg};opacity:${op};border:2px solid ${border};
-      box-shadow:0 1px 5px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;overflow:hidden;">
-      <div style="width:${S-10}px;height:${S-10}px;border-radius:50%;background:rgba(255,255,255,.94);display:flex;align-items:center;justify-content:center;overflow:visible;">${imgIconHtml(icon, S-8)}</div></div></div>`,
-    iconSize:[S,S], iconAnchor:[S/2,S/2], popupAnchor:[0,-S/2]});
-}
 function riderIcon(stale, isLeader, name, moving, heading, sos, color, icon){
-  if (!sos && !isLeader && isImgIcon(icon)) return imgMarkerIcon(stale ? '#9ca3af' : styleHex(color, false), '#fff', stale ? 0.6 : 1, icon, !!moving && heading != null && isFinite(heading), 'rider-arrow');
   // Precedence: SOS > leader (purple + star) > custom style; stale greys it out
   const emo = isLeader ? '' : styleEmoji(icon);
   const label = emo || escHtml(riderInitial(name));
@@ -2062,24 +2042,17 @@ function fitRangeCircle(){
 }
 function stylePreviewHtml(){
   const hex = styleHex(myStyle.c, true), e = styleEmoji(myStyle.i, 24);
-  if (isImgIcon(myStyle.i)) return '<span style="display:inline-flex;width:34px;height:34px;border-radius:50%;background:' + hex + ';border:2px solid #fff;box-sizing:border-box;align-items:center;justify-content:center;overflow:hidden">' + styleEmoji(myStyle.i, 30) + '</span>';
   return '<span style="display:inline-flex;width:26px;height:26px;border-radius:50%;background:' + hex + ';border:2px solid #fff;box-sizing:border-box;align-items:center;justify-content:center;color:#fff;font:bold ' + (e ? 15 : 8) + 'px/1 system-ui">' + (e || 'YOU') + '</span>';
 }
 function renderStylePanel(){
-  const cs = document.getElementById('styleColors'), is = document.getElementById('styleIcons');
-  if (!cs || !is) return;
-  cs.innerHTML = ''; is.innerHTML = '';
+  const cs = document.getElementById('styleColors');
+  if (!cs) return;
+  cs.innerHTML = '';
   Object.keys(STYLE_COLORS).forEach(c => {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'sw' + (myStyle.c === c ? ' sel' : '');
     b.dataset.c = c; b.title = c; b.setAttribute('aria-label', 'Color ' + c);
     b.style.background = styleHex(c, true); if (c === 'default') b.textContent = 'A';
     b.onclick = () => setMyStyle({c, i: myStyle.i}); cs.appendChild(b);
-  });
-  Object.keys(STYLE_ICONS).forEach(i => {
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'ic' + (myStyle.i === i ? ' sel' : '');
-    b.dataset.i = i; b.title = i; b.setAttribute('aria-label', 'Icon ' + i);
-    b.innerHTML = isImgIcon(i) ? imgIconHtml(i, 34) : (STYLE_ICONS[i] || 'Aa'); if (isImgIcon(i)) b.classList.add('img'); if (!STYLE_ICONS[i]) b.style.fontSize = '15px';
-    b.onclick = () => setMyStyle({c: myStyle.c, i}); is.appendChild(b);
   });
   ['stylePrev','styleJoinPrev'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = stylePreviewHtml(); });
 }
