@@ -323,12 +323,13 @@ const map = L.map('map', {
   zoomSnap: 0,     // free zoom so the range-circle fit isn't re-snapped when following
   zoomDelta: 0.5,
   touchZoom: true,
-  bounceAtZoomLimits: false
+  bounceAtZoomLimits: false,
+  maxZoom: 21      // allow pinching well past the 1 mi fit (tiles upscale above 19)
 }).setView([35.5,-77.0], 12);
 L.tileLayer(
   'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
   {
-    maxZoom: 19,
+    maxZoom: 21, maxNativeZoom: 19, // overzoom native z19 tiles instead of capping the map
     attribution: '&copy; OpenStreetMap contributors'
   }
 ).addTo(map);
@@ -2083,6 +2084,12 @@ function onUserZoomEnd(){
   userZoomAt = 0;
   if (typeof appOffline !== 'undefined' && appOffline) return;
   const r = rangeForZoom(map.getZoom());
+  const z = map.getZoom(), minR = Math.min(...RANGES);
+  if (z > rangeZoomFor(minR) + 1e-6){ // deeper than the 1 mi fit: set 1 mi, keep the user's zoom
+    rangeFitPending = false;
+    if (myRange !== minR) setRange(minR, {noFit: true});
+    return;
+  }
   if (r !== myRange) setRange(r); // syncs dropdown, localStorage, server, redraw + refit
   else fitRangeCircle();          // same option: snap back to its exact fit
 }
@@ -2127,13 +2134,14 @@ function setMyStyle(o){
   if (myLatLng && !isHidden()) renderMe(); // meKind includes style -> icon rebuilt
 }
 renderStylePanel();
-function setRange(v){
+function setRange(v, opts){
   const old = myRange;
   myRange = validRange(v);
   try { localStorage.setItem('trackerRange', String(myRange)); } catch(e){}
   syncRangeUi();
   if (old === myRange) return;
-  drawRangeCircle(); fitRangeCircle();
+  if (opts && opts.noFit){ rangeFitPending = false; drawRangeCircle(); } // deep pinch: never re-zoom
+  else { drawRangeCircle(); fitRangeCircle(); }
   if (ws && ws.readyState === 1 && joined) wsSend({type:'range', range: myRange}); // live, no rejoin
   const st = document.getElementById('status');
   if (st && /^Sharing — riders within/.test(st.textContent)) status(sharingText());

@@ -17,6 +17,8 @@ class F:
     await s.ws.send(json.dumps(dict(type='pos',lat=s.lat,lon=s.lon,ts=time.time()*1000))); return s
   async def send(s,**m): await s.ws.send(json.dumps(m))
   async def close(s): await s.send(type='leave'); await s.ws.close()
+async def sos_pos(pg):
+  await pg.evaluate("()=>{window.dispatchEvent(new Event('resize')); drawRangeCircle();}"); await pg.wait_for_timeout(3800)
 async def run(p,n,lon):
   lat=35.807
   if n=='webkit':
@@ -42,7 +44,20 @@ async def run(p,n,lon):
   s=await st(); ok(n,'pinch in snaps 50 -> 15',s['r']==15 and abs(s['z']-s['fit'])<0.01,s)
   # pinch in hard past every option (clamped at maxZoom) -> 1 mi
   await pg.evaluate("()=>{markUserZoom(); map.setZoom(map.getMaxZoom(),{animate:false})}"); await pg.wait_for_timeout(1500)
-  s=await st(); ok(n,'pinch to max zoom snaps to 1 mi',s['r']==1,s)
+  s=await st(); ok(n,'pinch to max zoom sets 1 mi',s['r']==1,s)
+  ok(n,'max zoom raised to 21',await pg.evaluate("()=>map.getMaxZoom()")==21)
+  # from 5 mi, deep pinch past 1 mi fit: range 1, NO snap-back
+  await pg.evaluate("()=>setRange(5)"); await pg.wait_for_timeout(800)
+  await pg.evaluate("()=>{markUserZoom(); map.setZoom(rangeZoomFor(1)+2.5,{animate:false})}"); await pg.wait_for_timeout(1500)
+  want=await pg.evaluate("()=>rangeZoomFor(1)+2.5")
+  s=await st(); ok(n,'deep pinch: range 1, synced, zoom kept (no snap-back)',s['r']==1 and s['sel']=='1' and s['ls']=='1' and abs(s['z']-want)<0.01,s)
+  await sos_pos(pg)  # position update must not refit
+  s2=await st(); ok(n,'position update/resize does not re-zoom',abs(s2['z']-want)<0.01,s2)
+  await pg.evaluate("()=>{markUserZoom(); map.setZoom(map.getZoom()+1,{animate:false})}"); await pg.wait_for_timeout(1200)
+  s=await st(); ok(n,'deeper pinch at 1 mi stays put',abs(s['z']-want-1)<0.01 and s['r']==1,s)
+  # zoom back out above 1 mi level snaps
+  await pg.evaluate("()=>{markUserZoom(); map.setZoom(rangeZoomFor(10),{animate:false})}"); await pg.wait_for_timeout(1500)
+  s=await st(); ok(n,'zoom back out snaps to 10',s['r']==10 and abs(s['z']-s['fit'])<0.01,s)
   # small nudge -> snaps back to same option
   await pg.evaluate("()=>{setRange(5)}"); await pg.wait_for_timeout(800)
   await pg.evaluate("()=>{markUserZoom(); map.setZoom(map.getZoom()+0.3,{animate:false})}"); await pg.wait_for_timeout(1200)
