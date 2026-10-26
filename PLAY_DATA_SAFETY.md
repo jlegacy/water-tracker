@@ -4,7 +4,7 @@ Paste/adapt the following when filling out Google Play **Data safety**. This fil
 
 ## Location
 - **Collected:** Yes (precise location while Sharing / Trail is on)
-- **Shared:** Yes — with other app users who are within the viewing range they choose (25–50 miles, so up to about 50 miles from the user) while live sharing is on (name, position, leader/SOS status, and a thinned recent path when Trail is on). There are no groups or invitations: anyone signed in nearby can see you while you share.
+- **Shared:** Yes — with other app users who are within 50 miles of the user while live sharing is on (name, position, leader/SOS status, and a thinned recent path when Trail is on). There are no groups or invitations: anyone signed in nearby can see you while you share.
 - **Processed ephemerally?** Live positions are transient on the server (in memory only) for nearby sharing. **On-device trail archives** are stored in a rolling budget (~50 MB) on the user’s device (IndexedDB), not forever.
 - **Retention:** On-device ride archives are deleted automatically 24 hours after they are saved (and capped at ~50 MB). Live trail cleared when Trail is off / ride archived. Thinned segments shared with nearby riders are not kept as a permanent server trail history in this trial.
 

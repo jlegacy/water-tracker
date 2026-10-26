@@ -41,7 +41,10 @@ def hide_pad(rng):
     return min(HIDE_PAD_MI, HIDE_PAD_FRAC * rng)
 
 def valid_range(v):
-    """Clamp a client-sent range to any float in [1, 50]; junk -> default."""
+    """Every viewer sees everyone within MAX_RANGE_MI (50 mi); client-sent ranges are ignored."""
+    return MAX_RANGE_MI
+
+def _old_valid_range(v):  # unused: pre-fixed-range clamp, kept for reference
     try:
         v = float(v)
     except (TypeError, ValueError):
@@ -259,7 +262,7 @@ def effective_range(viewer, subject):
     """Range viewer uses for subject: MAX_RANGE_MI while subject is in SOS, else viewer's own pick."""
     if subject and subject.get("sos"):
         return MAX_RANGE_MI
-    return (viewer or {}).get("range", RANGE_MI)
+    return MAX_RANGE_MI  # fixed 50 mi for every viewer (SOS override now redundant)
 
 def viewers(rid):
     """Riders who currently see rid (they receive rid's pos/SOS/leader/all/alerts)."""
@@ -465,7 +468,7 @@ async def ws_endpoint(ws: WebSocket):
                         await send_near(rider_id, {"type": "sos", "id": rider_id, "on": False})
                         await apply_link_changes(update_links(rider_id))
             elif t == "range":
-                # Change my viewing range live (no rejoin)
+                # No-op for old apps: range is fixed at MAX_RANGE_MI; just echo state back
                 if r:
                     r["range"] = my_range = valid_range(msg.get("range"))
                     await apply_link_changes(update_links(rider_id))

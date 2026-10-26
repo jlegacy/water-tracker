@@ -21,16 +21,16 @@ Matches the app as of #92 (commit 5427167). Bundle ID `com.encsr.watertracker`, 
 | Keywords (≤100) | `boat,jet ski,pwc,kayak,river,lake,ramp,marina,rider,group ride,location,sos,map,trail,water` |
 
 **Promotional text (≤170)**
-> See every rider near you on the water, pick a 1–50 mile range, mark the leader, and send an SOS to everyone around you. No account needed.
+> See every rider within 50 miles on the water, mark the leader, and send an SOS to everyone around you. No account needed.
 
 **Description**
 > Water Tracker puts you and the riders around you on one live map, so a day on the river or lake stays together.
 >
 > - No sign-up. Enter a display name and you're on the map.
-> - Pick your range. Choose 1, 5, 10, 15, 25, 30, 35, 40, 45 or 50 miles (default 5); you see every rider inside it.
+> - Everyone nearby. You automatically see every rider within 50 miles; pinch to zoom the view.
 > - Fast start. A rough location circle appears right away, then sharpens as precise GPS locks on.
 > - Leader badge. Anyone can mark themselves Leader so the group knows who to follow.
-> - SOS. One tap alerts every rider within range, and riders who go quiet are flagged.
+> - SOS. One tap alerts every rider within 50 miles, and riders who go quiet are flagged.
 > - Ride trail. Your path is drawn as a dashed line and auto-saved on your phone for 24 hours, then deleted.
 > - Ramps and marinas. Show nearby boat ramps and marinas from bundled OpenStreetMap data.
 > - Offline-safe. When the connection drops, the map locks with a clear "No internet connection" notice and resumes when you're back.
@@ -48,7 +48,7 @@ Matches the app as of #92 (commit 5427167). Bundle ID `com.encsr.watertracker`, 
 | Cartoon/realistic violence, sexual content, nudity, profanity, horror, drugs/alcohol/tobacco, gambling, contests, mature themes, medical info | None |
 | Unrestricted web access | No |
 | User-generated content / messaging between users | **Yes**: display names and direct/broadcast messages between nearby riders. **TODO**: confirm in-app report/block exists or add it (Guideline 1.2) |
-| Shares location with other users | Yes (live position to riders in range) |
+| Shares location with other users | Yes (live position to riders within 50 miles) |
 | Expected rating | **TODO**: confirm in App Store Connect (likely 12+ due to user-to-user communication and location sharing) |
 
 ---
@@ -66,7 +66,7 @@ Matches the app as of #92 (commit 5427167). Bundle ID `com.encsr.watertracker`, 
 Notes:
 - No accounts, emails, phone numbers or device IDs. A random rider ID is generated on the device and kept in local storage so a reconnect resumes the same rider. It is not tied to any person or device identifier.
 - The server keeps live positions **in memory only**. They are dropped when the rider leaves or after 30 minutes of silence. There is no database and nothing is sold.
-- Ride trails are stored **on the device** (IndexedDB) and expire **24 hours** after saving, with a ~50 MB cap. While Trail is on, a thinned recent segment is shared with riders in range.
+- Ride trails are stored **on the device** (IndexedDB) and expire **24 hours** after saving, with a ~50 MB cap. While Trail is on, a thinned recent segment is shared with riders within 50 miles.
 - Ramps/marinas come from a file bundled with the app, so the map lookup sends no location query. If that file fails to load, the app falls back to the app's own `/api/ramps` endpoint with the map center.
 - Map tiles are fetched from tile.openstreetmap.org, which receives the tile coordinates and IP address. The privacy policy discloses this.
 - All traffic uses HTTPS/WSS.
@@ -78,12 +78,12 @@ Notes:
 **Sign-in:** No login and no demo account are needed.
 
 **How to test**
-1. Launch the app, enter any display name, keep the default 5 mi range, and tap Start.
+1. Launch the app, enter any display name, and tap Start (the map opens at a 5 mi view).
 2. Allow location ("While Using", then "Always" when prompted). A faded rough circle appears at once and turns solid once precise GPS locks on.
-3. Change the range with the drop-down in the top button row (1–50 mi). Riders drop off a little past the chosen range (20% of it, at most 2 mi).
+3. Pinch to zoom; the radius readout and ring show the current view only. Every rider within 50 mi is always shown (they drop off past 52 mi).
 4. To see other riders, open the app on a second device within 5 mi, or the web version at **TODO**: give reviewers the URL, or confirm the web build may be shared. Both riders appear with names.
 5. Tap Leader to show the leader badge on your marker for other riders.
-6. Tap SOS. Every rider within range receives the alert. Tap again to cancel.
+6. Tap SOS. Every rider within 50 miles receives the alert. Tap again to cancel.
 7. Tap Ramps to show nearby boat ramps/marinas. A toast shows the count ("N ramps/marinas nearby").
 8. Turn on Trail and move. A gray dashed trail is drawn and saved on the device for 24 h ("Past" lists saved rides).
 9. Turn on Airplane Mode. The map locks with "No internet connection / Map locked until connection returns" and unlocks when back online.

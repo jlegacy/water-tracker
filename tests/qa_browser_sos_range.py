@@ -1,4 +1,4 @@
-"""Browser QA: SOS reaches a 5 mi receiver from 30 mi (max range 50); a normal rider at 30 mi stays hidden; cleared SOS hides again.
+"""Browser QA: fixed 50 mi: riders at 30 mi show outside the 5 mi ring (normal + SOS); 55 mi hidden; cleared SOS stays shown.
 Usage: python qa_browser_sos_range.py http://172.30.0.2:8777/ [chromium|webkit]"""
 import asyncio, sys, json, time, websockets
 from playwright.async_api import async_playwright
@@ -26,17 +26,17 @@ async def run(p,n,lon):
   await pg.goto(URL); await pg.wait_for_timeout(800)
   ok(n,'join screen has no range control',await pg.evaluate("()=>!document.getElementById('startRange')&&!document.getElementById('rangeNote')"))
   await pg.fill('#startName',f'QA SOS {n}'); await pg.evaluate("()=>startApp()"); await pg.wait_for_timeout(2500)
-  ok(n,'receiver range is 5 mi',await pg.evaluate("()=>myRange")==5)
-  norm=await F(f'{n}-norm30',lat+30*MI,lon).open(); sos=await F(f'{n}-sos30',lat-30*MI,lon).open(); await pg.wait_for_timeout(1500)
-  ids=await pg.evaluate("()=>Object.keys(positions).filter(k=>k!==me)"); ok(n,'nobody at 30 mi shown before SOS',ids==[],ids)
+  ok(n,'view ring 5 mi, server range 50',await pg.evaluate("()=>[myViewR,myRange]")==[5,50])
+  norm=await F(f'{n}-norm30',lat+30*MI,lon).open(); sos=await F(f'{n}-sos30',lat-30*MI,lon).open(); far=await F(f'{n}-far55',lat+55*MI,lon).open(); await pg.wait_for_timeout(1500)
+  ids=await pg.evaluate("()=>Object.keys(positions).filter(k=>k!==me)"); ok(n,'30 mi riders shown outside ring, 55 mi hidden',sorted(ids)==sorted([f'{n}-norm30',f'{n}-sos30']),ids)
   await sos.send(type='sos',on=True); await pg.wait_for_timeout(1500)
-  st=await pg.evaluate("""()=>{const id=Object.keys(positions).filter(k=>k!==me);const p=positions[id[0]]||{};
+  st=await pg.evaluate("""()=>{const id=Object.keys(positions).filter(k=>k!==me&&/sos/.test(k));const p=positions[id[0]]||{};
     const opts=[...document.getElementById('riderList').options].map(o=>[o.textContent,o.dataset.st]);
     const bar=document.getElementById('sosBar');const inMap=id.length&&map.hasLayer(riders[id[0]]);
     const d=id.length?map.distance(L.latLng(p.lat,p.lon),L.latLng(myLatLng))/1609.344:0;
     return {id,sos:!!p.sos,opts,bar:bar.style.display!=='none'?bar.textContent:'',inMap,d}}""")
   ok(n,'SOS rider at 30 mi shown (outside 5 mi circle)',st['id']==[f'{n}-sos30'] and st['sos'] and st['inMap'] and st['d']>25,st)
-  ok(n,'normal rider at 30 mi still hidden',f'{n}-norm30' not in st['id'],st)
+  ok(n,'normal rider at 30 mi also shown',await pg.evaluate(f"()=>!!positions['{n}-norm30']"),st)
   ok(n,'riders drop-down lists SOS rider as SOS',any(f'{n}-sos30' in t and s=='s' for t,s in st['opts']),st['opts'])
   ok(n,'SOS bar shown',f'{n}-sos30' in st['bar'],st['bar'])
   await pg.screenshot(path=f'/workspace/sos_range_{n}.png')
@@ -44,8 +44,8 @@ async def run(p,n,lon):
   la=await pg.evaluate(f"()=>positions['{n}-sos30']&&positions['{n}-sos30'].lat"); ok(n,'SOS position update arrives',la and abs(la-(lat-31*MI))<1e-6,la)
   await sos.send(type='sos',on=False); await pg.wait_for_timeout(1500)
   st=await pg.evaluate("()=>[Object.keys(positions).filter(k=>k!==me),[...document.getElementById('riderList').options].map(o=>o.textContent),document.getElementById('sosBar').style.display]")
-  ok(n,'SOS cleared -> rider hidden, list + bar cleared',st[0]==[] and not any('sos30' in t for t in st[1]) and st[2]=='none',st)
-  await norm.close(); await sos.close()
+  ok(n,'SOS cleared -> bar cleared, rider still shown (within 50)',f'{n}-sos30' in st[0] and st[2]=='none',st)
+  await norm.close(); await sos.close(); await far.close()
   await pg.evaluate("()=>{try{ws.send(JSON.stringify({type:'leave'}))}catch(e){}}")
   ok(n,'no page errors',not errs,errs); await c.close(); await b.close()
 async def main():
