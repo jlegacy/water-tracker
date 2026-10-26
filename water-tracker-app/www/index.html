@@ -297,7 +297,7 @@ const map = L.map('map', {
   zoomControl: false,
   rotate: true,
   bearing: 0,
-  zoomSnap: 0.5,
+  zoomSnap: 0,     // free zoom so the range-circle fit isn't re-snapped when following
   zoomDelta: 0.5,
   touchZoom: true,
   bounceAtZoomLimits: false
@@ -1270,6 +1270,7 @@ function renderMe(){
     riders[me].on('click', () => clearRiderSelection());
   }
   riders[me].setOpacity(myApprox ? 0.5 : 1); // faded = approximate (rough first fix)
+  drawRangeCircle();
   if (myApprox) return; // rough fix: draw the circle only
   if (isMoving && !followMe && Date.now() - lastUserPanAt >= FOLLOW_GRACE_MS) setFollow(true);
   if (followMe) map.panTo(myLatLng);
@@ -1968,12 +1969,32 @@ function syncRangeUi(){
   const n = document.getElementById('rangeNote');
   if (n) n.textContent = "You'll see every rider within " + myRange + " miles of you.";
 }
+// --- Faint range circle: always shown around me, radius = viewing range; auto-fit only on range change ---
+const MI_M = 1609.344;
+var rangeCircle = null, rangeFitPending = false;
+function drawRangeCircle(){
+  if (!myLatLng) return;
+  const r = myRange * MI_M;
+  if (rangeCircle){ rangeCircle.setLatLng(myLatLng); rangeCircle.setRadius(r); }
+  else rangeCircle = L.circle(myLatLng, {radius: r, interactive: false, pane: 'overlayPane', color: '#0ea5e9', weight: 1.5, opacity: 0.55, fillColor: '#0ea5e9', fillOpacity: 0.06}).addTo(map);
+  if (rangeFitPending) fitRangeCircle();
+}
+function fitRangeCircle(){
+  if (!myLatLng){ rangeFitPending = true; return; }
+  rangeFitPending = false;
+  if (typeof appOffline !== 'undefined' && appOffline) return; // map locked while offline
+  const sz = map.getSize(); if (!sz.x || !sz.y){ rangeFitPending = true; return; }
+  const px = 0.92 * Math.min(sz.x, sz.y); // circle diameter in pixels (rotation-independent)
+  const z = Math.log2(40075016.686 * Math.cos(myLatLng[0] * Math.PI / 180) * px / (256 * 2 * myRange * MI_M));
+  map.setView(myLatLng, z, {animate: false});
+}
 function setRange(v){
   const old = myRange;
   myRange = validRange(v);
   try { localStorage.setItem('trackerRange', String(myRange)); } catch(e){}
   syncRangeUi();
   if (old === myRange) return;
+  drawRangeCircle(); fitRangeCircle();
   if (ws && ws.readyState === 1 && joined) wsSend({type:'range', range: myRange}); // live, no rejoin
   const st = document.getElementById('status');
   if (st && /^Sharing — riders within/.test(st.textContent)) status(sharingText());
