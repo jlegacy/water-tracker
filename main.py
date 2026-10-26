@@ -34,6 +34,7 @@ RANGE_MI = float(os.environ.get("RANGE_MI", "5"))       # default viewing range 
 HIDE_PAD_MI = float(os.environ.get("HIDE_PAD_MI", "2"))  # hysteresis: only hide past range + pad
 HIDE_MI = RANGE_MI + HIDE_PAD_MI
 ALLOWED_RANGES = (1, 5, 10, 15, 25, 30, 35, 40, 45, 50)
+MAX_RANGE_MI = max(ALLOWED_RANGES)  # SOS riders reach every viewer within this, whatever range they picked
 HIDE_PAD_FRAC = 0.2  # small ranges: pad = 20% of range, capped at HIDE_PAD_MI (1 mi -> 0.2, 5 -> 1, 10+ -> 2)
 
 def hide_pad(rng):
@@ -252,6 +253,12 @@ def pair_in_range(dist_mi, shown, rng=None):
     rng = RANGE_MI if rng is None else rng
     return dist_mi <= rng or (shown and dist_mi <= rng + hide_pad(rng))
 
+def effective_range(viewer, subject):
+    """Range viewer uses for subject: MAX_RANGE_MI while subject is in SOS, else viewer's own pick."""
+    if subject and subject.get("sos"):
+        return MAX_RANGE_MI
+    return (viewer or {}).get("range", RANGE_MI)
+
 def viewers(rid):
     """Riders who currently see rid (they receive rid's pos/SOS/leader/all/alerts)."""
     return [v for (v, s_) in links if s_ == rid and v in riders]
@@ -280,10 +287,10 @@ def update_links(rid):
         d = None
         if r is not None and r["lat"] is not None and o["lat"] is not None:
             d = _miles(r["lat"], r["lon"], o["lat"], o["lon"])
-        for v, sub, vr in ((rid, oid, r), (oid, rid, o)):
+        for v, sub, vr, sr in ((rid, oid, r, o), (oid, rid, o, r)):
             k = (v, sub)
             was = k in links
-            now_in = d is not None and pair_in_range(d, was, (vr or {}).get("range", RANGE_MI))
+            now_in = d is not None and pair_in_range(d, was, effective_range(vr, sr))
             if now_in and not was:
                 links.add(k); changes.append((v, sub, True))
             elif was and not now_in:
@@ -447,7 +454,14 @@ async def ws_endpoint(ws: WebSocket):
             elif t == "sos":
                 if r:
                     r["sos"] = bool(msg.get("on"))
-                    await send_near(rider_id, {"type": "sos", "id": rider_id, "on": r["sos"]})
+                    if r["sos"]:
+                        # Widen to MAX_RANGE_MI first so far riders get the marker (pos with sos) and the alert
+                        await apply_link_changes(update_links(rider_id))
+                        await send_near(rider_id, {"type": "sos", "id": rider_id, "on": True})
+                    else:
+                        # Tell everyone who saw the SOS it cleared, then shrink back (far viewers get 'leave')
+                        await send_near(rider_id, {"type": "sos", "id": rider_id, "on": False})
+                        await apply_link_changes(update_links(rider_id))
             elif t == "range":
                 # Change my viewing range live (no rejoin)
                 if r:

@@ -117,3 +117,13 @@ def test_small_range_proportional_pad():
     assert p(1.15, True, 1) and not p(1.25, True, 1)   # 1 mi: hide past 1.2, not 3
     assert p(5.9, True, 5) and not p(6.1, True, 5)
     assert p(26.9, True, 25) and not p(27.1, True, 25)
+
+def test_effective_range_sos_uses_max():
+    assert main.MAX_RANGE_MI == 50 == max(main.ALLOWED_RANGES)
+    reset(); add("rx", 0)["range"] = 5; add("norm", 30); s = add("sos", -30)
+    for r in list(main.riders): main.update_links(r)
+    assert main.seen_by("rx") == []
+    s["sos"] = True; main.update_links("sos")
+    assert main.seen_by("rx") == ["sos"] and "rx" in main.viewers("sos")
+    s["sos"] = False; ch = main.update_links("sos")
+    assert ("rx", "sos", False) in ch and main.seen_by("rx") == []
