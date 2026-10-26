@@ -53,7 +53,12 @@ async def run(p,n,lon):
   ok(n,'max zoom 21',await pg.evaluate("()=>map.getMaxZoom()")==21)
   # zoom far out beyond 50: display true, server clamped 50
   await pg.evaluate("()=>{markUserZoom(); map.setZoom(rangeZoomFor(80),{animate:false})}"); await pg.wait_for_timeout(1500)
-  s=await st(); ok(n,'beyond 50: display 80 mi, server 50',s['txt']=='80 mi' and s['r']==50,s)
+  s=await st(); ok(n,'zoom-out locked at 50: display 50 mi, server 50',s['txt']=='50 mi' and s['r']==50 and abs(s['z']-pg_minz)<0.01 if (pg_minz:=await pg.evaluate("()=>map.getMinZoom()")) else False,s)
+  mz=await pg.evaluate("()=>({mz:map.getMinZoom(),want:rangeZoomFor(MAX_RANGE_MI)})"); ok(n,'minZoom == rangeZoomFor(50)',abs(mz['mz']-mz['want'])<1e-3,mz)
+  fz=await pg.evaluate("()=>{map.fitBounds([[myLatLng[0]-5,myLatLng[1]-5],[myLatLng[0]+5,myLatLng[1]+5]],{animate:false});return map.getZoom()-map.getMinZoom()}"); ok(n,'fitBounds respects 50 mi lock',fz>-0.01,fz)
+  vz=await pg.evaluate("()=>{map.setView(myLatLng,3,{animate:false});return map.getZoom()-map.getMinZoom()}"); ok(n,'setView respects 50 mi lock',fz>-0.01 and vz>-0.01,vz)
+  await pg.set_viewport_size({'width':800,'height':500}); await pg.wait_for_timeout(800)
+  r2=await pg.evaluate("()=>({mz:map.getMinZoom(),want:rangeZoomFor(MAX_RANGE_MI)})"); ok(n,'minZoom recomputed on resize',abs(r2['mz']-r2['want'])<1e-3 and abs(r2['mz']-mz['mz'])>0.1,r2)
   # live display during pinch (zoom event before zoomend)
   live=await pg.evaluate("()=>new Promise(r=>{markUserZoom();map.once('zoom',()=>r(document.getElementById('rangeVal').textContent));map.setZoom(rangeZoomFor(12),{animate:false})})")
   ok(n,'display updates live on zoom event',live=='12 mi',live)
