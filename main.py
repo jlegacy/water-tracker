@@ -48,7 +48,14 @@ def valid_range(v):
 # Colors exclude SOS red and leader purple. "default" = classic blue (others) / teal (you).
 STYLE_COLORS = ("default", "blue", "sky", "teal", "green", "lime", "yellow", "orange", "brown", "slate",
                 "navy", "mint", "amber", "black")
-STYLE_ICONS = ("initial", "jetski", "jetski_rider", "jetski_spray", "boat", "wave", "anchor", "flag", "pirate",
+# Jet-ski image icons (PNG art in water-tracker-app/www/jetski/<id>.png + @2x), listed first.
+JETSKI_ICONS = ("jetski_side_blue", "jetski_side_red", "jetski_side_green",
+                "jetski_rider_blue", "jetski_rider_red", "jetski_rider_green",
+                "jetski_front_blue", "jetski_front_red", "jetski_front_green",
+                "jetski_rear", "jetski_top")
+# Old SVG ids from #100 map to the closest new art so saved styles keep a jet ski.
+LEGACY_ICONS = {"jetski": "jetski_side_blue", "jetski_rider": "jetski_rider_blue", "jetski_spray": "jetski_rider_green"}
+STYLE_ICONS = ("initial",) + JETSKI_ICONS + ("boat", "wave", "anchor", "flag", "pirate",
                "dolphin", "shark", "fish", "turtle", "octopus", "crab", "whale", "surfer", "trident", "palm",
                "sun", "fire", "skull")
 
@@ -56,6 +63,7 @@ def valid_color(v):
     return v if isinstance(v, str) and v in STYLE_COLORS else "default"
 
 def valid_icon(v):
+    v = LEGACY_ICONS.get(v, v) if isinstance(v, str) else v
     return v if isinstance(v, str) and v in STYLE_ICONS else "initial"
 
 # ---- Boat ramps & marinas (OpenStreetMap / Overpass) ----
@@ -187,6 +195,8 @@ async def privacy_page():
     """Public privacy policy (generated from PRIVACY.md by tools/build_privacy.py)."""
     return FileResponse(WWW_DIR / "privacy.html", media_type="text/html",
                         headers={"Cache-Control": "public, max-age=3600"})
+
+app.mount("/jetski", StaticFiles(directory=WWW_DIR / "jetski"), name="jetski")
 
 @app.get("/ramps_us.json")
 async def ramps_us_json():
