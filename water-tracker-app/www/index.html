@@ -2056,10 +2056,47 @@ function fitRangeCircle(){
   rangeFitPending = false;
   if (typeof appOffline !== 'undefined' && appOffline) return; // map locked while offline
   const sz = map.getSize(); if (!sz.x || !sz.y){ rangeFitPending = true; return; }
-  const px = 0.92 * Math.min(sz.x, sz.y); // circle diameter in pixels (rotation-independent)
-  const z = Math.log2(40075016.686 * Math.cos(myLatLng[0] * Math.PI / 180) * px / (256 * 2 * myRange * MI_M));
-  map.setView(myLatLng, Math.min(z, map.getMaxZoom()), {animate: false});
+  rangeZoomGuard = true; // programmatic: don't let our own zoomend re-snap
+  try { map.setView(myLatLng, Math.min(rangeZoomFor(myRange), map.getMaxZoom()), {animate: false}); }
+  finally { setTimeout(() => { rangeZoomGuard = false; }, 0); }
 }
+// Zoom at which a circle of radius r miles spans 92% of min(screen w,h)
+function rangeZoomFor(r){
+  const sz = map.getSize(), px = 0.92 * Math.min(sz.x || 1, sz.y || 1);
+  const lat = myLatLng ? myLatLng[0] : map.getCenter().lat;
+  return Math.log2(40075016.686 * Math.cos(lat * Math.PI / 180) * px / (256 * 2 * r * MI_M));
+}
+// --- Pinch/scroll/+- zoom snaps the viewing range to the nearest option, then refits the circle ---
+var rangeZoomGuard = false, userZoomAt = 0;
+function markUserZoom(){ userZoomAt = Date.now(); }
+function rangeForZoom(z){
+  let best = myRange, bd = Infinity;
+  RANGES.forEach(r => { // respect zoom limits: an option's effective zoom is clamped like the map's
+    const zr = Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), rangeZoomFor(r)));
+    const d = Math.abs(zr - z); if (d < bd - 1e-9){ bd = d; best = r; }
+  });
+  return best;
+}
+function onUserZoomEnd(){
+  if (rangeZoomGuard || !myLatLng) return;
+  if (Date.now() - userZoomAt > 2000) return; // only zooms the user made (not fitBounds/setView elsewhere)
+  userZoomAt = 0;
+  if (typeof appOffline !== 'undefined' && appOffline) return;
+  const r = rangeForZoom(map.getZoom());
+  if (r !== myRange) setRange(r); // syncs dropdown, localStorage, server, redraw + refit
+  else fitRangeCircle();          // same option: snap back to its exact fit
+}
+(function wireUserZoom(){
+  const c = map.getContainer();
+  c.addEventListener('wheel', markUserZoom, {passive: true});
+  c.addEventListener('touchstart', e => { if (e.touches && e.touches.length > 1) markUserZoom(); }, {passive: true});
+  c.addEventListener('touchmove', e => { if (e.touches && e.touches.length > 1) markUserZoom(); }, {passive: true});
+  c.addEventListener('dblclick', markUserZoom);
+  c.addEventListener('keydown', e => { if ('+-=_'.includes(e.key)) markUserZoom(); });
+  c.addEventListener('gesturestart', markUserZoom); // iOS Safari pinch
+  document.querySelectorAll('.leaflet-control-zoom a').forEach(a => a.addEventListener('click', markUserZoom, true));
+  map.on('zoomend', onUserZoomEnd);
+})();
 function stylePreviewHtml(){
   const hex = styleHex(myStyle.c, true), e = styleEmoji(myStyle.i, 24);
   return '<span style="display:inline-flex;width:26px;height:26px;border-radius:50%;background:' + hex + ';border:2px solid #fff;box-sizing:border-box;align-items:center;justify-content:center;color:#fff;font:bold ' + (e ? 15 : 8) + 'px/1 system-ui">' + (e || 'YOU') + '</span>';
