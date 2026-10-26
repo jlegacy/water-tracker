@@ -1,4 +1,4 @@
-"""Unit tests: distance math, 25-mile range + hysteresis, per-viewer filtering."""
+"""Unit tests: distance math, range (default 5 mi; scenarios use 25) + hysteresis, per-viewer filtering."""
 import asyncio, pathlib, sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 import main
@@ -14,7 +14,7 @@ def reset():
     main.riders.clear(); main.links.clear()
 
 def add(rid, mi=None):
-    r = main.new_rider(rid, None)
+    r = main.new_rider(rid, None, rng=25)  # scenarios below use 25 mi geometry
     if mi is not None:
         r["lat"], r["lon"] = at(mi)
     main.riders[rid] = r
@@ -29,7 +29,9 @@ def test_miles_known_values():
     assert main._miles(60, 0, 60, 1) < main._miles(0, 0, 0, 1) * 0.51
 
 def test_pair_in_range_hysteresis():
-    p = main.pair_in_range
+    p = lambda d, shown: main.pair_in_range(d, shown, 25)
+    assert main.pair_in_range(5.0, False) and not main.pair_in_range(5.1, False)  # default 5 mi
+    assert main.pair_in_range(6.0, True) and not main.pair_in_range(6.1, True)    # 5 + 1 pad
     assert p(24.9, False) and p(25.0, False)
     assert not p(25.1, False) and not p(26.5, False)
     assert p(26.5, True) and p(27.0, True)
@@ -53,9 +55,9 @@ def test_links_enter_hold_leave():
 
 def test_valid_range():
     v = main.valid_range
-    assert [v(x) for x in (25, 30, 35, 40, 45, 50)] == [25, 30, 35, 40, 45, 50]
-    assert v(None) == 25 and v("40") == 40 and v(27) == 25 and v(100) == 25 and v("x") == 25 and v(-5) == 25
-    assert main.new_rider("x", None)["range"] == 25          # old client default
+    assert [v(x) for x in (1, 5, 10, 15, 25, 30, 35, 40, 45, 50)] == [1, 5, 10, 15, 25, 30, 35, 40, 45, 50]
+    assert v(None) == 5 and v("40") == 40 and v(27) == 5 and v(100) == 5 and v("x") == 5 and v(-5) == 5
+    assert main.new_rider("x", None)["range"] == 5          # old client default
     assert main.new_rider("x", None, rng=50)["range"] == 50
 
 def test_pair_in_range_custom_range():
@@ -107,3 +109,11 @@ def test_no_group_api():
     paths = {getattr(r, "path", None) for r in main.app.routes}
     assert "/api/groups" not in paths and "/api/leave" in paths
     assert not hasattr(main, "GROUP_CODES") and not hasattr(main, "groups")
+
+def test_small_range_proportional_pad():
+    p, h = main.pair_in_range, main.hide_pad
+    assert [h(r) for r in (1, 5, 10, 15, 25, 50)] == [0.2, 1.0, 2.0, 2.0, 2.0, 2.0]
+    assert p(0.9, False, 1) and not p(1.1, False, 1)
+    assert p(1.15, True, 1) and not p(1.25, True, 1)   # 1 mi: hide past 1.2, not 3
+    assert p(5.9, True, 5) and not p(6.1, True, 5)
+    assert p(26.9, True, 25) and not p(27.1, True, 25)

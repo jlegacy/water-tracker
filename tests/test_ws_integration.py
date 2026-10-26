@@ -26,6 +26,9 @@ def url():
 class C:
     def __init__(s, url, rid, lon=None): s.url, s.id, s.msgs, s.lon = url, rid, [], lon if lon is not None else LON[0]
     async def open(s, mi=None, **kw):
+        # These scenarios are built on 25 mi geometry; pass range=None to act as an old client (server default)
+        kw.setdefault("range", 25)
+        if kw["range"] is None: kw.pop("range")
         s.ws = await websockets.connect(s.url)
         await s.ws.send(json.dumps(dict(type="join", id=s.id, name=s.id, **kw)))
         s.task = asyncio.create_task(s._rx())
@@ -154,16 +157,17 @@ def test_leave_beacon_by_id(url):
 # ---- Per-rider viewing range ----
 def test_ranges_24_32_48_52(url):
     async def go():
-        m25 = await C(url, "g25").open(0)                       # old client: no range -> 25
+        m25 = await C(url, "g25").open(0, range=None)            # old client: no range -> 5
         m35 = await C(url, "g35").open(0.1, range=35)
         m50 = await C(url, "g50").open(0.2, range=50)
-        bad = await C(url, "gbad").open(0.3, range=99)          # invalid -> 25
-        assert m25.of("joined")[0]["range"] == 25 and bad.of("joined")[0]["range"] == 25
-        assert m50.of("joined")[0]["range"] == 50 and m50.of("joined")[0]["ranges"] == [25, 30, 35, 40, 45, 50]
+        bad = await C(url, "gbad").open(0.3, range=99)          # invalid -> 5
+        assert m25.of("joined")[0]["range"] == 5 and bad.of("joined")[0]["range"] == 5
+        assert m50.of("joined")[0]["range"] == 50 and m50.of("joined")[0]["ranges"] == [1, 5, 10, 15, 25, 30, 35, 40, 45, 50]
         r = {mi: await C(url, f"g{mi}mi").open(mi if mi != 52 else -52) for mi in (24, 32, 48, 52)}
         far = lambda s: sorted(x for x in s if x.endswith("mi"))
+        assert far(await m25.snapshot()) == [] and far(await bad.snapshot()) == []   # 5 mi default
+        await m25.send(type="range", range=25); await asyncio.sleep(0.15)
         assert far(await m25.snapshot()) == ["g24mi"]
-        assert far(await bad.snapshot()) == ["g24mi"]
         assert far(await m35.snapshot()) == ["g24mi", "g32mi"]
         assert far(await m50.snapshot()) == ["g24mi", "g32mi", "g48mi"]
         for x in (m25, m35, m50, bad, *r.values()): await x.close()
@@ -182,7 +186,7 @@ def test_switch_range_live(url):
         me.clear(); await me.send(type="range", range=25); await asyncio.sleep(0.15)
         assert me.of("leave", id="w32") and (await me.snapshot()) == []
         me.clear(); await me.send(type="range", range=77); await asyncio.sleep(0.15)
-        assert me.of("range", range=25)                                       # invalid -> default
+        assert me.of("range", range=5)                                        # invalid -> default (5)
         for x in (me, r32, r48): await x.close()
     run(go())
 

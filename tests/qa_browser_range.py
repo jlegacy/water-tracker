@@ -26,7 +26,7 @@ async def run(p,n):
   pg=await c.new_page(); errs=[]; nav=[False]; navErrs=[]; pg.on('pageerror',lambda e:(navErrs if nav[0] else errs).append(str(e)))
   await pg.goto(URL); await pg.wait_for_timeout(1200)
   v=await pg.evaluate("()=>[document.getElementById('startRange')&&document.getElementById('startRange').value,!!document.getElementById('rangeSel'),[...document.getElementById('startRange').options].map(o=>o.value),document.getElementById('rangeNote').textContent]")
-  ok(n,'join drop-down present, default 25',v[0]=='25' and v[1] and v[2]==['25','30','35','40','45','50'] and '25 miles' in v[3],v)
+  ok(n,'join drop-down present, default 5',v[0]=='5' and v[1] and v[2]==['1','5','10','15','25','30','35','40','45','50'] and '5 miles' in v[3],v)
   await pg.click('#nameScreen .cpick.rng-start .cbtn'); await pg.click("#nameScreen .cpick.rng-start .cmenu div:text-is('35 mi')")
   v=await pg.evaluate("()=>[localStorage.getItem('trackerRange'),document.getElementById('rangeNote').textContent]")
   ok(n,'join pick persisted + note updates',v[0]=='35' and '35 miles' in v[1],v)
@@ -50,7 +50,7 @@ async def run(p,n):
   v=await pg.evaluate("()=>[document.getElementById('startRange').value,document.getElementById('rangeSel').value,document.getElementById('rangeNote').textContent]")
   ok(n,'persists after reload (40)',v[0]=='40' and v[1]=='40' and '40 miles' in v[2],v)
   await pg.evaluate("()=>localStorage.setItem('trackerRange','99')"); nav[0]=True; await pg.reload(); await pg.wait_for_timeout(800); nav[0]=False
-  v=await pg.evaluate("()=>document.getElementById('startRange').value"); ok(n,'bad stored value -> 25',v=='25',v)
+  v=await pg.evaluate("()=>document.getElementById('startRange').value"); ok(n,'bad stored value -> 5',v=='5',v)
   await pg.evaluate("()=>{try{navigator.sendBeacon&&0}catch(e){}}")
   for f in fs: await f.close()
   ok(n,'no page errors',not errs,errs); print(n,'errors during reload (cancelled fetch, informational):',navErrs)

@@ -15,17 +15,18 @@ with sync_playwright() as p:
     pg=c.new_page(); e=[]; pg.on('pageerror',lambda x:e.append(str(x)))
     pg.goto(sys.argv[1]); pg.wait_for_timeout(800); pg.fill('#startName','QA Circle '+n); pg.evaluate('startApp()'); pg.wait_for_timeout(1800)
     s=pg.evaluate("()=>[!!rangeCircle,rangeCircle&&rangeCircle.getRadius(),rangeCircle&&rangeCircle.options.interactive,rangeCircle&&rangeCircle.options.fillOpacity,rangeCircle&&rangeCircle._path.closest('.leaflet-overlay-pane')!=null,getComputedStyle(rangeCircle._path).pointerEvents]")
-    ok(f'{n} faint circle shown at start, non-interactive, in overlay pane',s[0] and abs(s[1]-25*1609.344)<1 and s[2] is False and s[3]<=0.08 and s[4] and s[5]=='none',s)
+    ok(f'{n} faint circle shown at start, non-interactive, in overlay pane',s[0] and abs(s[1]-5*1609.344)<1 and s[2] is False and s[3]<=0.08 and s[4] and s[5]=='none',s)
     rad=[]
-    for v in (30,35,40,45,50,25):
+    for v in (1,5,10,15,30,35,40,45,50,25):
       pg.click('#bar .cpick.rng .cbtn'); pg.click(f"#bar .cpick.rng .cmenu div:text-is('{v} mi')"); pg.wait_for_timeout(400)
       rad.append(round(pg.evaluate('rangeCircle.getRadius()')/1609.344,3))
-    ok(f'{n} radius matches each option',rad==[30,35,40,45,50,25],rad)
+    ok(f'{n} radius matches each option',rad==[1,5,10,15,30,35,40,45,50,25],rad)
     pg.evaluate("map.setZoom(12)"); pg.wait_for_timeout(300)
-    for a,z in ((25,50),(50,25)):
+    for a,z in ((25,50),(50,1),(1,5),(5,10),(10,15),(15,25)):
       pg.click('#bar .cpick.rng .cbtn'); pg.click(f"#bar .cpick.rng .cmenu div:text-is('{z} mi')"); pg.wait_for_timeout(700)
       bx=pg.evaluate(BOX); ok(f'{n} {a}->{z}: whole circle visible, ~screen width',inview(bx),{k:round(v,2) for k,v in bx.items()})
       pg.screenshot(path=f'/workspace/circle_{n}_{z}.png')
+      if z==1: zz=pg.evaluate('[map.getZoom(),map.getMaxZoom()]'); ok(f'{n} 1 mi zoom within limits',zz[0]<=zz[1] and zz[0]>=12,zz)
     pg.evaluate("map.setBearing(40)"); pg.wait_for_timeout(300)
     pg.click('#bar .cpick.rng .cbtn'); pg.click("#bar .cpick.rng .cmenu div:text-is('40 mi')"); pg.wait_for_timeout(700)
     bx=pg.evaluate(BOX); ok(f'{n} heading-up (bearing 40) fit ok',inview(bx),{k:round(v,2) for k,v in bx.items()}); pg.evaluate("map.setBearing(0)"); pg.wait_for_timeout(500)

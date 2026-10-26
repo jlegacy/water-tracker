@@ -12,7 +12,7 @@ def ok(n,k,v,d=''): R.append((n+' '+k,bool(v))); print(n,k,'PASS' if v else 'FAI
 class F:
   def __init__(s,rid,**kw): s.id=rid; s.kw=kw; s.msgs=[]
   async def open(s,mi):
-    s.ws=await websockets.connect(WS); await s.ws.send(json.dumps(dict(type='join',id=s.id,name=s.id,**s.kw)))
+    s.ws=await websockets.connect(WS); await s.ws.send(json.dumps(dict(type='join',id=s.id,name=s.id,**{'range':25,**s.kw})))
     s.t=asyncio.create_task(s.rx()); await s.move(mi); return s
   async def rx(s):
     try:
@@ -32,13 +32,14 @@ async def run(p,n):
   gone=await pg.evaluate("()=>[!!document.getElementById('startGroup'),!!document.getElementById('groupDisplay'),typeof switchGroup]")
   ok(n,'group pickers gone',gone==[False,False,'undefined'],gone)
   txt=await pg.evaluate("()=>document.getElementById('startScreen')?document.getElementById('startScreen').innerText:document.body.innerText")
-  ok(n,'join screen says 25 miles','25 miles' in txt,txt[:200])
+  ok(n,'join screen says 5 miles','within 5 miles' in txt,txt[:200])
   await pg.fill('#startName',f'QA {n}'); await pg.evaluate("()=>startApp()"); await pg.wait_for_timeout(800)
   st=await pg.evaluate("()=>document.getElementById('status').textContent")
   ok(n,'waiting for location before fix',st=='Waiting for location…',st)
   await pg.wait_for_timeout(3500)
   st=await pg.evaluate("()=>document.getElementById('status').textContent")
-  ok(n,'sharing after fix',st=='Sharing — riders within 25 mi',st)
+  ok(n,'sharing after fix',st=='Sharing — riders within 5 mi',st)
+  await pg.evaluate("()=>setRange(25)"); await pg.wait_for_timeout(500)  # scenario below uses 25 mi geometry
   me=await pg.evaluate("()=>me")
   a=await F(f'{n}-A24',leader=True).open(24); b=await F(f'{n}-B26').open(-26); cc=await F(f'{n}-C28').open(-28); l2=await F(f'{n}-L2',leader=True).open(5)
   await pg.wait_for_timeout(2500)
