@@ -819,6 +819,7 @@ function showBanner(text, fromId){
 }
 
 function selectRiderFromMap(id){
+  if (riders[id] && riders[id].getLatLng){ userMovedMap(); map.panTo(riders[id].getLatLng()); } // center on tapped rider (autoPan is off)
   const sel = document.getElementById('riderList');
   if (!sel || !positions[id]) return;
   if (![...sel.options].some(o => o.value === id)){ lastListKey = null; updateRiderList(); }
@@ -1350,8 +1351,8 @@ function renderMe(){
     }
   } else {
     meIconKind = meKind;
-    riders[me] = L.marker(myLatLng,{icon: buildMeIcon(meKind), zIndexOffset:2000}).addTo(map).bindPopup(myName + ' (you)<br><a href="#" onclick="map.closePopup();openStylePanel();return false;">Change marker color</a>');
-    riders[me].on('click', () => clearRiderSelection());
+    riders[me] = L.marker(myLatLng,{icon: buildMeIcon(meKind), zIndexOffset:2000}).addTo(map).bindPopup(myName + ' (you)<br><a href="#" onclick="map.closePopup();openStylePanel();return false;">Change marker color</a>', {autoPan:false}); // leaflet-rotate autopan pans the wrong way in Heading Up
+    riders[me].on('click', () => { clearRiderSelection(); map.panTo(riders[me].getLatLng()); });
   }
   riders[me].setOpacity(myApprox ? 0.5 : 1); // faded = approximate (rough first fix)
   drawRangeCircle();
@@ -1762,7 +1763,7 @@ function upsert(r){
       riders[r.id].setIcon(riderIcon(stale, isLeader, name, mot.moving, mot.heading, isSos, st.c, st.i));
     riders[r.id].setPopupContent(riderPopup(r.id));
   } else {
-    riders[r.id] = L.marker([r.lat, r.lon],{icon: riderIcon(stale, isLeader, name, mot.moving, mot.heading, isSos, st.c, st.i), zIndexOffset: isSos ? 1500 : (isLeader ? 1000 : 0)}).addTo(map).bindPopup(riderPopup(r.id));
+    riders[r.id] = L.marker([r.lat, r.lon],{icon: riderIcon(stale, isLeader, name, mot.moving, mot.heading, isSos, st.c, st.i), zIndexOffset: isSos ? 1500 : (isLeader ? 1000 : 0)}).addTo(map).bindPopup(riderPopup(r.id), {autoPan:false});
     const rid = r.id;
     riders[rid].on('click', () => selectRiderFromMap(rid));
     riders[rid].on('popupopen', () => riders[rid].setPopupContent(riderPopup(rid)));
