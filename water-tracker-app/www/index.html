@@ -652,6 +652,7 @@ async function purgeExpiredRides(db){
       tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error);
     });
     schedulePurge(next); // timer to the soonest remaining expiry
+    if (n && myPastLayer) setTimeout(showMyRecentTrails, 0); // expired trails leave the map too
     return n;
   } catch(e){ console.warn('trail purge failed', e); return 0; }
   finally { if (own){ try { db.close(); } catch(_){} } }
@@ -722,6 +723,20 @@ async function archiveCurrentRide(reason){
     // Keep live buffer if archive failed so user doesn't lose the ride silently mid-session
     return false;
   }
+}
+// Saved trails (<24 h, IndexedDB on this device) are redrawn after leaving/rejoining or a reload.
+// Previously they were archived on leave but never shown again (Past rides UI has no button).
+let myPastLayer = null;
+async function showMyRecentTrails(){
+  try {
+    await recoverRideDraft();
+    const rides = (await listArchivedRides()).filter(r => !rideExpired(r));
+    if (typeof map === 'undefined' || !map) return 0;
+    if (!myPastLayer) myPastLayer = L.layerGroup().addTo(map);
+    myPastLayer.clearLayers();
+    rides.forEach(r => { const ll = trailLatLngs(r.points || []); if (ll.length >= 2) L.polyline(ll, trailPolyOpts()).addTo(myPastLayer); });
+    return rides.length;
+  } catch(e){ console.warn('restore trails failed', e); return 0; }
 }
 function formatRideLabel(r){
   const d = new Date(r.endedAt || r.startedAt || Date.now());
@@ -1953,6 +1968,7 @@ function setTrailOn(on){
   if (!next && trailOn){
     // Turning off: archive current ride, clear live path, tell group
     archiveCurrentRide('trail-off').then(saved => {
+      showMyRecentTrails();
       wsSend({type:'trail', points:[]});
       status(saved ? 'Trail off — ride saved' : 'Trail off');
     });
@@ -2116,6 +2132,7 @@ function startApp(){
   status(WAITING_TEXT);
   roughFirstFix(); // circle in ~1s instead of waiting on cold GPS
   connect();
+  showMyRecentTrails(); // bring back this device's trails from the last 24 h
   requestWakeLock();
 
   // Prefer native background geolocation when running inside Capacitor
