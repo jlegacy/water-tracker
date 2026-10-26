@@ -20,8 +20,8 @@ with sync_playwright() as p:
     A.click('#styleOpenJoin'); A.wait_for_timeout(200)
     vis=A.evaluate("()=>{const p=document.getElementById('stylePanel');const r=p.querySelector('.box').getBoundingClientRect();return [p.classList.contains('open'),r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight&&document.documentElement.scrollWidth<=innerWidth,document.querySelectorAll('#styleColors .sw').length,document.querySelectorAll('#styleIcons .ic').length,[...document.querySelectorAll('#styleColors .sw')].map(x=>getComputedStyle(x).backgroundColor)]}")
     bad=[c for c in vis[4] if c in ('rgb(220, 38, 38)','rgb(139, 92, 246)','rgb(239, 68, 68)')]
-    ok(f'{n} join picker opens on-screen, 14 colors / 22 icons, no SOS red/leader purple',vis[0] and vis[1] and vis[2]==14 and vis[3]==22 and not bad,vis[:4])
-    A.click("#styleColors .sw[data-c='navy']"); A.click("#styleIcons .ic[data-i='jetski_rider']"); A.screenshot(path=f'/workspace/style_{n}_picker.png')
+    ok(f'{n} join picker opens on-screen, 14 colors / 30 icons, no SOS red/leader purple',vis[0] and vis[1] and vis[2]==14 and vis[3]==30 and not bad,vis[:4])
+    A.click("#styleColors .sw[data-c='navy']"); A.click("#styleIcons .ic[data-i='jetski_rider_blue']"); A.wait_for_timeout(400); A.screenshot(path=f'/workspace/style_{n}_picker.png')
     A.click("#styleColors .sw[data-c='orange']"); A.click("#styleIcons .ic[data-i='shark']")
     A.click('#stylePanel .done')
     A.fill('#startName','QA Styler '+n); A.evaluate('startApp()'); A.wait_for_timeout(1500)
@@ -39,11 +39,24 @@ with sync_playwright() as p:
     A.click('#lookBtn'); A.click("#styleColors .sw[data-c='green']"); A.click("#styleIcons .ic[data-i='anchor']"); A.click('#stylePanel .done'); A.wait_for_timeout(2500)
     m=B.evaluate(MARK,aid); ok(f'{n} live change propagates (green anchor)',m and m['txt']=='⚓' and 'rgb(22, 163, 74)' in m['bgs'],m)
     B.screenshot(path=f'/workspace/style_{n}_observer_map.png')
-    for ji in ('jetski','jetski_rider','jetski_spray'):
-      A.click('#lookBtn'); A.click(f"#styleIcons .ic[data-i='{ji}']"); A.click('#stylePanel .done'); A.wait_for_timeout(1300)
-      sv=B.evaluate("(id)=>{const s=riders[id]._icon.querySelector('svg');if(!s)return null;const r=s.getBoundingClientRect();return [r.width>=12&&r.width<=24,getComputedStyle(s).fill,s.querySelectorAll('path,circle').length]}",aid)
-      ok(f'{n} custom SVG {ji} renders white on other rider marker',sv and sv[0] and sv[1]=='rgb(255, 255, 255)',sv)
-      if ji=='jetski_spray': B.screenshot(path=f'/workspace/style_{n}_observer_jetski.png')
+    pk=A.evaluate("()=>{const ic=[...document.querySelectorAll('#styleIcons .ic')].map(x=>x.dataset.i);return ic}")
+    for ji in ('jetski_side_blue','jetski_side_red','jetski_side_green','jetski_rider_blue','jetski_rider_red','jetski_rider_green','jetski_front_blue','jetski_front_red','jetski_front_green','jetski_rear','jetski_top'):
+      A.click('#lookBtn'); A.click(f"#styleIcons .ic[data-i='{ji}']")
+      pi=A.evaluate("(ji)=>{const i=document.querySelector(`#styleIcons .ic[data-i='${ji}'] img`);return i&&[i.complete&&i.naturalWidth>0,i.getBoundingClientRect().width]}",ji)
+      A.click('#stylePanel .done'); B.wait_for_function("([id,ji])=>{const i=riders[id]&&riders[id]._icon&&riders[id]._icon.querySelector('img.jsimg');return i&&i.complete&&i.currentSrc.includes(ji)}",arg=[aid,ji],timeout=8000)
+      sv=B.evaluate("(id)=>{const i=riders[id]._icon.querySelector('img.jsimg');if(!i)return null;const r=i.getBoundingClientRect();return [i.complete&&i.naturalWidth>0,r.width,i.currentSrc.split('/').pop()]}",aid)
+      ok(f'{n} jetski image {ji} loads in picker + other rider marker (>=30px)',pi and pi[0] and sv and sv[0] and sv[1]>=30 and ji in sv[2],[pi,sv])
+      if ji=='jetski_rider_blue':
+        B.evaluate("(id)=>map.setView(riders[id].getLatLng(),16,{animate:false})",aid); B.wait_for_timeout(1500)
+        B.screenshot(path=f'/workspace/style_{n}_observer_jetski.png')
+        el=B.evaluate("(id)=>{const r=riders[id]._icon.getBoundingClientRect();return [r.x,r.y,r.width,r.height]}",aid)
+        B.screenshot(path=f'/workspace/style_{n}_marker_zoom.png',clip={'x':max(0,el[0]-60),'y':max(0,el[1]-60),'width':el[2]+120,'height':el[3]+120})
+    ok(f'{n} jet skis listed first in picker',pk[1:12]==['jetski_side_blue','jetski_side_red','jetski_side_green','jetski_rider_blue','jetski_rider_red','jetski_rider_green','jetski_front_blue','jetski_front_red','jetski_front_green','jetski_rear','jetski_top'],pk[:12])
+    # moving rider with heading still gets a pointer that rotates
+    ar=B.evaluate("()=>{const d=document.createElement('div');d.innerHTML=riderIcon(false,false,'x',true,90,false,'navy','jetski_top').options.html;return !!d.querySelector('.rider-arrow')&&!!d.querySelector('img.jsimg')}")
+    ok(f'{n} moving jetski marker has heading pointer',ar,ar)
+    # legacy SVG id saved in localStorage maps to new art
+    lg=A.evaluate("()=>validStyle({c:'navy',i:'jetski_spray'}).i"); ok(f'{n} legacy jetski id maps to image icon',lg=='jetski_rider_green',lg)
     A.click('#lookBtn'); A.click("#styleIcons .ic[data-i='anchor']"); A.click('#stylePanel .done'); A.wait_for_timeout(1300)
     # leader override: purple + star, custom icon hidden
     A.click('#leaderBtn'); A.wait_for_timeout(2500)
