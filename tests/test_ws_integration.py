@@ -26,7 +26,7 @@ def url():
 class C:
     def __init__(s, url, rid, lon=None): s.url, s.id, s.msgs, s.lon = url, rid, [], lon if lon is not None else LON[0]
     async def open(s, mi=None, **kw):
-        # These scenarios are built on 25 mi geometry; pass range=None to act as an old client (server default)
+        # Server ignores range (fixed 50 mi); 25 is sent like an old client would; range=None omits it
         kw.setdefault("range", 25)
         if kw["range"] is None: kw.pop("range")
         s.ws = await websockets.connect(s.url)
@@ -56,20 +56,20 @@ def run(coro):
     LON[0] = area()
     return asyncio.run(coro)
 
-def test_25_mile_list_and_hysteresis(url):
+def test_50_mile_list_and_hysteresis(url):
     async def go():
         me = await C(url, "h_me").open(0)
-        a, b, c = [await C(url, n).open(mi) for n, mi in (("h24", 24), ("h26", -26), ("h28", -28))]
-        assert (await me.snapshot()) == ["h24"]                  # 26/28 hidden
-        assert (await b.snapshot()) == ["h28"]                   # 26 & 28 are 2 mi apart
-        me.clear(); await a.move(26.5)                           # hysteresis: stays
-        assert not me.of("leave", id="h24") and (await me.snapshot()) == ["h24"]
-        me.clear(); await a.move(27.5)                           # past 27: explicit leave
-        assert me.of("leave", id="h24") and (await me.snapshot()) == []
-        me.clear(); await a.move(26)                             # 26 < 27 but was hidden -> stays hidden
+        a, b, c = [await C(url, n).open(mi) for n, mi in (("h49", 49), ("h51", -51), ("h53", -53))]
+        assert (await me.snapshot()) == ["h49"]                  # 51/53 hidden
+        assert (await b.snapshot()) == ["h53"]
+        me.clear(); await a.move(51.5)                           # hysteresis: stays
+        assert not me.of("leave", id="h49") and (await me.snapshot()) == ["h49"]
+        me.clear(); await a.move(52.5)                           # past 52: explicit leave
+        assert me.of("leave", id="h49") and (await me.snapshot()) == []
+        me.clear(); await a.move(51)                             # was hidden -> stays hidden
         assert (await me.snapshot()) == []
-        me.clear(); await a.move(24)                             # re-enters with an immediate pos
-        assert me.of("pos", id="h24") and (await me.snapshot()) == ["h24"]
+        me.clear(); await a.move(49)
+        assert me.of("pos", id="h49") and (await me.snapshot()) == ["h49"]
         for x in (me, a, b, c): await x.close()
     run(go())
 
@@ -93,7 +93,7 @@ def test_sos_and_alerts_reach_only_nearby(url):
 def test_stale_alert_to_nearby_only(url):
     async def go():
         q = await C(url, "q_quiet").open(0)
-        near, far = await C(url, "q_near").open(3), await C(url, "q_far").open(40)
+        near, far = await C(url, "q_near").open(40), await C(url, "q_far").open(-60)
         await q.ws.close()                                        # drop without leave
         for _ in range(60):
             if near.of("alert", id="q_quiet"): break
@@ -155,76 +155,53 @@ def test_leave_beacon_by_id(url):
     run(go())
 
 # ---- Per-rider viewing range ----
-def test_ranges_24_32_48_52(url):
+def test_client_range_ignored(url):
     async def go():
-        m25 = await C(url, "g25").open(0, range=None)            # old client: no range -> 5
-        m35 = await C(url, "g35").open(0.1, range=35)
-        m50 = await C(url, "g50").open(0.2, range=50)
-        bad = await C(url, "gbad").open(0.3, range="x")         # junk -> 5
-        assert m25.of("joined")[0]["range"] == 5 and bad.of("joined")[0]["range"] == 5
-        assert m50.of("joined")[0]["range"] == 50 and m50.of("joined")[0]["range_max"] == 50 and m50.of("joined")[0]["range_min"] == 1
-        r = {mi: await C(url, f"g{mi}mi").open(mi if mi != 52 else -52) for mi in (24, 32, 48, 52)}
+        cs = [await C(url, f"g{i}").open(0.1 * i, range=v) for i, v in enumerate((None, 1, 25, "x", 77))]
+        assert all(c.of("joined")[0]["range"] == 50 for c in cs)
+        r = {mi: await C(url, f"g{mi}mi").open(mi if mi != 53 else -53) for mi in (24, 48, 53)}
         far = lambda s: sorted(x for x in s if x.endswith("mi"))
-        assert far(await m25.snapshot()) == [] and far(await bad.snapshot()) == []   # 5 mi default
-        await m25.send(type="range", range=25); await asyncio.sleep(0.15)
-        assert far(await m25.snapshot()) == ["g24mi"]
-        assert far(await m35.snapshot()) == ["g24mi", "g32mi"]
-        assert far(await m50.snapshot()) == ["g24mi", "g32mi", "g48mi"]
-        for x in (m25, m35, m50, bad, *r.values()): await x.close()
+        for c in cs: assert far(await c.snapshot()) == ["g24mi", "g48mi"]
+        for x in (*cs, *r.values()): await x.close()
     run(go())
 
-def test_switch_range_live(url):
+def test_range_message_is_noop(url):
     async def go():
         me = await C(url, "w_me").open(0)
         r32, r48 = await C(url, "w32").open(32), await C(url, "w48").open(48)
-        assert (await me.snapshot()) == []
-        me.clear(); await me.send(type="range", range=50); await asyncio.sleep(0.15)
-        assert me.of("range", range=50) and me.of("pos", id="w32") and me.of("pos", id="w48")
         assert (await me.snapshot()) == ["w32", "w48"]
-        me.clear(); await me.send(type="range", range=30); await asyncio.sleep(0.15)
-        assert me.of("leave", id="w48") and not me.of("leave", id="w32")    # 32 <= 30+2 hysteresis
-        me.clear(); await me.send(type="range", range=25); await asyncio.sleep(0.15)
-        assert me.of("leave", id="w32") and (await me.snapshot()) == []
-        me.clear(); await me.send(type="range", range=33.5); await asyncio.sleep(0.15)
-        assert me.of("range", range=33.5) and me.of("pos", id="w32")         # any float 1-50
-        me.clear(); await me.send(type="range", range=77); await asyncio.sleep(0.15)
-        assert me.of("range", range=50) and me.of("pos", id="w48")           # clamped to 50
-        me.clear(); await me.send(type="range", range=0.4); await asyncio.sleep(0.15)
-        assert me.of("range", range=1)                                        # clamped to 1
+        for v in (1, 30, 0.4, 77):
+            me.clear(); await me.send(type="range", range=v); await asyncio.sleep(0.15)
+            assert me.of("range", range=50) and not me.of("leave") and (await me.snapshot()) == ["w32", "w48"]
         for x in (me, r32, r48): await x.close()
     run(go())
 
-def test_sos_leader_by_recipient_range(url):
+def test_sos_leader_within_50(url):
     async def go():
-        sos = await C(url, "k_sos").open(0, leader=True)                     # default 25
-        d25 = await C(url, "k25").open(29)                                   # 29 mi, range 25: SOS still reaches (max 50)
-        d40 = await C(url, "k40").open(-38, range=40)                        # 38 mi, range 40: yes
-        d50 = await C(url, "k50").open(51, range=50)                         # 51 mi: no
+        sos = await C(url, "k_sos").open(0, leader=True)
+        d29 = await C(url, "k29").open(29, range=1)
+        d51 = await C(url, "k51").open(-51)
         await sos.send(type="sos", on=True); await asyncio.sleep(0.15)
-        assert d40.of("sos", id="k_sos", on=True) and d25.of("sos", id="k_sos", on=True) and not d50.of("sos")
-        assert any(m.get("id") == "k_sos" and m.get("sos") for m in d25.of("pos"))   # marker delivered with SOS flag
-        snap = {e["id"]: e for e in (d40.clear() or (await d40.send(type="sync")) or (await asyncio.sleep(0.15)) or d40.of("riders")[-1]["riders"])}
-        assert snap["k_sos"]["leader"] and snap["k_sos"]["sos"]
+        assert d29.of("sos", id="k_sos", on=True) and not d51.of("sos")
         await sos.send(type="broadcast", text="all-r"); await asyncio.sleep(0.15)
-        assert d40.of("msg", text="all-r") and not d50.of("msg")
-        # k_sos (range 25) does not see k40 — asymmetric
-        assert "k40" not in await sos.snapshot()
-        d25.clear(); await sos.send(type="sos", on=False); await asyncio.sleep(0.15)
-        assert d25.of("sos", id="k_sos", on=False) and d25.of("leave", id="k_sos")   # cleared -> hidden again (29 > 25)
-        for x in (d25, d40, d50): await x.close()
+        assert d29.of("msg", text="all-r") and not d51.of("msg")
+        assert "k29" in await sos.snapshot()                                 # symmetric now
+        d29.clear(); await sos.send(type="sos", on=False); await asyncio.sleep(0.15)
+        assert d29.of("sos", id="k_sos", on=False) and not d29.of("leave", id="k_sos")  # still within 50
+        for x in (d29, d51): await x.close()
         await sos.close()
     run(go())
 
-def test_stale_alert_by_recipient_range(url):
+def test_stale_alert_within_50(url):
     async def go():
         q = await C(url, "z_quiet").open(0)
-        wide, narrow = await C(url, "z_wide").open(45, range=50), await C(url, "z_narrow").open(-45)
+        a, b = await C(url, "z_a").open(45, range=1), await C(url, "z_b").open(-55)
         await q.ws.close()
         for _ in range(60):
-            if wide.of("alert", id="z_quiet"): break
-            await wide.send(type="ping"); await narrow.send(type="ping"); await asyncio.sleep(0.2)
-        assert wide.of("alert", id="z_quiet") and not narrow.of("alert")
-        for x in (wide, narrow): await x.close()
+            if a.of("alert", id="z_quiet"): break
+            await a.send(type="ping"); await b.send(type="ping"); await asyncio.sleep(0.2)
+        assert a.of("alert", id="z_quiet") and not b.of("alert")
+        for x in (a, b): await x.close()
     run(go())
 
 def test_style_propagates_and_validates(url):
@@ -243,27 +220,22 @@ def test_style_propagates_and_validates(url):
         assert b.of("style", id="st_a", color="default", icon="initial")   # not in allowlist -> defaults
         await a.send(type="style", color="teal", icon="wave"); b.clear(); await a.move(1)
         p = b.of("pos", id="st_a")[-1]; assert (p["color"], p["icon"]) == ("teal", "initial")   # carried on pos
-        far = await C(url, "st_far").open(-40); await a.send(type="style", color="lime", icon="fish"); await asyncio.sleep(0.1)
+        far = await C(url, "st_far").open(-60); await a.send(type="style", color="lime", icon="fish"); await asyncio.sleep(0.1)
         assert not far.of("style")                               # out of range: not sent
         for x in (a, b, far): await x.close()
     run(go())
 
-def test_sos_reaches_max_range_then_hides(url):
+def test_sos_within_50_then_hides_past_52(url):
     async def go():
         rx = await C(url, "m_rx").open(0, range=5)
-        normal = await C(url, "m_norm").open(30, range=50)
         sos = await C(url, "m_sos").open(-30, range=5)
-        assert (await rx.snapshot()) == []                                   # 30 mi: neither visible at 5 mi
+        assert (await rx.snapshot()) == ["m_sos"]                            # 30 mi visible without SOS
         rx.clear(); await sos.send(type="sos", on=True); await asyncio.sleep(0.15)
-        assert rx.of("sos", id="m_sos", on=True) and any(m.get("id") == "m_sos" and m.get("sos") for m in rx.of("pos"))
-        assert (await rx.snapshot()) == ["m_sos"]                            # normal rider at 30 still hidden
-        rx.clear(); await sos.move(-31); assert rx.of("pos", id="m_sos")     # position updates use max range
-        rx.clear(); await sos.move(-53); assert rx.of("leave", id="m_sos")   # past 50 + 2: gone even in SOS
-        await sos.move(-30); assert (await rx.snapshot()) == ["m_sos"]
+        assert rx.of("sos", id="m_sos", on=True)
+        rx.clear(); await sos.move(-53); assert rx.of("leave", id="m_sos")   # past 50 + 2
         rx.clear(); await sos.send(type="sos", on=False); await asyncio.sleep(0.15)
-        assert rx.of("sos", id="m_sos", on=False) and rx.of("leave", id="m_sos")
-        assert (await rx.snapshot()) == []
-        for x in (rx, normal, sos): await x.close()
+        await sos.move(-30); assert (await rx.snapshot()) == ["m_sos"]
+        for x in (rx, sos): await x.close()
     run(go())
 
 def test_sos_rider_quiet_alert_reaches_max_range(url):

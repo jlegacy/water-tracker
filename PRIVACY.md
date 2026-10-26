@@ -17,18 +17,18 @@ Water Tracker is a live map that lets people on boats, jet skis and kayaks see e
 | Data | Why | Where it goes | How long |
 |---|---|---|---|
 | Display name you type | Shown to nearby riders | Our server (memory), nearby riders | Until you leave or 30 min of silence |
-| Precise location (foreground and background) | Show you to riders in range; SOS and "gone quiet" alerts | Our server (memory), riders whose range includes you | Until you leave or 30 min of silence |
-| Leader badge and SOS status | Shown to riders in range | Our server (memory), riders in range | Same as above |
-| Messages you send | Delivered to the rider you pick, or to riders in range for a broadcast | Relayed by our server; not stored | Not stored after delivery |
+| Precise location (foreground and background) | Show you to riders within 50 miles; SOS and "gone quiet" alerts | Our server (memory), riders within 50 miles of you | Until you leave or 30 min of silence |
+| Leader badge and SOS status | Shown to riders within 50 miles | Our server (memory), riders within 50 miles | Same as above |
+| Messages you send | Delivered to the rider you pick, or to riders within 50 miles for a broadcast | Relayed by our server; not stored | Not stored after delivery |
 | Random rider ID | Lets a reconnect resume the same rider | Your device (local storage), our server (memory) | On device until you clear app data |
-| Ride trail (GPS points and times) | Draw your path; let you view past rides | Your device (IndexedDB). A thinned recent segment is shared live with riders in range while Trail is on | Deleted 24 h after saving (~50 MB cap, oldest first) |
-| Viewing range and name preference | Remember your settings | Your device only | Until you clear app data |
+| Ride trail (GPS points and times) | Draw your path; let you view past rides | Your device (IndexedDB). A thinned recent segment is shared live with riders within 50 miles while Trail is on | Deleted 24 h after saving (~50 MB cap, oldest first) |
+| Name and marker preference | Remember your settings | Your device only | Until you clear app data |
 
 ## Who can see you
-- There are no groups. Each rider picks a viewing range of 1, 5, 10, 15, 25, 30, 35, 40, 45 or 50 miles (default 5).
-- While you are sharing, any rider whose range includes you (so anyone up to about **50 miles** away) sees your name, position, Leader badge, SOS status and, if Trail is on, your recent trail.
-- A rider stops seeing you a little past their chosen range (20% of the range, at most 2 miles).
-- SOS and "gone quiet" alerts go to riders within range. Direct messages go only to the rider you pick.
+- There are no groups and no range setting. Every rider sees everyone within **50 miles**; zooming the map only changes the view.
+- While you are sharing, any rider within about **50 miles** sees your name, position, Leader badge, SOS status and, if Trail is on, your recent trail.
+- A rider stops seeing you a little past 50 miles (at 52 miles).
+- SOS and "gone quiet" alerts go to riders within 50 miles. Direct messages go only to the rider you pick.
 
 ## Background location
 If you allow "Always" location, the app keeps sharing your position while it is in the background, so other riders can still find you with your phone in a pocket or dry bag. Sharing stops when you leave the session or turn off location for Water Tracker in Settings.

@@ -31,9 +31,9 @@ with sync_playwright() as p:
     v.evaluate("toggleRiderMenu()"); r.evaluate("ws.send(JSON.stringify({type:'leave'}))")
     s=wait_state(v,True); ok(f'{n} explicit leave -> disabled, menu closed',s==[True,True,False] and rid not in v.evaluate('Object.keys(positions)'),s)
     c2.close()
-    # 2) out-of-range hysteresis leave (rider moves ~35 mi away; viewer range 25, hide at 27)
+    # 2) out-of-range hysteresis leave (rider moves ~55 mi away; fixed 50, hide at 52)
     c2,r,rid=rider(); s=wait_state(v,False); ok(f'{n} rider back -> enabled',s[:2]==[False,False],s)
-    far=f"[{35.807+0.51},{-77.378+OFF}]"; r.evaluate(f"()=>{{__ll={far};ws.send(JSON.stringify({{type:'pos',lat:__ll[0],lon:__ll[1],ts:Date.now()}}))}}")
+    far=f"[{35.807+0.80},{-77.378+OFF}]"; r.evaluate(f"()=>{{__ll={far};ws.send(JSON.stringify({{type:'pos',lat:__ll[0],lon:__ll[1],ts:Date.now()}}))}}")
     s=wait_state(v,True); ok(f'{n} out-of-range leave -> disabled',s==[True,True,False],s)
     r.evaluate("ws.send(JSON.stringify({type:'leave'}))"); c2.close()
     # 3) stale cleanup (silent > 30 min): stop rider sending, age it on the viewer, run the prune pass

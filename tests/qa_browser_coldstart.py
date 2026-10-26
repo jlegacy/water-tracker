@@ -9,7 +9,7 @@ def init(lat,lon,delay):  # delay<0: never answer
   return """(()=>{const mk=()=>({coords:{latitude:%f,longitude:%f,accuracy:5,heading:null,speed:null},timestamp:Date.now()});const D=%d;
 const g={getCurrentPosition(ok){if(D>=0)setTimeout(()=>ok(mk()),D)},watchPosition(ok){if(D>=0){setTimeout(()=>ok(mk()),D);setInterval(()=>ok(mk()),3000)}return 1},clearWatch(){}};
 Object.defineProperty(navigator,'geolocation',{get:()=>g});})()"""%(lat,lon,delay)
-ST="()=>{const b=document.getElementById('locBar'),c=map.getCenter();return {bar:b.style.display!=='none'?document.getElementById('locBarText').textContent:'',hint:b.classList.contains('hint'),lat:c.lat,lon:c.lng,z:map.getZoom(),fit:myLatLng?rangeZoomFor(myRange):null,map:document.getElementById('map').style.display}}"
+ST="()=>{const b=document.getElementById('locBar'),c=map.getCenter();return {bar:b.style.display!=='none'?document.getElementById('locBarText').textContent:'',hint:b.classList.contains('hint'),lat:c.lat,lon:c.lng,z:map.getZoom(),fit:myLatLng?rangeZoomFor(myViewR):null,map:document.getElementById('map').style.display}}"
 async def ctx(p,n):
   if n=='webkit':
     dev=dict(p.devices['iPhone 15']); dev.pop('default_browser_type',None); b=await p.webkit.launch(); c=await b.new_context(**dev)

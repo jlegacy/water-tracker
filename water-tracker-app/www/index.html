@@ -262,7 +262,7 @@ function wsUrl(path) {
     <button id="findBtn" class="find" onclick="toggleFind()" style="display:none">Find</button>
     <button id="leaderBtn" class="leader" onclick="toggleLeader()">Leader</button>
     <button id="sosBtn" class="sos" onclick="toggleSos()">SOS</button>
-    <div class="cpick rng"><div class="cbtn" id="rangeSel" role="status" aria-label="Viewing radius" title="Pinch to change radius" style="justify-content:center;cursor:default;box-sizing:border-box"><span class="lbl" id="rangeVal" style="text-align:center">5 mi</span></div></div>
+    <div class="cpick rng"><div class="cbtn" id="rangeSel" role="status" aria-label="Viewing radius" title="View radius (pinch to zoom). You see every rider within 50 mi" style="justify-content:center;cursor:default;box-sizing:border-box"><span class="lbl" id="rangeVal" style="text-align:center">5 mi</span></div></div>
   </div>
   <div class="row" id="riderRow">
     <select id="riderList" onchange="onRiderSelect()" aria-label="Riders" style="display:none">
@@ -293,7 +293,7 @@ function wsUrl(path) {
 <div id="trailDisclosure" role="dialog" aria-modal="true" aria-labelledby="trailDiscTitle">
   <div class="box">
     <h2 id="trailDiscTitle">Save trail?</h2>
-    <p>Water Tracker collects location data to save your ride trail even when the app is closed or not in use. Each ride is auto-saved on your device (IndexedDB). Saved rides are kept for about 1 day (24 hours) and then deleted automatically (with a ~50&nbsp;MB safety cap that removes the oldest rides first). While Trail is on, a thinned live path is shared with nearby riders (within the range each rider picks, up to 50 miles).</p>
+    <p>Water Tracker collects location data to save your ride trail even when the app is closed or not in use. Each ride is auto-saved on your device (IndexedDB). Saved rides are kept for about 1 day (24 hours) and then deleted automatically (with a ~50&nbsp;MB safety cap that removes the oldest rides first). While Trail is on, a thinned live path is shared with nearby riders (every rider within 50 miles).</p>
     <div class="actions">
       <button type="button" class="cancel" onclick="cancelTrailDisclosure()">Cancel</button>
       <button type="button" class="ok" onclick="confirmTrailDisclosure()">Continue</button>
@@ -1375,7 +1375,7 @@ function connect(){
       name: myName,
       leader: leader,
       sos: sosOn,
-      range: myRange,
+      range: MAX_RANGE_MI, // ignored by server; fixed 50 mi
       color: myStyle.c,
       icon: myStyle.i
     }));
@@ -2067,9 +2067,9 @@ const MIN_RANGE_MI = 1, START_RANGE_MI = 5;
 // Server range: any float 1-50 (radius below 1 mi still queries 1 mi)
 function validRange(v){ v = parseFloat(v); return isFinite(v) ? Math.min(MAX_RANGE_MI, Math.max(MIN_RANGE_MI, v)) : START_RANGE_MI; }
 let myViewR = START_RANGE_MI;      // true circle radius in mi (follows pinch; may be < 1 or > 50)
-let myRange = START_RANGE_MI;      // server range = clamp(myViewR, 1, 50); every session starts at 5 mi
+let myRange = MAX_RANGE_MI;        // fixed: everyone within 50 mi is shown; pinch only changes the view
 function fmtMi(r){ return (r < 10 ? (Math.round(r * 10) / 10).toFixed(1) : String(Math.round(r))) + ' mi'; }
-function sharingText(){ return 'Sharing — riders within ' + fmtMi(myRange); }
+function sharingText(){ return 'Sharing: riders within ' + fmtMi(MAX_RANGE_MI); }
 function syncRangeUi(){
   showRangeVal(myViewR);
 }
@@ -2170,14 +2170,11 @@ renderStylePanel();
 function setRange(v, opts){ // v = true radius in mi (any positive float)
   const oldR = myRange, oldV = myViewR;
   const f = parseFloat(v); myViewR = (isFinite(f) && f > 0) ? f : START_RANGE_MI;
-  myRange = validRange(myViewR);
   syncRangeUi();
   if (oldV === myViewR) return;
   if (opts && opts.noFit){ rangeFitPending = false; drawRangeCircle(); } // user zoom: never re-zoom
   else { drawRangeCircle(); fitRangeCircle(); }
-  if (myRange !== oldR && ws && ws.readyState === 1 && joined) wsSend({type:'range', range: myRange}); // live, no rejoin
-  const st = document.getElementById('status');
-  if (st && /^Sharing — riders within/.test(st.textContent)) status(sharingText());
+  // View only: the circle is display-only context; nothing is sent to the server or filtered
 }
 syncRangeUi();
 // Cold start: open the map on the last-known spot at the saved range's zoom (no wait on GPS)

@@ -41,25 +41,21 @@ def both(a, b, added):
     return sorted([(a, b, added), (b, a, added)])
 
 def test_links_enter_hold_leave():
-    reset(); add("me", 0); add("a24", 24); add("a26", -26); add("a28", -28)  # opposite side of me
-    assert sorted(main.update_links("me")) == both("me", "a24", True)
-    main.riders["a24"]["lat"] = at(26.5)[0]          # 26.5: still shown (hysteresis)
-    assert main.update_links("a24") == []
-    assert ("me", "a24") in main.links and ("a24", "me") in main.links
-    main.riders["a24"]["lat"] = at(27.5)[0]          # past 27: dropped
-    assert sorted(main.update_links("a24")) == both("a24", "me", False)
-    main.riders["a24"]["lat"] = at(26)[0]            # 26 (outside 25): not re-shown
-    assert main.update_links("a24") == []
-    main.riders["a24"]["lat"] = at(24.99)[0]
-    assert sorted(main.update_links("a24")) == both("a24", "me", True)
+    reset(); add("me", 0); add("a49", 49); add("a51", -51); add("a53", -53)  # fixed 50 mi, hide past 52
+    assert sorted(main.update_links("me")) == both("me", "a49", True)
+    main.riders["a49"]["lat"] = at(51.5)[0]          # 51.5: still shown (hysteresis)
+    assert main.update_links("a49") == []
+    main.riders["a49"]["lat"] = at(52.5)[0]          # past 52: dropped
+    assert sorted(main.update_links("a49")) == both("a49", "me", False)
+    main.riders["a49"]["lat"] = at(51)[0]            # 51 (outside 50): not re-shown
+    assert main.update_links("a49") == []
+    main.riders["a49"]["lat"] = at(49.99)[0]
+    assert sorted(main.update_links("a49")) == both("a49", "me", True)
 
 def test_valid_range():
-    v = main.valid_range
-    assert [v(x) for x in (1, 5, 7.3, 27, 49.99, 50)] == [1, 5, 7.3, 27, 49.99, 50]   # any float 1-50
-    assert v(0.4) == 1 and v(-5) == 1 and v(100) == 50 and v("12.5") == 12.5        # clamped
-    assert v(None) == 5 and v("x") == 5 and v(float("nan")) == 5 and v("inf") == 5
-    assert main.new_rider("x", None)["range"] == 5          # old client default
-    assert main.new_rider("x", None, rng=50)["range"] == 50
+    v = main.valid_range   # client ranges ignored: always 50
+    assert all(v(x) == 50 for x in (1, 5, 7.3, 0.4, 100, None, "x", float("nan")))
+    assert main.new_rider("x", None)["range"] == 50 and main.new_rider("x", None, rng=5)["range"] == 50
 
 def test_pair_in_range_custom_range():
     p = main.pair_in_range
@@ -67,27 +63,13 @@ def test_pair_in_range_custom_range():
     assert p(41.9, True, 40) and not p(42.1, True, 40)
     assert not p(26, False, 25) and p(26, False, 30)
 
-def test_asymmetric_ranges():
-    reset(); add("me", 0); add("r24", 24); add("r32", 32); add("r48", 48); add("r52", -52)
-    main.riders["me"]["range"] = 50
+def test_everyone_within_50_symmetric():
+    reset(); add("me", 0); add("r24", 24); add("r48", 48); add("r52", -52)
+    for r in ("me", "r24", "r48"): main.riders[r]["range"] = 1   # stale client ranges are ignored
     for r in list(main.riders): main.update_links(r)
-    assert sorted(e["id"] for e in main.public_list("me")) == ["r24", "r32", "r48"]  # 52 > 50
-    # r32 (default 25) does not see me back; r24 does
-    assert "me" not in [e["id"] for e in main.public_list("r32")]
-    assert "me" in [e["id"] for e in main.public_list("r24")]
-    # my broadcasts reach only riders whose range includes me
-    assert sorted(main.viewers("me")) == ["r24"]
-    assert sorted(main.viewers("r48")) == ["me", "r24", "r32"]   # r24/r32 are 24/16 mi from r48
-    assert "me" not in main.viewers("r52") and main.viewers("r52") == []
-    # shrink live to 30: 48 drops; 32 is kept by hysteresis (<= 30 + 2)
-    main.riders["me"]["range"] = 30
-    ch = main.update_links("me")
-    assert sorted(x for x in ch if x[0] == "me") == [("me", "r48", False)]
-    main.riders["me"]["range"] = 25                   # 32 > 27: drops
-    assert sorted(x for x in main.update_links("me") if x[0] == "me") == [("me", "r32", False)]
-    main.riders["me"]["range"] = 35
-    ch = main.update_links("me")
-    assert ("me", "r32", True) in ch and ("me", "r48", True) not in ch
+    assert sorted(e["id"] for e in main.public_list("me")) == ["r24", "r48"]
+    assert "me" in [e["id"] for e in main.public_list("r48")]
+    assert sorted(main.viewers("me")) == ["r24", "r48"] and main.viewers("r52") == []
 
 def test_no_fix_sees_nobody():
     reset(); add("me", 0); add("nofix")
@@ -96,7 +78,7 @@ def test_no_fix_sees_nobody():
     assert main.public_list("nofix") == [] and main.public_list("me") == []
 
 def test_public_list_is_per_viewer():
-    reset(); add("me", 0); add("near", 10); add("far", 40); add("far2", 45)
+    reset(); add("me", 0); add("near", 10); add("far", 70); add("far2", 95)
     for r in list(main.riders): main.update_links(r)
     assert [e["id"] for e in main.public_list("me")] == ["near"]
     assert sorted(e["id"] for e in main.public_list("far")) == ["far2"]
@@ -119,12 +101,8 @@ def test_small_range_proportional_pad():
     assert p(5.9, True, 5) and not p(6.1, True, 5)
     assert p(26.9, True, 25) and not p(27.1, True, 25)
 
-def test_effective_range_sos_uses_max():
-    assert main.MAX_RANGE_MI == 50 and main.MIN_RANGE_MI == 1
+def test_effective_range_always_max():
+    assert main.MAX_RANGE_MI == 50
     reset(); add("rx", 0)["range"] = 5; add("norm", 30); s = add("sos", -30)
     for r in list(main.riders): main.update_links(r)
-    assert main.seen_by("rx") == []
-    s["sos"] = True; main.update_links("sos")
-    assert main.seen_by("rx") == ["sos"] and "rx" in main.viewers("sos")
-    s["sos"] = False; ch = main.update_links("sos")
-    assert ("rx", "sos", False) in ch and main.seen_by("rx") == []
+    assert sorted(main.seen_by("rx")) == ["norm", "sos"]   # 30 mi seen without SOS
