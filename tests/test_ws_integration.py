@@ -250,3 +250,20 @@ def test_sos_rider_quiet_alert_reaches_max_range(url):
         assert rx.of("alert", id="q_sos")
         await rx.close()
     run(go())
+
+
+def test_breadcrumb_trails_never_relayed(url):
+    """Breadcrumbs are private: a rider's trail never reaches anyone else (pos.trail or type=trail)."""
+    async def go():
+        a = await C(url, "t_a").open(0)
+        b = await C(url, "t_b").open(2)
+        b.clear()
+        lat, lon = at(0.5, a.lon)
+        await a.send(type="pos", lat=lat, lon=lon, ts=time.time() * 1000, trail=[[lat, lon], [lat + 0.001, lon]])
+        await a.send(type="trail", points=[[lat, lon], [lat + 0.001, lon]])
+        await asyncio.sleep(0.3)
+        assert b.of("pos", id="t_a")                                   # position still shared (safety)
+        assert not b.of("trail") and not any("trail" in m for m in b.of("pos"))
+        assert not a.of("trail")
+        for x in (a, b): await x.close()
+    run(go())

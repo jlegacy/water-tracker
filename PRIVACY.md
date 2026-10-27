@@ -24,7 +24,7 @@ Water Tracker is a live map that lets people on boats, jet skis and kayaks see e
 | Leader badge and SOS status | Shown to nearby riders | Our server (memory only); riders within ~50 miles | Same as above |
 | Messages you send | Delivered to the rider you pick, or to nearby riders for a broadcast | Relayed by our server; not stored after delivery | Not kept after delivery |
 | Rider ID (a random **User ID** created on your device) | Lets a reconnect resume the same rider session | Your device (local storage); our server (memory only while you are present) | On device until you clear app data; on the server only while your session is live (then purged as above) |
-| Breadcrumbs / ride trail (GPS points and times) — **Premium only** | Draw your path on the map | **Your device only** (IndexedDB). While Breadcrumbs is on, a thinned recent segment is also shared live with riders within ~50 miles | Auto-deleted about **24 hours** after saving (~50 MB cap, oldest first). Free users: **not collected or drawn** |
+| Breadcrumbs / ride trail (GPS points and times) — **Premium only** | Draw your path on the map | **Your device only** (IndexedDB). Only you can see your trail; it is never sent to the server or other riders | Auto-deleted about **24 hours** after saving (~50 MB cap, oldest first). Free users: **not collected or drawn** |
 | Premium subscription entitlement | Unlock breadcrumbs | Apple (App Store / StoreKit) processes the purchase and billing. The app caches an entitlement flag on your device | Until you cancel or the subscription expires; clear app data to remove the local cache |
 | Name and marker preference | Remember your settings | Your device only | Until you clear app data |
 
@@ -37,7 +37,7 @@ Water Tracker is a live map that lets people on boats, jet skis and kayaks see e
 ## Who can see you
 - There are **no groups** and no privacy range setting. While you are sharing, **every rider within about 50 miles** can see your name, position, Leader badge and SOS status.
 - The on-map **radius ring and mi readout are display-only** (they follow pinch-to-zoom). They do not limit visibility; you still appear to everyone within ~50 miles.
-- If Breadcrumbs (Premium) is on, nearby riders also see a thinned recent path.
+- Breadcrumb trails are private: each rider sees only their own trail. Other riders never see yours.
 - A rider stops seeing you a little past 50 miles (about 52 miles).
 - SOS and “gone quiet” alerts go to riders within ~50 miles. Direct messages go only to the rider you pick.
 

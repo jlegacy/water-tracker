@@ -440,13 +440,10 @@ async def ws_endpoint(ws: WebSocket):
                     if changed:
                         await apply_link_changes(update_links(rider_id))
                         out = dict(entry(rider_id, r), type="pos", ts=r.get("ts"))
-                        trail = sanitize_trail(msg.get("trail") if t == "pos" else None)
-                        if trail and len(trail) >= 2:
-                            out["trail"] = trail
+                        # Breadcrumbs are private: never relay a rider's trail to anyone else.
                         await send_near(rider_id, out)
             elif t == "trail":
-                pts = sanitize_trail(msg.get("points") if msg.get("points") is not None else msg.get("trail"))
-                await send_near(rider_id, {"type": "trail", "id": rider_id, "points": pts or []})
+                pass  # Breadcrumbs are private to each rider: ignored, never relayed.
             elif t == "style":
                 if r:
                     r["color"], r["icon"] = valid_color(msg.get("color")), valid_icon(msg.get("icon"))

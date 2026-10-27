@@ -71,6 +71,15 @@ async def run(p, n):
   restored2 = await pg.evaluate("()=>{let n=0,p=0;if(myPastLayer)myPastLayer.eachLayer(l=>{n++;p+=l.getLatLngs().length});return [n,p]}")
   ok(n, 'premium rejoin restores trails on map', restored2[0] >= 1 and restored2[1] >= 1, restored2)
 
+  priv = await pg.evaluate("""()=>{const s=[];const o=ws.send.bind(ws);ws.send=m=>{s.push(m);o(m)};
+    ws.onmessage({data:JSON.stringify({type:'trail',id:'other1',points:[[35.8,-77.37],[35.81,-77.38]]})});
+    ws.onmessage({data:JSON.stringify({type:'pos',id:'other2',name:'O',lat:35.81,lon:-77.38,trail:[[35.8,-77.37],[35.81,-77.38]]})});
+    window._privSent=s; return Object.keys(remoteTrails).length}""")
+  ok(n, 'other riders trails never drawn', priv == 0, priv)
+  await pg.wait_for_timeout(3000)
+  leaked = await pg.evaluate("()=>_privSent.filter(m=>/\"trail\"/.test(m))")
+  ok(n, 'own trail never sent to server', not leaked, leaked[:2])
+
   ids = await pg.evaluate("()=>[PREMIUM.products.monthly, PREMIUM.products.yearly, PREMIUM.groupName, PREMIUM.enabled]")
   ok(n, 'product IDs configured', ids[0] == 'com.encsr.watertracker.premium.monthly' and ids[1] == 'com.encsr.watertracker.premium.yearly', ids)
 

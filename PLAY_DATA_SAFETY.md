@@ -4,7 +4,7 @@ Paste/adapt the following when filling out Google Play **Data safety**. This fil
 
 ## Location
 - **Collected:** Yes (precise location while the user has joined and is sharing).
-- **Shared:** Yes — with other app users within about **50 miles** while live sharing is on (display name, position, Leader/SOS status, and — for Premium users with Breadcrumbs on — a thinned recent path). There are no groups or invitations: anyone signed in nearby can see you while you share. The on-map ring is **display-only** (view zoom); it does not change who can see you.
+- **Shared:** Yes — with other app users within about **50 miles** while live sharing is on (display name, position, Leader/SOS status). Breadcrumb trails are **not** shared; only the rider sees their own. There are no groups or invitations: anyone signed in nearby can see you while you share. The on-map ring is **display-only** (view zoom); it does not change who can see you.
 - **Processed ephemerally?** Live positions are transient on the server (**in memory only**). They are dropped when the rider leaves or after about **30 minutes** of silence. **No** server location history database.
 - **On-device breadcrumbs (Premium only):** stored in IndexedDB on the user’s device, auto-deleted after about **24 hours** (~50 MB cap). Free users record **no** trail. Users can wipe trails with **Delete my trails**.
 - **Retention (live):** until leave or ~30 min silence on the server; device preferences / rider ID until the user clears app data.
