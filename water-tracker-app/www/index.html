@@ -375,7 +375,9 @@ const map = L.map('map', {
   bearing: 0,
   zoomSnap: 0,     // free zoom so the range-circle fit isn't re-snapped when following
   zoomDelta: 0.5,
-  touchZoom: true,
+  touchZoom: 'center',      // while following, pinch/scroll/dbl-tap zoom around the rider (see setFollow)
+  scrollWheelZoom: 'center',
+  doubleClickZoom: 'center',
   bounceAtZoomLimits: false,
   maxZoom: 21      // allow pinching well past the 1 mi fit (tiles upscale above 19)
 }).setView([35.5,-77.0], 12);
@@ -394,7 +396,7 @@ try {
   }
 } catch (_) {}
 const zoomCtl = L.control.zoom({position:'bottomright'}).addTo(map);
-zoomCtl.getContainer().addEventListener('click', () => userMovedMap());
+// +/- zoom keeps the map centered (Leaflet zooms around center), so it no longer cancels follow
 
 // Enable two-finger spin
 if (map.touchRotate) map.touchRotate.enable();
@@ -406,9 +408,8 @@ map.on('rotate', () => rotateArrows());
 // Trail must refresh during zoom/pan frames (not only zoomend) or it detaches then snaps back
 map.on('zoom zoomanim move zoomend moveend', syncTrailDuringMapMotion);
 const mapEl = document.getElementById('map');
-mapEl.addEventListener('wheel', () => userMovedMap(), {passive:true});
-mapEl.addEventListener('touchstart', e => { if (e.touches.length > 1) userMovedMap(); }, {passive:true});
-mapEl.addEventListener('dblclick', () => userMovedMap());
+// Zooming (pinch/scroll/dbl-tap/+-) no longer cancels follow: while following, zoom is anchored on the rider.
+// Only a drag (a real pan) pauses follow.
 
 const riders = {};
 const lastSeen = {};
@@ -477,8 +478,9 @@ let isMoving = false;
 let meIconKind = null; // 'circle' | 'arrow' | 'sos' for YOU marker
 let sosOn = false; // SOS: show 🆘 on my marker and broadcast to riders whose range includes me
 let lastUserPanAt = 0;
+let panAnchor = null; // my position when the user last panned away
 const motionFixes = [];       // recent {lat, lon, t, spd}
-function userMovedMap(){ lastUserPanAt = Date.now(); setFollow(false); }
+function userMovedMap(){ lastUserPanAt = Date.now(); panAnchor = myLatLng ? myLatLng.slice() : null; setFollow(false); }
 function updateMotion(lat, lon, speed){
   const now = Date.now();
   motionFixes.push({lat, lon, t: now, spd: (speed != null && speed >= 0 && isFinite(speed)) ? speed : null});
@@ -1093,6 +1095,8 @@ function toggleRampRoute(i){
 
 function setFollow(on){
   followMe = on;
+  const z = on ? 'center' : true; // following: zoom around the rider; free-panning: zoom around the fingers/cursor
+  map.options.touchZoom = map.options.scrollWheelZoom = map.options.doubleClickZoom = z;
   const rb = document.getElementById('recenterBtn'); if (rb) rb.style.display = 'block';
 }
 
@@ -1572,7 +1576,10 @@ function renderMe(){
   riders[me].setOpacity(myApprox ? 0.5 : 1); // faded = approximate (rough first fix)
   drawRangeCircle();
   if (myApprox) return; // rough fix: draw the circle only
-  if (isMoving && !followMe && Date.now() - lastUserPanAt >= FOLLOW_GRACE_MS) setFollow(true);
+  // Snap back after a pan once the grace is up and I'm moving: either the motion detector says so, or
+  // I've drifted > 25 m since the pan (slow paddling can sit under the 3 mph "moving" threshold).
+  if (!followMe && Date.now() - lastUserPanAt >= FOLLOW_GRACE_MS &&
+      (isMoving || (panAnchor && haversine(panAnchor[0], panAnchor[1], myLatLng[0], myLatLng[1]) > 25))) setFollow(true);
   if (followMe) map.panTo(myLatLng);
   rotateArrows();
   updateFindLine();
