@@ -69,7 +69,7 @@ Notes (keep aligned with `PRIVACY.md`, last updated October 27, 2026):
 - No accounts, emails or phone numbers. A random **rider ID (User ID)** is generated on the device and kept in local storage so a reconnect resumes the same rider. It is not tied to a person or hardware identifier.
 - Everyone within ~**50 miles** sees each other while sharing. The map **ring is display-only** (pinch-to-zoom); it does not change visibility.
 - The server keeps live positions **in memory only**. They are dropped when the rider leaves or after about **30 minutes** of silence. There is no database. Nothing is sold or shared with advertisers.
-- **Breadcrumbs are Premium only**, stored **on the device** (IndexedDB) for about **24 hours** (~50 MB cap). Free users record no trail. **Delete my trails** wipes on-device trails. While Breadcrumbs is on, a thinned recent segment is shared with riders within 50 miles.
+- **Breadcrumbs are Premium only**, stored **on the device** (IndexedDB) for about **24 hours** (~50 MB cap). Free users record no trail. **Delete my trails** wipes on-device trails. Trails are private: only the rider sees their own; they are never sent to the server or other riders.
 - Premium: Apple App Store / StoreKit processes payment; the app caches entitlement locally and never receives card details.
 - **Push notifications are not currently used**; SOS / gone-quiet alerts go over the WebSocket while connected.
 - Ramps/marinas come from a file bundled with the app. If that file fails to load, the app falls back to `/api/ramps` with the map center.
@@ -91,7 +91,7 @@ Notes (keep aligned with `PRIVACY.md`, last updated October 27, 2026):
 5. Tap Leader to show the leader badge on your marker for other riders.
 6. Tap SOS. Every rider within 50 miles receives the alert. Tap again to cancel.
 7. Tap Ramps to show nearby boat ramps/marinas. A toast shows the count ("N ramps/marinas nearby").
-8. Premium / StoreKit testing: unlock breadcrumbs (sandbox or StoreKit config), move, confirm a gray dashed trail that stays on the map for 24 h. Free users see no trail; **Breadcrumbs (Premium)** opens the paywall.
+8. Premium / StoreKit testing: unlock breadcrumbs (sandbox or StoreKit config), move, confirm a bright teal trail (dark outline) that stays on the map for 24 h. Free users see no trail; **Breadcrumbs (Premium)** opens the paywall.
 9. Turn on Airplane Mode. The map locks with "No internet connection / Map locked until connection returns" and unlocks when back online.
 
 Reviewers in areas without other riders will see only themselves. That is expected.

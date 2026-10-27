@@ -316,7 +316,7 @@ function wsUrl(path) {
 <div id="trailDisclosure" role="dialog" aria-modal="true" aria-labelledby="trailDiscTitle">
   <div class="box">
     <h2 id="trailDiscTitle">Save trail?</h2>
-    <p>Water Tracker collects location data to save your ride trail even when the app is closed or not in use. Each ride is auto-saved on your device (IndexedDB). Saved rides are kept for about 1 day (24 hours) and then deleted automatically (with a ~50&nbsp;MB safety cap that removes the oldest rides first). While Trail is on, a thinned live path is shared with nearby riders (every rider within 50 miles).</p>
+    <p>Water Tracker collects location data to save your ride trail even when the app is closed or not in use. Each ride is auto-saved on your device (IndexedDB). Saved rides are kept for about 1 day (24 hours) and then deleted automatically (with a ~50&nbsp;MB safety cap that removes the oldest rides first). Your trail is visible only to you; it is never sent to other riders.</p>
     <div class="actions">
       <button type="button" class="cancel" onclick="cancelTrailDisclosure()">Cancel</button>
       <button type="button" class="ok" onclick="confirmTrailDisclosure()">Continue</button>
@@ -587,7 +587,6 @@ function setPremiumActive(on, productId){
     try { localStorage.setItem('trackerTrail', '0'); } catch(_){}
     clearLiveTrailBuffer();
     try { if (myPastLayer) myPastLayer.clearLayers(); } catch(_){}
-    try { wsSend({type:'trail', points:[]}); } catch(_){}
   }
   updatePremiumUI();
 }
@@ -713,7 +712,6 @@ let breadcrumbLine = null;
 let breadcrumbPending = [];
 let rideStartedAt = null;
 const LIVE_TRAIL_MAX_POINTS = 8000; // modest in-memory current-ride buffer
-const TRAIL_SHARE_MAX = 40; // thinned points shared with the group per update
 const TRAIL_ARCHIVE_MAX_POINTS = 2500; // thinned points stored per archived ride
 const TRAIL_ARCHIVE_BUDGET = 50 * 1024 * 1024; // ~50 MB IndexedDB total (secondary safety cap)
 const TRAIL_RETENTION_MS = 24 * 60 * 60 * 1000;  // strict TTL: ride expires at savedAt + 24 h (legacy: endedAt, else startedAt)
@@ -721,13 +719,27 @@ const TRAIL_PURGE_INTERVAL_MS = 60 * 60 * 1000;  // hourly backstop; exact delet
 const TRAIL_DB_NAME = 'water-tracker-trails';
 const TRAIL_DB_STORE = 'rides';
 const remoteTrails = {}; // rider id -> L.polyline
-const TRAIL_STYLE = { color: '#9ca3af', weight: 3, opacity: 0.85, dashArray: '8, 8' };
+// High-contrast breadcrumb: bright teal line over a dark casing (readable on blue water and light tiles)
+const TRAIL_STYLE = { color: '#00E5D4', weight: 5, opacity: 1, lineCap: 'round', lineJoin: 'round' };
+const TRAIL_CASING_STYLE = { color: '#111111', weight: 9, opacity: 0.9, lineCap: 'round', lineJoin: 'round', interactive: false };
 // Canvas path redraws with the map during zoom; SVG trails can detach/snap vs the marker
 const trailRenderer = (typeof L !== 'undefined' && L.canvas) ? L.canvas({ padding: 0.5 }) : undefined;
 function trailPolyOpts(){
   const o = Object.assign({}, TRAIL_STYLE);
   if (trailRenderer) o.renderer = trailRenderer;
   return o;
+}
+function trailCasingOpts(){
+  const o = Object.assign({}, TRAIL_CASING_STYLE);
+  if (trailRenderer) o.renderer = trailRenderer;
+  return o;
+}
+// Draw casing first (underneath), then the teal line; the line keeps a ref to its casing.
+function addCasedTrail(ll, target){
+  const casing = L.polyline(ll, trailCasingOpts()).addTo(target);
+  const line = L.polyline(ll, trailPolyOpts()).addTo(target);
+  line._casing = casing;
+  return line;
 }
 
 function trailLatLngs(pts){
@@ -751,6 +763,7 @@ function pruneLiveTrail(){
 function clearMyTrailLine(){
   if (breadcrumbLine){
     try { map.removeLayer(breadcrumbLine); } catch(_){}
+    try { if (breadcrumbLine._casing) map.removeLayer(breadcrumbLine._casing); } catch(_){}
     breadcrumbLine = null;
   }
 }
@@ -797,15 +810,16 @@ function updateMyTrailLine(){
   if (breadcrumbLine){
     // Update in place — never remove/re-add during zoom
     breadcrumbLine.setLatLngs(ll);
+    if (breadcrumbLine._casing) breadcrumbLine._casing.setLatLngs(ll);
     if (breadcrumbLine._renderer && breadcrumbLine._renderer._update) {
       try { breadcrumbLine.redraw(); } catch(_){}
     }
   } else {
-    breadcrumbLine = L.polyline(ll, trailPolyOpts()).addTo(map);
+    breadcrumbLine = addCasedTrail(ll, map);
   }
 }
 function syncTrailDuringMapMotion(){
-  // Keep gray dashed trail glued to the user marker through the whole zoom/pan animation
+  // Keep the teal trail glued to the user marker through the whole zoom/pan animation
   if (!trailOn || !breadcrumbLine || !myLatLng || isHidden()) return;
   updateMyTrailLine();
 }
@@ -995,7 +1009,7 @@ async function showMyRecentTrails(){
     if (typeof map === 'undefined' || !map) return 0;
     if (!myPastLayer) myPastLayer = L.layerGroup().addTo(map);
     myPastLayer.clearLayers();
-    rides.forEach(r => { const ll = trailLatLngs(r.points || []); if (ll.length >= 2) L.polyline(ll, trailPolyOpts()).addTo(myPastLayer); });
+    rides.forEach(r => { const ll = trailLatLngs(r.points || []); if (ll.length >= 2) addCasedTrail(ll, myPastLayer); });
     return rides.length;
   } catch(e){ console.warn('restore trails failed', e); return 0; }
 }
@@ -1268,10 +1282,7 @@ function flushPos(){
   const f = pendingFix; pendingFix = null;
   lastSent = {lat: f.lat, lon: f.lon, t: Date.now()};
   const payload = {type:'pos', lat:f.lat, lon:f.lon, ts:f.ts};
-  if (trailOn && canUseBreadcrumbs() && breadcrumb.length){
-    // Best-effort group share: thinned recent segment (tight payload)
-    payload.trail = thinTrail(breadcrumb, TRAIL_SHARE_MAX);
-  }
+  // Breadcrumbs are private: the trail never leaves this device.
   if (!wsSend(payload)){
     posQueue.push(f);
     if (posQueue.length > MAX_QUEUE) posQueue.shift();
@@ -1534,7 +1545,7 @@ function updateMyMarker(lat, lon){
 
 function renderMe(){
   if (!myLatLng) return;
-  // Trail: merge pending fixes (incl. while hidden), size-cap, draw gray dashed line
+  // Trail: merge pending fixes (incl. while hidden), size-cap, draw teal cased line
   if (trailOn && sharing && canUseBreadcrumbs()){
     breadcrumbPending.forEach(p => breadcrumb.push(p));
     breadcrumbPending = [];
@@ -1623,14 +1634,9 @@ function connect(){
     else if (m.type === 'pos') {
       if (isHidden()) return;
       pendingRiders[m.id] = m;
-      if (m.id !== me && Array.isArray(m.trail)) setRemoteTrail(m.id, m.trail);
       renderDirty = true;
     }
-    else if (m.type === 'trail'){
-      if (isHidden()) return;
-      if (m.id === me) return;
-      setRemoteTrail(m.id, Array.isArray(m.points) ? m.points : []);
-    }
+    else if (m.type === 'trail'){ /* breadcrumbs are private: never draw other riders' trails */ }
     else if (m.type === 'alert'){
       if (m.id === me) return;
       if (positions[m.id]){ positions[m.id].stale = true; setRiderStale(m.id, true); }
@@ -2217,7 +2223,6 @@ function setTrailOn(on){
     // Turning off: archive current ride, clear live path, tell group
     archiveCurrentRide('trail-off').then(saved => {
       showMyRecentTrails();
-      wsSend({type:'trail', points:[]});
       status(saved ? 'Trail off — ride saved' : 'Trail off');
     });
   }
