@@ -71,13 +71,16 @@ Overrides: `window.__WT_SET_PREMIUM__(true|false)`, `window.__WT_PREMIUM__`, `?p
 
 - **Web:** only when the hostname is `localhost`, `127.x`, or a private LAN IP (`10.x`, `172.16–31.x`, `192.168.x`). That covers the test suite at `http://172.30.0.2:8777/`. On production (`water-tracker-yz68.onrender.com`) they are ignored.
 - **iOS native:** only in **Xcode Debug** builds. `WTBridgeViewController` (in `SceneDelegate.swift`) injects `window.__WT_DEBUG_BUILD__ = true` via a WKUserScript under `#if DEBUG`. Release/Archive/TestFlight/App Store builds never set it, so the overrides are ignored there, even though the app is served from `capacitor://localhost`.
-- **Android native:** always ignored.
+- **Android native:** only in **debug** builds (`BuildConfig.DEBUG`). `MainActivity` registers `DebugBuildPlugin`, which injects `window.__WT_DEBUG_BUILD__ = true` with `WebViewCompat.addDocumentStartJavaScript` (falls back to `evaluateJavascript` on old WebViews) and turns on WebView debugging for `chrome://inspect`. Release builds never register it, so overrides are ignored.
+- **Android purchases:** `purchaseProduct` passes `planIdentifier` (`monthly` / `yearly` base plans, `PREMIUM.androidPlans`) on Android.
 - **When not allowed,** a stale `wtDevPremium` (and a cached `dev-override` entitlement) is deleted from localStorage, and `__WT_SET_PREMIUM__` does nothing.
 - **Tests:** `tests/qa_browser_premium_gate.py` covers the local host and a simulated production host.
 
 **Testing Premium on iPhone:**
 
 - **Xcode Debug run:** plug in the phone and Run (⌘R) from Xcode with the default Debug configuration. On the Mac, open Safari → Develop → *your iPhone* → the Water Tracker page. In the console, run `__WT_SET_PREMIUM__(true)`, or `localStorage.setItem('wtDevPremium','1'); location.reload()`. To undo, use `__WT_SET_PREMIUM__(false)` or `localStorage.removeItem('wtDevPremium')`. (Settings → Apps → Safari → Advanced → Web Inspector must be on.)
+**Testing Premium on Android:** `cd water-tracker-app && npx cap sync android`, open `android/` in Android Studio, Run the **debug** variant on the phone/emulator (USB debugging on), open `chrome://inspect` in desktop Chrome → inspect the Water Tracker WebView, run `__WT_SET_PREMIUM__(true)` (undo with `__WT_SET_PREMIUM__(false)`).
+
 - **Real purchase flow:** use a StoreKit Configuration file (Product → Scheme → Edit Scheme → Run → Options → StoreKit Configuration), or a Sandbox tester on TestFlight.
 - Master kill switch: set `PREMIUM.enabled = false` in `index.html` to unlock trail history for everyone without a store.
 

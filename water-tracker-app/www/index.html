@@ -509,6 +509,7 @@ const PREMIUM = {
     monthly: 'com.encsr.watertracker.premium.monthly',
     yearly: 'com.encsr.watertracker.premium.yearly'
   },
+  androidPlans: { monthly: 'monthly', yearly: 'yearly' }, // Google Play base plan ids
   cacheKey: 'wtPremiumEntitlement',
   privacyUrl: 'https://www.encsr.com/privacy-policy',
   termsUrl: 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/'
@@ -518,8 +519,9 @@ let premiumProductId = '';
 let premiumPrices = {}; // id -> priceString from StoreKit when available
 
 // Dev/QA premium overrides are honored ONLY on local/test builds:
-//  - native (iOS): only when the Xcode DEBUG build injected window.__WT_DEBUG_BUILD__ (never in Release/Archive);
-//    Android native: always ignored. capacitor://localhost alone is NOT enough.
+//  - native: only when a DEBUG build injected window.__WT_DEBUG_BUILD__ === true before page scripts:
+//    iOS via WTBridgeViewController (#if DEBUG), Android via DebugBuildPlugin (BuildConfig.DEBUG).
+//    Release/Archive builds never inject it. capacitor://localhost / https://localhost alone is NOT enough.
 //  - web: only on localhost / 127.x / private LAN IPs (10.x, 172.16-31.x, 192.168.x), never on the production host.
 function devOverrideHostAllowed(host){
   host = String(host || '').toLowerCase().replace(/^\[|\]$/g, '');
@@ -630,6 +632,9 @@ window.__WT_SET_PREMIUM__ = function(v){ // Playwright / QA override (local/test
   setPremiumActive(!!v, v ? 'dev-override' : '');
   return isPremium();
 };
+function isAndroidNative(){
+  try { return !!(window.Capacitor && window.Capacitor.getPlatform && window.Capacitor.getPlatform() === 'android'); } catch(_){ return false; }
+}
 function nativePurchases(){
   try { return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.NativePurchases; } catch(_){ return null; }
 }
@@ -698,7 +703,9 @@ async function purchasePremium(kind){
     const tx = await nativePurchases().purchaseProduct({
       productIdentifier: id,
       productType: 'subs',
-      quantity: 1
+      quantity: 1,
+      // Google Play subscriptions need the base plan id; iOS ignores it.
+      ...(isAndroidNative() ? { planIdentifier: PREMIUM.androidPlans[kind] } : {})
     });
     setPremiumActive(true, (tx && tx.productIdentifier) || id);
     closePaywall();
