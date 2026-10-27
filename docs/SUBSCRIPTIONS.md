@@ -65,7 +65,20 @@ The in‑app sheet includes: Monthly and Yearly (prices from StoreKit, never har
 
 ## 6. Dev / QA override
 
-- Playwright / browser: `window.__WT_SET_PREMIUM__(true|false)` or `?premium=1` / `localStorage.wtDevPremium=1`.
+Overrides: `window.__WT_SET_PREMIUM__(true|false)`, `window.__WT_PREMIUM__`, `?premium=1|0`, `localStorage.wtDevPremium = '1'|'0'`.
+
+**They work only on local/test builds** (`devOverridesAllowed()` in `index.html`):
+
+- **Web:** only when the hostname is `localhost`, `127.x`, or a private LAN IP (`10.x`, `172.16–31.x`, `192.168.x`). That covers the test suite at `http://172.30.0.2:8777/`. On production (`water-tracker-yz68.onrender.com`) they are ignored.
+- **iOS native:** only in **Xcode Debug** builds. `WTBridgeViewController` (in `SceneDelegate.swift`) injects `window.__WT_DEBUG_BUILD__ = true` via a WKUserScript under `#if DEBUG`. Release/Archive/TestFlight/App Store builds never set it, so the overrides are ignored there, even though the app is served from `capacitor://localhost`.
+- **Android native:** always ignored.
+- **When not allowed,** a stale `wtDevPremium` (and a cached `dev-override` entitlement) is deleted from localStorage, and `__WT_SET_PREMIUM__` does nothing.
+- **Tests:** `tests/qa_browser_premium_gate.py` covers the local host and a simulated production host.
+
+**Testing Premium on iPhone:**
+
+- **Xcode Debug run:** plug in the phone and Run (⌘R) from Xcode with the default Debug configuration. On the Mac, open Safari → Develop → *your iPhone* → the Water Tracker page. In the console, run `__WT_SET_PREMIUM__(true)`, or `localStorage.setItem('wtDevPremium','1'); location.reload()`. To undo, use `__WT_SET_PREMIUM__(false)` or `localStorage.removeItem('wtDevPremium')`. (Settings → Apps → Safari → Advanced → Web Inspector must be on.)
+- **Real purchase flow:** use a StoreKit Configuration file (Product → Scheme → Edit Scheme → Run → Options → StoreKit Configuration), or a Sandbox tester on TestFlight.
 - Master kill switch: set `PREMIUM.enabled = false` in `index.html` to unlock trail history for everyone without a store.
 
 ## 7. After Connect is configured
