@@ -10,7 +10,7 @@ Water Tracker is a live map that lets people on boats, jet skis and kayaks see e
 - **No accounts.** No sign-up, email, phone number or password.
 - **No tracking, ads or analytics.** We don't sell data or share it with advertisers or data brokers.
 - **Live positions live in server memory only**, and are dropped when you leave or after 30 minutes of silence.
-- **Ride trails stay on your phone** and are deleted automatically after 24 hours.
+- **Ride trails stay on your phone.** Premium keeps them for 24 hours; free users see only the live trail for the current ride.
 
 ## What the app uses
 
@@ -21,7 +21,8 @@ Water Tracker is a live map that lets people on boats, jet skis and kayaks see e
 | Leader badge and SOS status | Shown to riders within 50 miles | Our server (memory), riders within 50 miles | Same as above |
 | Messages you send | Delivered to the rider you pick, or to riders within 50 miles for a broadcast | Relayed by our server; not stored | Not stored after delivery |
 | Random rider ID | Lets a reconnect resume the same rider | Your device (local storage), our server (memory) | On device until you clear app data |
-| Ride trail (GPS points and times) | Draw your path; let you view past rides | Your device (IndexedDB). A thinned recent segment is shared live with riders within 50 miles while Trail is on | Deleted 24 h after saving (~50 MB cap, oldest first) |
+| Ride trail (GPS points and times) | Draw your path; let you view past rides | Your device (IndexedDB). A thinned recent segment is shared live with riders within 50 miles while Trail is on | **Premium:** deleted 24 h after saving (~50 MB cap). **Free:** live trail for the current ride only; not kept after you leave or rejoin |
+| Premium subscription status (App Store) | Unlock trail history / Past rides | Apple processes the purchase; the app caches entitlement on your device | Until you cancel or the subscription expires |
 | Name and marker preference | Remember your settings | Your device only | Until you clear app data |
 
 ## Who can see you
@@ -43,6 +44,7 @@ If you allow "Always" location, the app keeps sharing your position while it is 
 All traffic uses HTTPS and secure WebSockets (WSS). We keep no database of positions or location history.
 
 ## Your choices
+- **Premium** is an optional auto‑renewing App Store subscription that unlocks trail history and Past rides. Manage or cancel in iOS Settings → Apple ID → Subscriptions. Purchases use Apple's payment system; we do not receive your card details.
 - Leave a session at any time to stop sharing and be removed from other riders' maps.
 - Deny or limit location access in iOS Settings; the app can't show you to others without it.
 - Delete the app or clear its data to remove saved trails, the rider ID and preferences from your device.

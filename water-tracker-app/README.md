@@ -16,8 +16,11 @@ The same `www/` files are what FastAPI serves for the browser site (`main.py` �
 cd water-tracker-app
 npm install
 npx cap sync ios
-# then Archive / Distribute in Xcode (set DEVELOPMENT_TEAM)
+# Xcode: add In-App Purchase capability if missing; Archive / Distribute (set DEVELOPMENT_TEAM)
+# Optional local IAP testing: scheme → Run → Options → StoreKit Configuration → ios/StoreKit/WaterTracker.storekit
 ```
+
+Premium (trail history) uses `@capgo/native-purchases` (StoreKit 2). Product IDs and Connect steps: `docs/SUBSCRIPTIONS.md`.
 
 Android: `npx cap sync android` then open in Android Studio.
 
