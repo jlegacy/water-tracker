@@ -16,8 +16,8 @@ Matches the app as of Premium freemium (#115–#116) and privacy refresh Oct 27,
 | Support URL | **TODO** |
 | Marketing URL | **TODO** (optional) |
 | Privacy Policy URL | https://water-tracker-yz68.onrender.com/privacy |
-| Privacy contact | **TODO**: confirm (suggested jlegacy007@gmail.com) |
-| Copyright | **TODO** (e.g. "2026 [legal name]") |
+| Privacy contact | jlegacy007@gmail.com |
+| Copyright | 2026 Joseph Legacy |
 | Keywords (≤100) | `boat,jet ski,pwc,kayak,river,lake,ramp,marina,rider,group ride,location,sos,map,trail,water` |
 
 **Promotional text (≤170)**
@@ -123,8 +123,8 @@ Trails exist so a rider can see where they've been during the current day on the
 1. Price tier
 2. Support URL
 3. Marketing URL (optional)
-4. Privacy policy: last updated Oct 27, 2026 on /privacy — still need confirmed contact email and legal entity name (placeholders in PRIVACY.md)
-5. Copyright holder name
+4. ~~Privacy policy contact / legal name~~ — Joseph Legacy / jlegacy007@gmail.com (done Oct 27, 2026)
+5. ~~Copyright holder name~~ — Joseph Legacy
 6. In-app report/block for user content (Guideline 1.2)
 7. Final age rating confirmation
 8. Reviewer test URL / second-device instructions
