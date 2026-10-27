@@ -1,4 +1,4 @@
-"""Browser QA: Relive-style freemium — free users get NO breadcrumbs; Premium draws + keeps history + Past.
+"""Browser QA: Relive-style freemium — free users get NO breadcrumbs; Premium draws + keeps trails on map 24h.
 Uses window.__WT_SET_PREMIUM__ / ?premium= override (no real StoreKit in browser).
 Usage: python qa_browser_premium.py http://172.30.0.2:8777/ [chromium|webkit]"""
 import asyncio, sys
@@ -48,14 +48,10 @@ async def run(p, n):
   pay_vis = await pg.evaluate("()=>document.getElementById('paywall').classList.contains('show')")
   ok(n, 'free Breadcrumbs button opens paywall', pay_vis)
   await pg.evaluate("()=>closePaywall()")
-  await pg.click('#pastBtn')
-  await pg.wait_for_timeout(400)
-  pay2 = await pg.evaluate("()=>document.getElementById('paywall').classList.contains('show')")
-  past_vis = await pg.evaluate("()=>document.getElementById('pastRides').classList.contains('show')")
-  ok(n, 'free Past opens paywall not Past panel', pay2 and not past_vis, (pay2, past_vis))
-  await pg.evaluate("()=>closePaywall()")
+  past_gone = await pg.evaluate("()=>!document.getElementById('pastBtn') && !document.getElementById('pastRides')")
+  ok(n, 'Past rides UI removed', past_gone)
 
-  # --- Premium: live trail + archive + Past ---
+  # --- Premium: live trail + archive onto map ---
   await pg.evaluate("()=>window.__WT_SET_PREMIUM__(true)")
   ok(n, 'dev override flips to premium', await pg.evaluate("()=>isPremium()") is True)
   trail_on = await pg.evaluate("()=>trailOn")
@@ -69,17 +65,11 @@ async def run(p, n):
   await pg.wait_for_timeout(800)
   past_count = await pg.evaluate("()=>{let n=0;if(myPastLayer)myPastLayer.eachLayer(()=>n++);return n}")
   ok(n, 'premium archives trail onto map', past_count >= 1, past_count)
-  await pg.click('#pastBtn')
-  await pg.wait_for_timeout(500)
-  past_open = await pg.evaluate("()=>document.getElementById('pastRides').classList.contains('show')")
-  pay_open = await pg.evaluate("()=>document.getElementById('paywall').classList.contains('show')")
-  ok(n, 'premium Past opens Past panel', past_open and not pay_open, (past_open, pay_open))
-  await pg.evaluate("()=>closePastRides()")
   await pg.reload(); await pg.wait_for_timeout(1200)
   await join(pg, f'QA prem2 {n}', premium=True)
   await pg.wait_for_timeout(2500)
   restored2 = await pg.evaluate("()=>{let n=0,p=0;if(myPastLayer)myPastLayer.eachLayer(l=>{n++;p+=l.getLatLngs().length});return [n,p]}")
-  ok(n, 'premium rejoin restores trail history', restored2[0] >= 1 and restored2[1] >= 1, restored2)
+  ok(n, 'premium rejoin restores trails on map', restored2[0] >= 1 and restored2[1] >= 1, restored2)
 
   ids = await pg.evaluate("()=>[PREMIUM.products.monthly, PREMIUM.products.yearly, PREMIUM.groupName, PREMIUM.enabled]")
   ok(n, 'product IDs configured', ids[0] == 'com.encsr.watertracker.premium.monthly' and ids[1] == 'com.encsr.watertracker.premium.yearly', ids)

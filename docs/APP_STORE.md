@@ -15,7 +15,7 @@ Matches the app as of Premium freemium (#115–#116) and privacy refresh Oct 27,
 | Price | **TODO** (pricing tier not decided) |
 | Support URL | **TODO** |
 | Marketing URL | **TODO** (optional) |
-| Privacy Policy URL | https://water-tracker-yz68.onrender.com/privacy |
+| Privacy Policy URL | https://www.encsr.com/privacy-policy |
 | Privacy contact | jlegacy007@gmail.com |
 | Copyright | 2026 Joseph Legacy |
 | Keywords (≤100) | `boat,jet ski,pwc,kayak,river,lake,ramp,marina,rider,group ride,location,sos,map,trail,water` |
@@ -75,7 +75,7 @@ Notes (keep aligned with `PRIVACY.md`, last updated October 27, 2026):
 - Ramps/marinas come from a file bundled with the app. If that file fails to load, the app falls back to `/api/ramps` with the map center.
 - Map tiles are fetched from tile.openstreetmap.org (tile coordinates + IP). Disclosed in the privacy policy.
 - All traffic uses HTTPS/WSS.
-- Privacy URL: https://water-tracker-yz68.onrender.com/privacy
+- Privacy URL: https://www.encsr.com/privacy-policy
 
 ---
 
@@ -91,7 +91,7 @@ Notes (keep aligned with `PRIVACY.md`, last updated October 27, 2026):
 5. Tap Leader to show the leader badge on your marker for other riders.
 6. Tap SOS. Every rider within 50 miles receives the alert. Tap again to cancel.
 7. Tap Ramps to show nearby boat ramps/marinas. A toast shows the count ("N ramps/marinas nearby").
-8. Premium / StoreKit testing: unlock breadcrumbs (sandbox or StoreKit config), move, confirm a gray dashed trail and Past rides (24 h on device). Free users see no trail; **Breadcrumbs (Premium)** opens the paywall.
+8. Premium / StoreKit testing: unlock breadcrumbs (sandbox or StoreKit config), move, confirm a gray dashed trail that stays on the map for 24 h. Free users see no trail; **Breadcrumbs (Premium)** opens the paywall.
 9. Turn on Airplane Mode. The map locks with "No internet connection / Map locked until connection returns" and unlocks when back online.
 
 Reviewers in areas without other riders will see only themselves. That is expected.
@@ -141,6 +141,6 @@ See **[SUBSCRIPTIONS.md](./SUBSCRIPTIONS.md)** for App Store Connect setup.
 - Group: Water Tracker Premium
 - Products: `com.encsr.watertracker.premium.monthly`, `com.encsr.watertracker.premium.yearly`
 - Free forever: live map, SOS, Leader, messaging, riders within 50 mi, ramps (no breadcrumbs)
-- Premium: live breadcrumbs + 24 h trail history + Past rides
+- Premium: live breadcrumbs + keep trails on the map for 24 h
 - Map button **Breadcrumbs (Premium)** opens the paywall for free users
 - Paywall includes Restore, Privacy, Terms (EULA), and auto-renew disclosure (Guideline 3.1.2)
