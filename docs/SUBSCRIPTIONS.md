@@ -1,6 +1,6 @@
 # Water Tracker Premium — App Store Connect setup
 
-Premium unlocks **trail history** (24‑hour saved rides + Past rides). Live map, SOS, Leader, messaging, and riders within 50 mi stay free.
+Premium unlocks **breadcrumbs** — the live ride trail, 24‑hour saved rides, and Past rides. Free users see **no** breadcrumb trail at all. Live map, SOS, Leader, messaging, and riders within 50 mi stay free.
 
 Product IDs (must match `PREMIUM.products` in `water-tracker-app/www/index.html`):
 
@@ -55,9 +55,10 @@ Plugin: `@capgo/native-purchases` (StoreKit 2). No RevenueCat / server API keys 
 | Feature | Free | Premium |
 |---|---|---|
 | Live map, SOS, Leader, riders ≤50 mi, messaging, ramps | Yes | Yes |
-| Live breadcrumb for the **current** ride | Yes | Yes |
+| Live breadcrumb trail (current ride) | No | Yes |
 | Keep trail after leave / rejoin / reload | No | Yes (24 h) |
 | Past rides list + map overlay | No (opens paywall) | Yes |
+| Discover: **Breadcrumbs (Premium)** map button | Opens paywall | Toggles breadcrumbs on/off |
 
 ## 5. Paywall copy (Guideline 3.1.2)
 

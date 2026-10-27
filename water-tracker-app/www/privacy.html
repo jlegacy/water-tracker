@@ -15,7 +15,7 @@ tr:nth-child(even) td{background:#f0f9f8}</style></head><body><main><h1>Water Tr
 <li><strong>No accounts.</strong> No sign-up, email, phone number or password.</li>
 <li><strong>No tracking, ads or analytics.</strong> We don't sell data or share it with advertisers or data brokers.</li>
 <li><strong>Live positions live in server memory only</strong>, and are dropped when you leave or after 30 minutes of silence.</li>
-<li><strong>Ride trails stay on your phone.</strong> Premium keeps them for 24 hours; free users see only the live trail for the current ride.</li>
+<li><strong>Ride breadcrumbs stay on your phone</strong> when you have Premium (kept about 24 hours). Free users do not get a breadcrumb trail.</li>
 </ul>
 <h2>What the app uses</h2>
 <table>
@@ -59,10 +59,10 @@ tr:nth-child(even) td{background:#f0f9f8}</style></head><body><main><h1>Water Tr
 <td>On device until you clear app data</td>
 </tr>
 <tr>
-<td>Ride trail (GPS points and times)</td>
-<td>Draw your path; let you view past rides</td>
-<td>Your device (IndexedDB). A thinned recent segment is shared live with riders within 50 miles while Trail is on</td>
-<td><strong>Premium:</strong> deleted 24 h after saving (~50 MB cap). <strong>Free:</strong> live trail for the current ride only; not kept after you leave or rejoin</td>
+<td>Ride trail / breadcrumbs (GPS points and times)</td>
+<td>Draw your path; let you view past rides (Premium)</td>
+<td>Your device (IndexedDB). A thinned recent segment is shared live with riders within 50 miles while Breadcrumbs is on</td>
+<td><strong>Premium:</strong> deleted 24 h after saving (~50 MB cap). <strong>Free:</strong> no breadcrumbs collected or drawn</td>
 </tr>
 <tr>
 <td>Premium subscription status (App Store)</td>
@@ -81,7 +81,7 @@ tr:nth-child(even) td{background:#f0f9f8}</style></head><body><main><h1>Water Tr
 <h2>Who can see you</h2>
 <ul>
 <li>There are no groups and no range setting. Every rider sees everyone within <strong>50 miles</strong>; zooming the map only changes the view.</li>
-<li>While you are sharing, any rider within about <strong>50 miles</strong> sees your name, position, Leader badge, SOS status and, if Trail is on, your recent trail.</li>
+<li>While you are sharing, any rider within about <strong>50 miles</strong> sees your name, position, Leader badge, SOS status and, if Breadcrumbs (Premium) is on, your recent trail.</li>
 <li>A rider stops seeing you a little past 50 miles (at 52 miles).</li>
 <li>SOS and "gone quiet" alerts go to riders within 50 miles. Direct messages go only to the rider you pick.</li>
 </ul>
@@ -98,7 +98,7 @@ tr:nth-child(even) td{background:#f0f9f8}</style></head><body><main><h1>Water Tr
 <p>All traffic uses HTTPS and secure WebSockets (WSS). We keep no database of positions or location history.</p>
 <h2>Your choices</h2>
 <ul>
-<li><strong>Premium</strong> is an optional auto‑renewing App Store subscription that unlocks trail history and Past rides. Manage or cancel in iOS Settings → Apple ID → Subscriptions. Purchases use Apple's payment system; we do not receive your card details.</li>
+<li><strong>Premium</strong> is an optional auto‑renewing App Store subscription that unlocks breadcrumbs (live trail + 24 h history) and Past rides. Manage or cancel in iOS Settings → Apple ID → Subscriptions. Purchases use Apple's payment system; we do not receive your card details.</li>
 <li>Leave a session at any time to stop sharing and be removed from other riders' maps.</li>
 <li>Deny or limit location access in iOS Settings; the app can't show you to others without it.</li>
 <li>Delete the app or clear its data to remove saved trails, the rider ID and preferences from your device.</li>
