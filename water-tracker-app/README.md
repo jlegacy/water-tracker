@@ -4,6 +4,8 @@ Native iOS/Android shell for Water Tracker. **Production builds load the UI from
 
 Live API: `https://water-tracker-yz68.onrender.com`
 
+Privacy Policy: https://www.encsr.com/privacy-policy
+
 ## Why local `www`
 
 Apple guideline 4.2 often rejects apps that are only a thin shell around a remote website (`server.url`). Production `capacitor.config.json` has **no** `server` block. The map UI ships inside the app; only live rider data and ramp lookups hit Render.

@@ -22,7 +22,7 @@
           "introductoryOffer" : null,
           "localizations" : [
             {
-              "description" : "Save ride breadcrumbs for 24 hours and open Past rides.",
+              "description" : "Save ride breadcrumbs on the map for 24 hours.",
               "displayName" : "Premium Monthly",
               "locale" : "en_US"
             }
@@ -44,7 +44,7 @@
           "introductoryOffer" : null,
           "localizations" : [
             {
-              "description" : "Save ride breadcrumbs for 24 hours and open Past rides. Best value.",
+              "description" : "Save ride breadcrumbs on the map for 24 hours. Best value.",
               "displayName" : "Premium Yearly",
               "locale" : "en_US"
             }

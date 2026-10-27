@@ -200,28 +200,7 @@ function wsUrl(path) {
   .groupLabel{font-size:13px;color:#9fb3c8;margin-bottom:-6px}
   #bar button.leader{background:#475569}
   #bar button.leader.on{background:#8b5cf6;color:#fff} /* same purple as the leader marker */
-  #pastRides{
-    display:none;position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.72);
-    align-items:center;justify-content:center;padding:20px;box-sizing:border-box;
-  }
-  #pastRides.show{display:flex}
-  #pastRides .box{
-    background:#0f2038;color:#e8eef7;border-radius:14px;padding:16px;max-width:380px;width:100%;
-    border:1px solid #2a4a6f;max-height:80vh;display:flex;flex-direction:column;gap:10px;
-  }
-  #pastRides h2{margin:0;font-size:18px}
-  #pastRides ul{list-style:none;margin:0;padding:0;overflow:auto;flex:1;min-height:80px}
-  #pastRides li{
-    padding:10px 12px;border-radius:8px;background:#132a45;margin-bottom:8px;cursor:pointer;
-    font-size:14px;border:1px solid #2a4a6f;
-  }
-  #pastRides li:active,#pastRides li:hover{background:#1e3a5f}
-  #pastRides .empty{color:#9fb3c8;font-size:14px;padding:8px 0}
-  #pastRides .actions{display:flex;gap:10px;justify-content:flex-end}
-  #pastRides .actions button{padding:10px 16px;border-radius:10px;border:0;font-weight:700;font-size:15px;background:#334155;color:#fff}
-
-  #pastBtn{top:148px}
-  #crumbsBtn{top:206px;background:#7c3aed;max-width:160px;white-space:normal;line-height:1.2;font-size:12px;padding:8px 10px}
+  #crumbsBtn{top:148px;background:#7c3aed;max-width:160px;white-space:normal;line-height:1.2;font-size:12px;padding:8px 10px}
   #crumbsBtn.on{background:#0f766e}
   #paywall{
     display:none;position:fixed;inset:0;z-index:12000;background:rgba(2,8,23,.72);
@@ -291,7 +270,7 @@ function wsUrl(path) {
   <input id="startName" placeholder="Enter your name" autocomplete="off" autocorrect="off">
   <button type="button" class="styleOpen" id="styleOpenJoin" onclick="openStylePanel()"><span id="styleJoinPrev"></span>Marker color</button>
   <button onclick="startApp()">Start</button>
-  <a id="privacyLink" href="https://water-tracker-yz68.onrender.com/privacy" target="_blank" rel="noopener" style="margin-top:18px;color:#9cc3e6;font-size:14px">Privacy Policy</a>
+  <a id="privacyLink" href="https://www.encsr.com/privacy-policy" target="_blank" rel="noopener" style="margin-top:18px;color:#9cc3e6;font-size:14px">Privacy Policy</a>
 </div>
 <div id="banner"></div>
 <div id="bar">
@@ -344,30 +323,18 @@ function wsUrl(path) {
     </div>
   </div>
 </div>
-<div id="pastRides" role="dialog" aria-modal="true" aria-labelledby="pastRidesTitle">
-  <div class="box">
-    <h2 id="pastRidesTitle">Past rides</h2>
-    <div id="pastRidesEmpty" class="empty">No saved rides yet.</div>
-    <ul id="pastRidesList"></ul>
-    <div class="actions">
-      <button type="button" onclick="clearPastOverlay()">Clear map</button>
-      <button type="button" onclick="closePastRides()">Close</button>
-    </div>
-  </div>
-</div>
 <div id="map"></div>
 <div id="locBar" role="status" aria-live="polite"><span class="spin"></span><span id="locBarText">Searching for your location…</span></div>
 <div id="status"></div>
 <div id="rampToast"></div>
 <button id="headingBtn" class="mapBtn" onclick="toggleHeadingMode()">North Up</button>
-<button id="pastBtn" class="mapBtn" onclick="onPastRidesTap()">Past</button>
 <button id="crumbsBtn" class="mapBtn" onclick="onBreadcrumbsTap()">Breadcrumbs (Premium)</button>
 <button id="recenterBtn" class="mapBtn" onclick="recenter()">Re-center</button>
 
 <div id="paywall" role="dialog" aria-modal="true" aria-labelledby="paywallTitle">
   <div class="box">
     <h2 id="paywallTitle">Water Tracker Premium</h2>
-    <p class="sub">Draw your ride breadcrumbs, keep them for 24 hours, and open Past rides. Live map, SOS, Leader and nearby riders stay free.</p>
+    <p class="sub">Draw your ride breadcrumbs and keep them on the map for 24 hours. Live map, SOS, Leader and nearby riders stay free.</p>
     <div id="paywallWebOnly" class="webOnly" style="display:none">Subscriptions are available in the iPhone app. Open Water Tracker on your iPhone to subscribe or restore purchases.</div>
     <div class="plans">
       <button type="button" class="plan" id="payMonthly" onclick="purchasePremium('monthly')">
@@ -382,7 +349,7 @@ function wsUrl(path) {
       </button>
     </div>
     <div class="links">
-      <a href="https://water-tracker-yz68.onrender.com/privacy" target="_blank" rel="noopener">Privacy Policy</a>
+      <a href="https://www.encsr.com/privacy-policy" target="_blank" rel="noopener">Privacy Policy</a>
       <a href="https://www.apple.com/legal/internet-services/itunes/dev/stdeula/" target="_blank" rel="noopener">Terms of Use (EULA)</a>
     </div>
     <p class="legal">Payment will be charged to your Apple ID account at confirmation of purchase. Subscription automatically renews unless it is canceled at least 24 hours before the end of the current period. Your account will be charged for renewal within 24 hours prior to the end of the current period. You can manage and cancel subscriptions in your App Store account settings.</p>
@@ -530,7 +497,7 @@ function updateMotion(lat, lon, speed){
 }
 
 
-// ===== PREMIUM (Relive-style freemium): breadcrumbs (live + history) / Past rides =====
+// ===== PREMIUM (Relive-style freemium): breadcrumbs (live + 24 h on map) =====
 // Easy knobs: set enabled=false to unlock everything for free. Product IDs must match App Store Connect.
 const PREMIUM = {
   enabled: true, // master switch
@@ -540,7 +507,7 @@ const PREMIUM = {
     yearly: 'com.encsr.watertracker.premium.yearly'
   },
   cacheKey: 'wtPremiumEntitlement',
-  privacyUrl: 'https://water-tracker-yz68.onrender.com/privacy',
+  privacyUrl: 'https://www.encsr.com/privacy-policy',
   termsUrl: 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/'
 };
 let premiumActive = false;
@@ -590,8 +557,6 @@ function updatePremiumUI(){
     : 'Breadcrumbs: Premium (not unlocked)';
   if (btn) btn.textContent = isPremium() ? 'Manage Premium' : 'Unlock Premium';
   const mapOn = document.getElementById('map') && document.getElementById('map').style.display !== 'none';
-  const past = document.getElementById('pastBtn');
-  if (past) past.style.display = mapOn ? 'block' : past.style.display;
   const cb = document.getElementById('crumbsBtn');
   if (cb){
     if (mapOn) cb.style.display = 'block';
@@ -622,7 +587,6 @@ function setPremiumActive(on, productId){
     try { localStorage.setItem('trackerTrail', '0'); } catch(_){}
     clearLiveTrailBuffer();
     try { if (myPastLayer) myPastLayer.clearLayers(); } catch(_){}
-    try { clearPastOverlay(true); } catch(_){}
     try { wsSend({type:'trail', points:[]}); } catch(_){}
   }
   updatePremiumUI();
@@ -729,10 +693,6 @@ async function restorePremium(){
     console.warn('restore failed', e);
   }
 }
-function onPastRidesTap(){
-  if (isPremium()) openPastRides();
-  else openPaywall();
-}
 function onBreadcrumbsTap(){
   if (!isPremium()){ openPaywall(); return; }
   // Premium: toggle breadcrumbs on/off
@@ -751,7 +711,6 @@ if (canUseBreadcrumbs()) trailOn = true;
 let breadcrumb = []; // current ride: {lat, lon, t}
 let breadcrumbLine = null;
 let breadcrumbPending = [];
-let pastOverlayLine = null; // loaded archived ride
 let rideStartedAt = null;
 const LIVE_TRAIL_MAX_POINTS = 8000; // modest in-memory current-ride buffer
 const TRAIL_SHARE_MAX = 40; // thinned points shared with the group per update
@@ -794,13 +753,6 @@ function clearMyTrailLine(){
     try { map.removeLayer(breadcrumbLine); } catch(_){}
     breadcrumbLine = null;
   }
-}
-function clearPastOverlay(silent){
-  if (pastOverlayLine){
-    try { map.removeLayer(pastOverlayLine); } catch(_){}
-    pastOverlayLine = null;
-  }
-  if (!silent) status('Past ride cleared from map');
 }
 function clearRemoteTrail(id){
   if (remoteTrails[id]){
@@ -1030,8 +982,7 @@ async function archiveCurrentRide(reason){
     return false;
   }
 }
-// Saved trails (<24 h, IndexedDB on this device) are redrawn after leaving/rejoining or a reload.
-// Previously they were archived on leave but never shown again (Past rides UI has no button).
+// Saved trails (<24 h, IndexedDB on this device) are redrawn on the map after leave/rejoin or reload.
 let myPastLayer = null;
 async function showMyRecentTrails(){
   if (!canPersistTrails()){
@@ -1048,53 +999,6 @@ async function showMyRecentTrails(){
     return rides.length;
   } catch(e){ console.warn('restore trails failed', e); return 0; }
 }
-function formatRideLabel(r){
-  const d = new Date(r.endedAt || r.startedAt || Date.now());
-  const when = d.toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
-  const pts = (r.points && r.points.length) || 0;
-  const grp = r.group ? (' · ' + r.group) : '';
-  return when + grp + ' · ' + pts + ' pts';
-}
-async function openPastRides(){
-  if (!isPremium()){ openPaywall(); return; }
-  const panel = document.getElementById('pastRides');
-  const list = document.getElementById('pastRidesList');
-  const empty = document.getElementById('pastRidesEmpty');
-  if (!panel || !list) return;
-  list.innerHTML = '';
-  try {
-    const rides = await listArchivedRides();
-    if (!rides.length){
-      if (empty) empty.style.display = 'block';
-    } else {
-      if (empty) empty.style.display = 'none';
-      rides.slice(0, 40).forEach(r => {
-        const li = document.createElement('li');
-        li.textContent = formatRideLabel(r);
-        li.onclick = () => { loadPastRide(r); closePastRides(); };
-        list.appendChild(li);
-      });
-    }
-  } catch (e){
-    if (empty){ empty.style.display = 'block'; empty.textContent = 'Could not open saved rides on this device.'; }
-  }
-  panel.classList.add('show');
-}
-function closePastRides(){
-  blurActiveInput();
-  const panel = document.getElementById('pastRides');
-  if (panel) panel.classList.remove('show');
-}
-function loadPastRide(r){
-  clearPastOverlay(true);
-  const ll = trailLatLngs(r.points || []);
-  if (ll.length < 2){ status('That ride has no path'); return; }
-  pastOverlayLine = L.polyline(ll, trailPolyOpts()).addTo(map);
-  try { map.fitBounds(pastOverlayLine.getBounds().pad(0.2)); } catch(_){}
-  userMovedMap();
-  status('Showing past ride');
-}
-
 function status(t){ 
   const el = document.getElementById('status');
   if (el.textContent !== t) el.textContent = t;
@@ -2355,11 +2259,10 @@ function fixMapLayout(){
     mapDiv.style.top = top + 'px';
     // Float map buttons just below the header (and SOS bar when visible)
     const hb = document.getElementById('headingBtn'), rb = document.getElementById('recenterBtn');
-    const pb = document.getElementById('pastBtn'), cb = document.getElementById('crumbsBtn');
+    const cb = document.getElementById('crumbsBtn');
     if (hb) hb.style.top = (top + 12) + 'px';
-    if (pb) pb.style.top = (top + 70) + 'px';
-    if (cb) cb.style.top = (top + 128) + 'px';
-    if (rb) rb.style.top = (top + 186) + 'px';
+    if (cb) cb.style.top = (top + 70) + 'px';
+    if (rb) rb.style.top = (top + 128) + 'px';
     const banner = document.getElementById('banner');
     if (banner) banner.style.top = (top + 10) + 'px';
   }
@@ -2550,7 +2453,6 @@ function startApp(){
   document.getElementById('bar').style.display = 'flex';
   document.getElementById('status').style.display = 'block';
   document.getElementById('headingBtn').style.display = 'block';
-  const _pb = document.getElementById('pastBtn'); if (_pb) _pb.style.display = 'block';
   const _cb = document.getElementById('crumbsBtn'); if (_cb) _cb.style.display = 'block';
   // Free: no breadcrumbs. Premium: on.
   trailOn = canUseBreadcrumbs();
@@ -2568,7 +2470,7 @@ function startApp(){
   firstFixPending = true; showLocBar();
   roughFirstFix(); // circle in ~1s instead of waiting on cold GPS
   connect();
-  if (canPersistTrails()) showMyRecentTrails(); // premium: restore 24 h trail history
+  if (canPersistTrails()) showMyRecentTrails(); // premium: restore trails still within 24 h onto the map
   else clearLiveTrailBuffer(); // free: no breadcrumbs at all
   requestWakeLock();
 
@@ -2737,7 +2639,7 @@ async function tempDeleteTrails(){
   try { localStorage.removeItem(RIDE_DRAFT_KEY); } catch(_){}
   breadcrumb = []; breadcrumbPending = []; currentRideId = null; rideStartedAt = null;
   try { clearMyTrailLine(); } catch(_){}
-  try { clearPastOverlay(true); } catch(_){}
+  try { if (myPastLayer) myPastLayer.clearLayers(); } catch(_){}
   try {
     const db = await openTrailDb();
     await new Promise((res, rej) => { const tx = db.transaction(TRAIL_DB_STORE, 'readwrite'); tx.objectStore(TRAIL_DB_STORE).clear(); tx.oncomplete = res; tx.onerror = () => rej(tx.error); });

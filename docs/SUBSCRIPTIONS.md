@@ -1,6 +1,6 @@
 # Water Tracker Premium — App Store Connect setup
 
-Premium unlocks **breadcrumbs** — the live ride trail, 24‑hour saved rides, and Past rides. Free users see **no** breadcrumb trail at all. Live map, SOS, Leader, messaging, and riders within 50 mi stay free.
+Premium unlocks **breadcrumbs** — the live ride trail and keeping those trails on the map for about 24 hours. Free users see **no** breadcrumb trail at all. Live map, SOS, Leader, messaging, and riders within 50 mi stay free.
 
 Product IDs (must match `PREMIUM.products` in `water-tracker-app/www/index.html`):
 
@@ -31,14 +31,14 @@ Plugin: `@capgo/native-purchases` (StoreKit 2). No RevenueCat / server API keys 
 - Product ID: `com.encsr.watertracker.premium.monthly`
 - Duration: **1 Month**
 - Suggested price: **$2.99 / month** (pick any tier; change later)
-- Localization (English U.S.): Display name `Premium Monthly`, description `Save ride breadcrumbs for 24 hours and open Past rides.`
+- Localization (English U.S.): Display name `Premium Monthly`, description `Save ride breadcrumbs on the map for 24 hours.`
 
 ### Yearly
 - Reference name: `Premium Yearly`
 - Product ID: `com.encsr.watertracker.premium.yearly`
 - Duration: **1 Year**
 - Suggested price: **$19.99 / year** (about 2 months free vs monthly)
-- Localization (English U.S.): Display name `Premium Yearly`, description `Save ride breadcrumbs for 24 hours and open Past rides. Best value.`
+- Localization (English U.S.): Display name `Premium Yearly`, description `Save ride breadcrumbs on the map for 24 hours. Best value.`
 
 4. Add a **Review screenshot** of the in‑app paywall (Past button → Water Tracker Premium sheet) for each product or for the group, per App Store Connect prompts.
 5. Submit the subscriptions for review with the next app binary (or as a subscription update if the app is already live).
@@ -56,8 +56,7 @@ Plugin: `@capgo/native-purchases` (StoreKit 2). No RevenueCat / server API keys 
 |---|---|---|
 | Live map, SOS, Leader, riders ≤50 mi, messaging, ramps | Yes | Yes |
 | Live breadcrumb trail (current ride) | No | Yes |
-| Keep trail after leave / rejoin / reload | No | Yes (24 h) |
-| Past rides list + map overlay | No (opens paywall) | Yes |
+| Keep trail on the map after leave / rejoin / reload (24 h) | No | Yes |
 | Discover: **Breadcrumbs (Premium)** map button | Opens paywall | Toggles breadcrumbs on/off |
 
 ## 5. Paywall copy (Guideline 3.1.2)
@@ -73,4 +72,4 @@ The in‑app sheet includes: Monthly and Yearly (prices from StoreKit, never har
 
 1. Mac: `git pull && cd water-tracker-app && npm install && npx cap sync ios`
 2. Xcode: Archive → distribute to TestFlight.
-3. On device: Past → subscribe with a sandbox tester → confirm Past rides and trail restore after relaunch; Restore Purchases on a second install.
+3. On device: tap **Breadcrumbs (Premium)** → subscribe with a sandbox tester → confirm the trail restores on the map after relaunch; Restore Purchases on a second install.

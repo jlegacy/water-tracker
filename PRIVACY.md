@@ -24,8 +24,8 @@ Water Tracker is a live map that lets people on boats, jet skis and kayaks see e
 | Leader badge and SOS status | Shown to nearby riders | Our server (memory only); riders within ~50 miles | Same as above |
 | Messages you send | Delivered to the rider you pick, or to nearby riders for a broadcast | Relayed by our server; not stored after delivery | Not kept after delivery |
 | Rider ID (a random **User ID** created on your device) | Lets a reconnect resume the same rider session | Your device (local storage); our server (memory only while you are present) | On device until you clear app data; on the server only while your session is live (then purged as above) |
-| Breadcrumbs / ride trail (GPS points and times) — **Premium only** | Draw your path and open Past rides | **Your device only** (IndexedDB). While Breadcrumbs is on, a thinned recent segment is also shared live with riders within ~50 miles | Auto-deleted about **24 hours** after saving (~50 MB cap, oldest first). Free users: **not collected or drawn** |
-| Premium subscription entitlement | Unlock breadcrumbs and Past rides | Apple (App Store / StoreKit) processes the purchase and billing. The app caches an entitlement flag on your device | Until you cancel or the subscription expires; clear app data to remove the local cache |
+| Breadcrumbs / ride trail (GPS points and times) — **Premium only** | Draw your path on the map | **Your device only** (IndexedDB). While Breadcrumbs is on, a thinned recent segment is also shared live with riders within ~50 miles | Auto-deleted about **24 hours** after saving (~50 MB cap, oldest first). Free users: **not collected or drawn** |
+| Premium subscription entitlement | Unlock breadcrumbs | Apple (App Store / StoreKit) processes the purchase and billing. The app caches an entitlement flag on your device | Until you cancel or the subscription expires; clear app data to remove the local cache |
 | Name and marker preference | Remember your settings | Your device only | Until you clear app data |
 
 ### What the server keeps (and does not)
@@ -43,7 +43,7 @@ Water Tracker is a live map that lets people on boats, jet skis and kayaks see e
 
 ## Breadcrumbs (Premium)
 - **Free users:** the app does **not** record or draw a breadcrumb trail.
-- **Subscribers:** the live trail is drawn on your map, auto-saved on the device, kept about 24 hours, and listed under Past rides.
+- **Subscribers:** the live trail is drawn on your map, auto-saved on the device, and kept on the map for about 24 hours, then removed automatically.
 - Use **Delete my trails** (in the marker / Look panel) to wipe saved rides, the draft and the live trail on this phone. Nothing is sent to the server for that wipe.
 - Discover Premium with the **Breadcrumbs (Premium)** map button (opens the paywall). Safety features stay free.
 
@@ -82,7 +82,7 @@ All traffic uses HTTPS and secure WebSockets (WSS). We keep no database of posit
 Water Tracker is not directed at children under 13, and we don’t knowingly collect personal information from them. If you believe a child under 13 has provided information through the app, contact jlegacy007@gmail.com and we will delete what we can control (server memory sessions clear on leave / purge; on-device data is under the device owner’s control).
 
 ## Changes
-If this policy changes, we’ll update the **Last updated** date above and post the new version at https://water-tracker-yz68.onrender.com/privacy.
+If this policy changes, we’ll update the **Last updated** date above and post the new version at https://www.encsr.com/privacy-policy (a copy also remains at https://water-tracker-yz68.onrender.com/privacy as a fallback).
 
 ## Contact
 Questions about this policy: **jlegacy007@gmail.com**  

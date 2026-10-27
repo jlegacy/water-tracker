@@ -10,7 +10,7 @@ Paste/adapt the following when filling out Google Play **Data safety**. This fil
 - **Retention (live):** until leave or ~30 min silence on the server; device preferences / rider ID until the user clears app data.
 
 ## Purpose
-- App functionality: nearby-rider safety map — show where riders are; optional Premium breadcrumbs / Past rides on device.
+- App functionality: nearby-rider safety map — show where riders are; optional Premium breadcrumbs kept on-device for about 24 hours.
 
 ## Collection notes to declare
 - Location may be used **in the background** / when the app is not in use while sharing is active (Capacitor background geolocation). Prominent disclosure before enabling breadcrumbs on Premium.
