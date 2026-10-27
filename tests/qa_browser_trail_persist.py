@@ -2,7 +2,9 @@
 Usage: python qa_browser_trail_persist.py http://172.30.0.2:8777/ [chromium|webkit]"""
 import asyncio, sys
 from playwright.async_api import async_playwright
-URL=sys.argv[1]; BROWSERS=sys.argv[2:] or ['chromium','webkit']
+URL=sys.argv[1]
+if 'premium=' not in URL: URL += ('&' if '?' in URL else '?') + 'premium=1'  # trail history is Premium
+BROWSERS=sys.argv[2:] or ['chromium','webkit']
 INIT="""(()=>{let i=0;const mk=()=>({coords:{latitude:35.807+(i++)*0.0004,longitude:-77.378,accuracy:5,heading:null,speed:3},timestamp:Date.now()});
 const g={getCurrentPosition(ok){setTimeout(()=>ok(mk()),300)},watchPosition(ok){setTimeout(()=>ok(mk()),300);setInterval(()=>ok(mk()),500);return 1},clearWatch(){}};
 Object.defineProperty(navigator,'geolocation',{get:()=>g});})()"""

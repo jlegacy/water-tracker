@@ -220,6 +220,41 @@ function wsUrl(path) {
   #pastRides .actions{display:flex;gap:10px;justify-content:flex-end}
   #pastRides .actions button{padding:10px 16px;border-radius:10px;border:0;font-weight:700;font-size:15px;background:#334155;color:#fff}
 
+  #pastBtn{top:148px}
+  #paywall{
+    display:none;position:fixed;inset:0;z-index:12000;background:rgba(2,8,23,.72);
+    align-items:center;justify-content:center;padding:18px;box-sizing:border-box;
+  }
+  #paywall.show{display:flex}
+  #paywall .box{
+    width:min(420px,100%);max-height:90vh;overflow:auto;background:#0f172a;color:#e2e8f0;
+    border-radius:16px;padding:18px 16px 14px;box-shadow:0 20px 50px rgba(0,0,0,.45);
+  }
+  #paywall h2{margin:0 0 6px;font-size:20px}
+  #paywall .sub{margin:0 0 14px;font-size:14px;line-height:1.45;color:#94a3b8}
+  #paywall .plans{display:flex;flex-direction:column;gap:10px;margin:0 0 12px}
+  #paywall .plan{
+    display:flex;flex-direction:column;gap:2px;text-align:left;padding:12px 14px;border-radius:12px;
+    border:1px solid #334155;background:#1e293b;color:#f8fafc;font-weight:700;font-size:16px;
+  }
+  #paywall .plan:disabled{opacity:.55}
+  #paywall .plan .price{font-size:14px;font-weight:600;color:#93c5fd}
+  #paywall .plan .hint{font-size:12px;font-weight:500;color:#94a3b8}
+  #paywall .webOnly{
+    margin:0 0 12px;padding:10px 12px;border-radius:10px;background:#1e3a5f;color:#bfdbfe;font-size:13px;line-height:1.4;
+  }
+  #paywall .links{display:flex;flex-wrap:wrap;gap:12px;margin:8px 0 10px;font-size:13px}
+  #paywall .links a{color:#93c5fd}
+  #paywall .legal{margin:0 0 12px;font-size:11px;line-height:1.4;color:#94a3b8}
+  #paywall .actions{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+  #paywall .actions button{padding:10px 14px;border-radius:10px;border:0;font-weight:700;font-size:14px}
+  #paywall .restore{background:#334155;color:#fff}
+  #paywall .close{background:#1e293b;color:#cbd5e1;border:1px solid #475569!important}
+  #stylePremium{margin:10px 0 4px;padding:10px;border-radius:10px;background:#0b1220;border:1px solid #334155;color:#e2e8f0;font-size:13px}
+  #stylePremium .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+  #stylePremium button{flex:1;min-width:110px;padding:9px 10px;border-radius:8px;border:0;font-weight:700;font-size:13px;background:#3b82f6;color:#fff}
+  #stylePremium button.sec{background:#334155}
+
   #trailDisclosure{
     display:none;position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.72);
     align-items:center;justify-content:center;padding:20px;box-sizing:border-box;
@@ -287,6 +322,13 @@ function wsUrl(path) {
   <!-- TEMP-DELETE-TRAILS start -->
   <button type="button" id="tempDeleteTrailsBtn" onclick="tempDeleteTrails()" style="display:block;width:100%;margin:10px 0 4px;padding:10px;border:1px solid #dc2626;border-radius:8px;background:#fff;color:#dc2626;font-weight:600">Delete my trails</button>
   <!-- TEMP-DELETE-TRAILS end -->
+  <div id="stylePremium">
+    <div id="stylePremiumStatus">Trail history: Free (live ride only)</div>
+    <div class="row">
+      <button type="button" id="stylePremiumBtn" onclick="openPaywall()">Unlock Premium</button>
+      <button type="button" class="sec" onclick="restorePremium()">Restore</button>
+    </div>
+  </div>
   <button type="button" class="done" onclick="closeStylePanel()">Done</button>
 </div></div>
 <div id="sosBar" role="button" tabindex="0" onclick="jumpToSos()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();jumpToSos();}" aria-label="Jump to SOS"></div></div>
@@ -316,7 +358,38 @@ function wsUrl(path) {
 <div id="status"></div>
 <div id="rampToast"></div>
 <button id="headingBtn" class="mapBtn" onclick="toggleHeadingMode()">North Up</button>
+<button id="pastBtn" class="mapBtn" onclick="onPastRidesTap()">Past</button>
 <button id="recenterBtn" class="mapBtn" onclick="recenter()">Re-center</button>
+
+<div id="paywall" role="dialog" aria-modal="true" aria-labelledby="paywallTitle">
+  <div class="box">
+    <h2 id="paywallTitle">Water Tracker Premium</h2>
+    <p class="sub">Keep your ride breadcrumbs and open Past rides. Live map, SOS, Leader and nearby riders stay free.</p>
+    <div id="paywallWebOnly" class="webOnly" style="display:none">Subscriptions are available in the iPhone app. Open Water Tracker on your iPhone to subscribe or restore purchases.</div>
+    <div class="plans">
+      <button type="button" class="plan" id="payMonthly" onclick="purchasePremium('monthly')">
+        <span>Monthly</span>
+        <span class="price" id="payMonthlyPrice">Loading price…</span>
+        <span class="hint">Auto-renewing. Cancel anytime.</span>
+      </button>
+      <button type="button" class="plan" id="payYearly" onclick="purchasePremium('yearly')">
+        <span>Yearly</span>
+        <span class="price" id="payYearlyPrice">Loading price…</span>
+        <span class="hint">Auto-renewing. Best value.</span>
+      </button>
+    </div>
+    <div class="links">
+      <a href="https://water-tracker-yz68.onrender.com/privacy" target="_blank" rel="noopener">Privacy Policy</a>
+      <a href="https://www.apple.com/legal/internet-services/itunes/dev/stdeula/" target="_blank" rel="noopener">Terms of Use (EULA)</a>
+    </div>
+    <p class="legal">Payment will be charged to your Apple ID account at confirmation of purchase. Subscription automatically renews unless it is canceled at least 24 hours before the end of the current period. Your account will be charged for renewal within 24 hours prior to the end of the current period. You can manage and cancel subscriptions in your App Store account settings.</p>
+    <div class="actions">
+      <button type="button" class="restore" id="payRestore" onclick="restorePremium()">Restore Purchases</button>
+      <button type="button" class="close" onclick="closePaywall()">Not now</button>
+    </div>
+  </div>
+</div>
+
 <script>
 if (!window.L) {
   const ns = document.getElementById('nameScreen');
@@ -453,6 +526,190 @@ function updateMotion(lat, lon, speed){
   else if (isMoving && v < MOVE_STOP_MS){ isMoving = false; }
 }
 
+
+// ===== PREMIUM (Relive-style freemium): trail history / Past rides =====
+// Easy knobs: set enabled=false to unlock everything for free. Product IDs must match App Store Connect.
+const PREMIUM = {
+  enabled: true, // master switch
+  groupName: 'Water Tracker Premium',
+  products: {
+    monthly: 'com.encsr.watertracker.premium.monthly',
+    yearly: 'com.encsr.watertracker.premium.yearly'
+  },
+  cacheKey: 'wtPremiumEntitlement',
+  privacyUrl: 'https://water-tracker-yz68.onrender.com/privacy',
+  termsUrl: 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/'
+};
+let premiumActive = false;
+let premiumProductId = '';
+let premiumPrices = {}; // id -> priceString from StoreKit when available
+
+function premiumDevOverride(){
+  try {
+    if (typeof window.__WT_PREMIUM__ === 'boolean') return window.__WT_PREMIUM__;
+    const q = new URLSearchParams(location.search).get('premium');
+    if (q === '1' || q === 'true') return true;
+    if (q === '0' || q === 'false') return false;
+    const ls = localStorage.getItem('wtDevPremium');
+    if (ls === '1') return true;
+    if (ls === '0') return false;
+  } catch(_){}
+  return null;
+}
+function loadPremiumCache(){
+  try {
+    const raw = JSON.parse(localStorage.getItem(PREMIUM.cacheKey) || 'null');
+    if (!raw) return;
+    premiumActive = !!raw.active;
+    premiumProductId = raw.productId || '';
+  } catch(_){}
+}
+function savePremiumCache(){
+  try {
+    localStorage.setItem(PREMIUM.cacheKey, JSON.stringify({
+      active: premiumActive, productId: premiumProductId, checkedAt: Date.now()
+    }));
+  } catch(_){}
+}
+function isPremium(){
+  if (!PREMIUM.enabled) return true; // kill switch: everything free
+  const o = premiumDevOverride();
+  if (o !== null) return o;
+  return !!premiumActive;
+}
+function canPersistTrails(){ return isPremium(); }
+function updatePremiumUI(){
+  const st = document.getElementById('stylePremiumStatus');
+  const btn = document.getElementById('stylePremiumBtn');
+  if (st) st.textContent = isPremium()
+    ? ('Trail history: Premium' + (premiumProductId ? ' · ' + premiumProductId.split('.').pop() : ''))
+    : 'Trail history: Free (live ride only)';
+  if (btn) btn.textContent = isPremium() ? 'Manage Premium' : 'Unlock Premium';
+  const past = document.getElementById('pastBtn');
+  if (past) past.style.display = document.getElementById('map') && document.getElementById('map').style.display !== 'none' ? 'block' : past.style.display;
+}
+function setPremiumActive(on, productId){
+  premiumActive = !!on;
+  if (productId) premiumProductId = productId;
+  if (!on) premiumProductId = '';
+  savePremiumCache();
+  updatePremiumUI();
+  if (on){ try { showMyRecentTrails(); } catch(_){} }
+  else {
+    try { if (myPastLayer) myPastLayer.clearLayers(); } catch(_){}
+    try { clearPastOverlay(true); } catch(_){}
+  }
+}
+window.__WT_SET_PREMIUM__ = function(v){ // Playwright / QA override
+  try { localStorage.setItem('wtDevPremium', v ? '1' : '0'); } catch(_){}
+  window.__WT_PREMIUM__ = !!v;
+  setPremiumActive(!!v, v ? 'dev-override' : '');
+  return isPremium();
+};
+function nativePurchases(){
+  try { return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.NativePurchases; } catch(_){ return null; }
+}
+function purchasesAvailable(){ return !!(isNativeApp() && nativePurchases()); }
+async function refreshPremiumFromStore(){
+  loadPremiumCache();
+  updatePremiumUI();
+  if (!purchasesAvailable()) return isPremium();
+  const NP = nativePurchases();
+  try {
+    const { purchases } = await NP.getPurchases({ productType: 'subs', onlyCurrentEntitlements: true });
+    const ids = new Set([PREMIUM.products.monthly, PREMIUM.products.yearly]);
+    const hit = (purchases || []).find(p => ids.has(p.productIdentifier) && (p.isActive === true || (p.expirationDate && new Date(p.expirationDate) > new Date()) || p.purchaseState === 'PURCHASED' || p.purchaseState === '1'));
+    if (hit) setPremiumActive(true, hit.productIdentifier);
+    else if (premiumDevOverride() === null) setPremiumActive(false, '');
+  } catch(e){ console.warn('premium refresh failed', e); }
+  return isPremium();
+}
+async function loadPremiumPrices(){
+  const mEl = document.getElementById('payMonthlyPrice');
+  const yEl = document.getElementById('payYearlyPrice');
+  if (!purchasesAvailable()){
+    if (mEl) mEl.textContent = 'See price in the iPhone app';
+    if (yEl) yEl.textContent = 'See price in the iPhone app';
+    return;
+  }
+  try {
+    const NP = nativePurchases();
+    const { products } = await NP.getProducts({
+      productIdentifiers: [PREMIUM.products.monthly, PREMIUM.products.yearly],
+      productType: 'subs'
+    });
+    (products || []).forEach(p => { premiumPrices[p.identifier] = p.priceString || p.price || ''; });
+    if (mEl) mEl.textContent = premiumPrices[PREMIUM.products.monthly] || 'Monthly';
+    if (yEl) yEl.textContent = premiumPrices[PREMIUM.products.yearly] || 'Yearly';
+  } catch(e){
+    if (mEl) mEl.textContent = 'Monthly';
+    if (yEl) yEl.textContent = 'Yearly';
+  }
+}
+function openPaywall(){
+  const w = document.getElementById('paywall');
+  if (!w) return;
+  const web = document.getElementById('paywallWebOnly');
+  const native = purchasesAvailable();
+  if (web) web.style.display = native ? 'none' : 'block';
+  document.getElementById('payMonthly').disabled = !native;
+  document.getElementById('payYearly').disabled = !native;
+  document.getElementById('payRestore').disabled = !native;
+  if (isPremium() && native){
+    // Manage instead of buy when already subscribed
+    try { nativePurchases().manageSubscriptions(); return; } catch(_){}
+  }
+  loadPremiumPrices();
+  w.classList.add('show');
+}
+function closePaywall(){
+  const w = document.getElementById('paywall');
+  if (w) w.classList.remove('show');
+}
+async function purchasePremium(kind){
+  if (!purchasesAvailable()){ openPaywall(); return; }
+  const id = PREMIUM.products[kind];
+  if (!id) return;
+  try {
+    const tx = await nativePurchases().purchaseProduct({
+      productIdentifier: id,
+      productType: 'subs',
+      quantity: 1
+    });
+    setPremiumActive(true, (tx && tx.productIdentifier) || id);
+    closePaywall();
+    status('Premium unlocked — trail history on');
+  } catch(e){
+    const msg = (e && (e.message || e.errorMessage)) || '';
+    if (/cancel/i.test(msg)) return;
+    status('Purchase failed — try again');
+    console.warn('purchase failed', e);
+  }
+}
+async function restorePremium(){
+  if (!purchasesAvailable()){
+    openPaywall();
+    status('Restore is available in the iPhone app');
+    return;
+  }
+  try {
+    await nativePurchases().restorePurchases();
+    const on = await refreshPremiumFromStore();
+    if (on){ closePaywall(); status('Purchases restored — Premium on'); }
+    else status('No active Premium subscription found');
+  } catch(e){
+    status('Restore failed — try again');
+    console.warn('restore failed', e);
+  }
+}
+function onPastRidesTap(){
+  if (isPremium()) openPastRides();
+  else openPaywall();
+}
+loadPremiumCache();
+// Refresh entitlement on launch (native StoreKit); safe no-op on web
+setTimeout(() => { refreshPremiumFromStore(); }, 400);
+
 // Trail logging (trial): live ride buffer + IndexedDB archives (kept 24 h, ~50 MB cap) + gray dashed Garmin-style line
 // Trail button removed: trail logging is always on.
 let trailOn = true;
@@ -573,6 +830,7 @@ const RIDE_DRAFT_KEY = 'trackerRideDraft';
 let currentRideId = null;
 function rideId(){ return currentRideId || (currentRideId = 'ride-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8)); }
 function saveRideDraft(){
+  if (!canPersistTrails()) return; // free: live trail only, no draft
   try {
     const all = breadcrumb.concat(breadcrumbPending);
     if (all.length < 2) return;
@@ -583,6 +841,7 @@ function saveRideDraft(){
   } catch(_){}
 }
 async function recoverRideDraft(){
+  if (!canPersistTrails()){ try { localStorage.removeItem(RIDE_DRAFT_KEY); } catch(_){} return; }
   let ride = null;
   try { ride = JSON.parse(localStorage.getItem(RIDE_DRAFT_KEY) || 'null'); } catch(_){}
   if (ride && !ride.savedAt) ride.savedAt = ride.endedAt || ride.startedAt; // TTL counts from the last backup, not recovery
@@ -599,7 +858,7 @@ async function recoverRideDraft(){
     localStorage.removeItem(RIDE_DRAFT_KEY);
   } catch(e){ console.warn('ride draft recovery failed', e); }
 }
-setInterval(() => { if (sharing && trailOn) saveRideDraft(); }, 10000);
+setInterval(() => { if (sharing && trailOn && canPersistTrails()) saveRideDraft(); }, 10000);
 function clearLiveTrailBuffer(){
   currentRideId = null;
   try { localStorage.removeItem(RIDE_DRAFT_KEY); } catch(_){}
@@ -694,6 +953,7 @@ async function enforceArchiveBudget(db){
   });
 }
 async function archiveCurrentRide(reason){
+  if (!canPersistTrails()){ clearLiveTrailBuffer(); return false; } // free: drop live trail, do not archive
   // Merge any pending points first
   if (breadcrumbPending.length){
     breadcrumbPending.forEach(p => breadcrumb.push(p));
@@ -740,6 +1000,10 @@ async function archiveCurrentRide(reason){
 // Previously they were archived on leave but never shown again (Past rides UI has no button).
 let myPastLayer = null;
 async function showMyRecentTrails(){
+  if (!canPersistTrails()){
+    try { if (myPastLayer) myPastLayer.clearLayers(); } catch(_){}
+    return 0;
+  }
   try {
     await recoverRideDraft();
     const rides = (await listArchivedRides()).filter(r => !rideExpired(r));
@@ -758,6 +1022,7 @@ function formatRideLabel(r){
   return when + grp + ' · ' + pts + ' pts';
 }
 async function openPastRides(){
+  if (!isPremium()){ openPaywall(); return; }
   const panel = document.getElementById('pastRides');
   const list = document.getElementById('pastRidesList');
   const empty = document.getElementById('pastRidesEmpty');
@@ -1855,7 +2120,7 @@ setInterval(() => {
 }, 10000);
 
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden' && trailOn) saveRideDraft(); // OS may kill a hidden page with no unload
+  if (document.visibilityState === 'hidden' && trailOn && canPersistTrails()) saveRideDraft(); // OS may kill a hidden page with no unload
   if (document.visibilityState === 'visible') purgeExpiredRides(); // timers may have slept past an expiry
   if (!sharing) return;
   if (document.visibilityState === 'visible') {
@@ -1883,9 +2148,15 @@ let wakeLock = null;
 // (no ghost rider, no false 'gone quiet'). Hiding/app-switching/screen lock is NOT a leave.
 let leftPage = false;
 function leaveOnClose(){
-  // Best-effort auto-archive current ride (IndexedDB txn usually completes during unload)
-  try { saveRideDraft(); } catch(e){}
-  try { if (trailOn || breadcrumb.length || breadcrumbPending.length) archiveCurrentRide('session-end'); } catch(e){}
+  // Premium: draft + archive. Free: drop the live trail (no history kept).
+  try {
+    if (canPersistTrails()){
+      try { saveRideDraft(); } catch(e){}
+      try { if (trailOn || breadcrumb.length || breadcrumbPending.length) archiveCurrentRide('session-end'); } catch(e){}
+    } else {
+      clearLiveTrailBuffer();
+    }
+  } catch(e){}
   if (!sharing || leftPage || isNativeApp()) return;
   leftPage = true;
   try { if (ws && ws.readyState === 1) ws.send(JSON.stringify({type:'leave'})); } catch(e){}
@@ -2161,7 +2432,7 @@ function renderStylePanel(){
   });
   ['stylePrev','styleJoinPrev'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = stylePreviewHtml(); });
 }
-function openStylePanel(){
+function openStylePanel(){ updatePremiumUI();
   if (!styleAllowed()) return;
   document.querySelectorAll('.cmenu.open,#riderMenu.open').forEach(m => m.classList.remove('open'));
   renderStylePanel(); document.getElementById('stylePanel').classList.add('open');
@@ -2237,7 +2508,9 @@ function startApp(){
   document.getElementById('bar').style.display = 'flex';
   document.getElementById('status').style.display = 'block';
   document.getElementById('headingBtn').style.display = 'block';
+  const _pb = document.getElementById('pastBtn'); if (_pb) _pb.style.display = 'block';
   updateHeadingBtn();
+  updatePremiumUI();
   setFollow(true);
   fixMapLayout();
   requestAnimationFrame(fixMapLayout);
@@ -2249,7 +2522,8 @@ function startApp(){
   firstFixPending = true; showLocBar();
   roughFirstFix(); // circle in ~1s instead of waiting on cold GPS
   connect();
-  showMyRecentTrails(); // bring back this device's trails from the last 24 h
+  if (canPersistTrails()) showMyRecentTrails(); // premium: restore 24 h trail history
+  else clearLiveTrailBuffer(); // free: start with a clean live trail
   requestWakeLock();
 
   // Prefer native background geolocation when running inside Capacitor

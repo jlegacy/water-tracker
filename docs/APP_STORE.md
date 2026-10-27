@@ -124,3 +124,16 @@ Trails exist so a rider can see where they've been during the current day on the
 8. Reviewer test URL / second-device instructions
 9. Justify or remove the `fetch` background mode
 10. Add `ITSAppUsesNonExemptEncryption = NO`
+
+
+---
+
+## Premium (auto-renewing subscription)
+
+See **[SUBSCRIPTIONS.md](./SUBSCRIPTIONS.md)** for App Store Connect setup.
+
+- Group: Water Tracker Premium
+- Products: `com.encsr.watertracker.premium.monthly`, `com.encsr.watertracker.premium.yearly`
+- Free forever: live map, SOS, Leader, messaging, riders within 50 mi, ramps, live breadcrumb for the current ride
+- Premium: 24 h trail history + Past rides
+- Paywall includes Restore, Privacy, Terms (EULA), and auto-renew disclosure (Guideline 3.1.2)

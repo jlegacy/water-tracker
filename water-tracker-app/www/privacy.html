@@ -15,7 +15,7 @@ tr:nth-child(even) td{background:#f0f9f8}</style></head><body><main><h1>Water Tr
 <li><strong>No accounts.</strong> No sign-up, email, phone number or password.</li>
 <li><strong>No tracking, ads or analytics.</strong> We don't sell data or share it with advertisers or data brokers.</li>
 <li><strong>Live positions live in server memory only</strong>, and are dropped when you leave or after 30 minutes of silence.</li>
-<li><strong>Ride trails stay on your phone</strong> and are deleted automatically after 24 hours.</li>
+<li><strong>Ride trails stay on your phone.</strong> Premium keeps them for 24 hours; free users see only the live trail for the current ride.</li>
 </ul>
 <h2>What the app uses</h2>
 <table>
@@ -36,19 +36,19 @@ tr:nth-child(even) td{background:#f0f9f8}</style></head><body><main><h1>Water Tr
 </tr>
 <tr>
 <td>Precise location (foreground and background)</td>
-<td>Show you to riders in range; SOS and "gone quiet" alerts</td>
-<td>Our server (memory), riders whose range includes you</td>
+<td>Show you to riders within 50 miles; SOS and "gone quiet" alerts</td>
+<td>Our server (memory), riders within 50 miles of you</td>
 <td>Until you leave or 30 min of silence</td>
 </tr>
 <tr>
 <td>Leader badge and SOS status</td>
-<td>Shown to riders in range</td>
-<td>Our server (memory), riders in range</td>
+<td>Shown to riders within 50 miles</td>
+<td>Our server (memory), riders within 50 miles</td>
 <td>Same as above</td>
 </tr>
 <tr>
 <td>Messages you send</td>
-<td>Delivered to the rider you pick, or to riders in range for a broadcast</td>
+<td>Delivered to the rider you pick, or to riders within 50 miles for a broadcast</td>
 <td>Relayed by our server; not stored</td>
 <td>Not stored after delivery</td>
 </tr>
@@ -61,11 +61,17 @@ tr:nth-child(even) td{background:#f0f9f8}</style></head><body><main><h1>Water Tr
 <tr>
 <td>Ride trail (GPS points and times)</td>
 <td>Draw your path; let you view past rides</td>
-<td>Your device (IndexedDB). A thinned recent segment is shared live with riders in range while Trail is on</td>
-<td>Deleted 24 h after saving (~50 MB cap, oldest first)</td>
+<td>Your device (IndexedDB). A thinned recent segment is shared live with riders within 50 miles while Trail is on</td>
+<td><strong>Premium:</strong> deleted 24 h after saving (~50 MB cap). <strong>Free:</strong> live trail for the current ride only; not kept after you leave or rejoin</td>
 </tr>
 <tr>
-<td>Viewing range and name preference</td>
+<td>Premium subscription status (App Store)</td>
+<td>Unlock trail history / Past rides</td>
+<td>Apple processes the purchase; the app caches entitlement on your device</td>
+<td>Until you cancel or the subscription expires</td>
+</tr>
+<tr>
+<td>Name and marker preference</td>
 <td>Remember your settings</td>
 <td>Your device only</td>
 <td>Until you clear app data</td>
@@ -74,10 +80,10 @@ tr:nth-child(even) td{background:#f0f9f8}</style></head><body><main><h1>Water Tr
 </table>
 <h2>Who can see you</h2>
 <ul>
-<li>There are no groups. Each rider picks a viewing range of 25, 30, 35, 40, 45 or 50 miles (default 25).</li>
-<li>While you are sharing, any rider whose range includes you (so anyone up to about <strong>50 miles</strong> away) sees your name, position, Leader badge, SOS status and, if Trail is on, your recent trail.</li>
-<li>A rider stops seeing you about 2 miles past their chosen range.</li>
-<li>SOS and "gone quiet" alerts go to riders within range. Direct messages go only to the rider you pick.</li>
+<li>There are no groups and no range setting. Every rider sees everyone within <strong>50 miles</strong>; zooming the map only changes the view.</li>
+<li>While you are sharing, any rider within about <strong>50 miles</strong> sees your name, position, Leader badge, SOS status and, if Trail is on, your recent trail.</li>
+<li>A rider stops seeing you a little past 50 miles (at 52 miles).</li>
+<li>SOS and "gone quiet" alerts go to riders within 50 miles. Direct messages go only to the rider you pick.</li>
 </ul>
 <h2>Background location</h2>
 <p>If you allow "Always" location, the app keeps sharing your position while it is in the background, so other riders can still find you with your phone in a pocket or dry bag. Sharing stops when you leave the session or turn off location for Water Tracker in Settings.</p>
@@ -92,6 +98,7 @@ tr:nth-child(even) td{background:#f0f9f8}</style></head><body><main><h1>Water Tr
 <p>All traffic uses HTTPS and secure WebSockets (WSS). We keep no database of positions or location history.</p>
 <h2>Your choices</h2>
 <ul>
+<li><strong>Premium</strong> is an optional auto‑renewing App Store subscription that unlocks trail history and Past rides. Manage or cancel in iOS Settings → Apple ID → Subscriptions. Purchases use Apple's payment system; we do not receive your card details.</li>
 <li>Leave a session at any time to stop sharing and be removed from other riders' maps.</li>
 <li>Deny or limit location access in iOS Settings; the app can't show you to others without it.</li>
 <li>Delete the app or clear its data to remove saved trails, the rider ID and preferences from your device.</li>
