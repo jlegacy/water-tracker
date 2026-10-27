@@ -134,6 +134,7 @@ See **[SUBSCRIPTIONS.md](./SUBSCRIPTIONS.md)** for App Store Connect setup.
 
 - Group: Water Tracker Premium
 - Products: `com.encsr.watertracker.premium.monthly`, `com.encsr.watertracker.premium.yearly`
-- Free forever: live map, SOS, Leader, messaging, riders within 50 mi, ramps, live breadcrumb for the current ride
-- Premium: 24 h trail history + Past rides
+- Free forever: live map, SOS, Leader, messaging, riders within 50 mi, ramps (no breadcrumbs)
+- Premium: live breadcrumbs + 24 h trail history + Past rides
+- Map button **Breadcrumbs (Premium)** opens the paywall for free users
 - Paywall includes Restore, Privacy, Terms (EULA), and auto-renew disclosure (Guideline 3.1.2)

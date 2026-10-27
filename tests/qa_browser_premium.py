@@ -1,4 +1,4 @@
-"""Browser QA: Relive-style freemium — free users keep only the live ride trail; Premium keeps history + Past.
+"""Browser QA: Relive-style freemium — free users get NO breadcrumbs; Premium draws + keeps history + Past.
 Uses window.__WT_SET_PREMIUM__ / ?premium= override (no real StoreKit in browser).
 Usage: python qa_browser_premium.py http://172.30.0.2:8777/ [chromium|webkit]"""
 import asyncio, sys
@@ -34,34 +34,37 @@ async def run(p, n):
   pg = await c.new_page()
   errs = []; pg.on('pageerror', lambda e: errs.append(str(e)))
 
-  # --- Free: live trail records, but no archive / Past / restore ---
+  # --- Free: no breadcrumbs at all; discovery button opens paywall ---
   await join(pg, f'QA free {n}', premium=False)
   await pg.wait_for_timeout(10000)
-  free_bc = await pg.evaluate("()=>breadcrumb.length")
-  ok(n, 'free live breadcrumb records', free_bc >= 3, free_bc)
-  free_prem = await pg.evaluate("()=>isPremium()")
-  ok(n, 'free override isPremium false', free_prem is False, free_prem)
-  await pg.click('#pastBtn')
+  free = await pg.evaluate("()=>({bc:breadcrumb.length, line:!!breadcrumbLine, trailOn, prem:isPremium(), crumbs:document.getElementById('crumbsBtn')&&document.getElementById('crumbsBtn').textContent})")
+  ok(n, 'free isPremium false', free['prem'] is False, free)
+  ok(n, 'free trailOn false', free['trailOn'] is False, free)
+  ok(n, 'free no breadcrumb points', free['bc'] == 0, free)
+  ok(n, 'free no breadcrumb line', free['line'] is False, free)
+  ok(n, 'free shows Breadcrumbs (Premium) button', 'Premium' in (free['crumbs'] or ''), free)
+  await pg.click('#crumbsBtn')
   await pg.wait_for_timeout(400)
   pay_vis = await pg.evaluate("()=>document.getElementById('paywall').classList.contains('show')")
-  past_vis = await pg.evaluate("()=>document.getElementById('pastRides').classList.contains('show')")
-  ok(n, 'free Past opens paywall not Past panel', pay_vis and not past_vis, (pay_vis, past_vis))
-  web_only = await pg.evaluate("()=>document.getElementById('paywallWebOnly').style.display!=='none'")
-  ok(n, 'web paywall says available in iPhone app', web_only)
+  ok(n, 'free Breadcrumbs button opens paywall', pay_vis)
   await pg.evaluate("()=>closePaywall()")
-  await pg.reload(); await pg.wait_for_timeout(1200)
-  await join(pg, f'QA free2 {n}', premium=False)
-  await pg.wait_for_timeout(2000)
-  restored = await pg.evaluate("()=>{let n=0,p=0;if(myPastLayer)myPastLayer.eachLayer(l=>{n++;p+=l.getLatLngs().length});return [n,p]}")
-  ok(n, 'free rejoin does not restore past trails', restored[0] == 0 and restored[1] == 0, restored)
+  await pg.click('#pastBtn')
+  await pg.wait_for_timeout(400)
+  pay2 = await pg.evaluate("()=>document.getElementById('paywall').classList.contains('show')")
+  past_vis = await pg.evaluate("()=>document.getElementById('pastRides').classList.contains('show')")
+  ok(n, 'free Past opens paywall not Past panel', pay2 and not past_vis, (pay2, past_vis))
+  await pg.evaluate("()=>closePaywall()")
 
-  # --- Premium: archive + Past ---
+  # --- Premium: live trail + archive + Past ---
   await pg.evaluate("()=>window.__WT_SET_PREMIUM__(true)")
   ok(n, 'dev override flips to premium', await pg.evaluate("()=>isPremium()") is True)
+  trail_on = await pg.evaluate("()=>trailOn")
+  ok(n, 'premium enables trailOn', trail_on is True, trail_on)
   await pg.wait_for_timeout(10000)
   prem_bc = await pg.evaluate("()=>breadcrumb.length")
   ok(n, 'premium live breadcrumb records', prem_bc >= 3, prem_bc)
-  # Force archive as if leaving
+  has_line = await pg.evaluate("()=>!!breadcrumbLine")
+  ok(n, 'premium draws live breadcrumb line', has_line)
   await pg.evaluate("async()=>{await archiveCurrentRide('qa'); await showMyRecentTrails()}")
   await pg.wait_for_timeout(800)
   past_count = await pg.evaluate("()=>{let n=0;if(myPastLayer)myPastLayer.eachLayer(()=>n++);return n}")
@@ -78,7 +81,6 @@ async def run(p, n):
   restored2 = await pg.evaluate("()=>{let n=0,p=0;if(myPastLayer)myPastLayer.eachLayer(l=>{n++;p+=l.getLatLngs().length});return [n,p]}")
   ok(n, 'premium rejoin restores trail history', restored2[0] >= 1 and restored2[1] >= 1, restored2)
 
-  # Config knobs present
   ids = await pg.evaluate("()=>[PREMIUM.products.monthly, PREMIUM.products.yearly, PREMIUM.groupName, PREMIUM.enabled]")
   ok(n, 'product IDs configured', ids[0] == 'com.encsr.watertracker.premium.monthly' and ids[1] == 'com.encsr.watertracker.premium.yearly', ids)
 

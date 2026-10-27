@@ -221,6 +221,8 @@ function wsUrl(path) {
   #pastRides .actions button{padding:10px 16px;border-radius:10px;border:0;font-weight:700;font-size:15px;background:#334155;color:#fff}
 
   #pastBtn{top:148px}
+  #crumbsBtn{top:206px;background:#7c3aed;max-width:160px;white-space:normal;line-height:1.2;font-size:12px;padding:8px 10px}
+  #crumbsBtn.on{background:#0f766e}
   #paywall{
     display:none;position:fixed;inset:0;z-index:12000;background:rgba(2,8,23,.72);
     align-items:center;justify-content:center;padding:18px;box-sizing:border-box;
@@ -359,12 +361,13 @@ function wsUrl(path) {
 <div id="rampToast"></div>
 <button id="headingBtn" class="mapBtn" onclick="toggleHeadingMode()">North Up</button>
 <button id="pastBtn" class="mapBtn" onclick="onPastRidesTap()">Past</button>
+<button id="crumbsBtn" class="mapBtn" onclick="onBreadcrumbsTap()">Breadcrumbs (Premium)</button>
 <button id="recenterBtn" class="mapBtn" onclick="recenter()">Re-center</button>
 
 <div id="paywall" role="dialog" aria-modal="true" aria-labelledby="paywallTitle">
   <div class="box">
     <h2 id="paywallTitle">Water Tracker Premium</h2>
-    <p class="sub">Keep your ride breadcrumbs and open Past rides. Live map, SOS, Leader and nearby riders stay free.</p>
+    <p class="sub">Draw your ride breadcrumbs, keep them for 24 hours, and open Past rides. Live map, SOS, Leader and nearby riders stay free.</p>
     <div id="paywallWebOnly" class="webOnly" style="display:none">Subscriptions are available in the iPhone app. Open Water Tracker on your iPhone to subscribe or restore purchases.</div>
     <div class="plans">
       <button type="button" class="plan" id="payMonthly" onclick="purchasePremium('monthly')">
@@ -527,7 +530,7 @@ function updateMotion(lat, lon, speed){
 }
 
 
-// ===== PREMIUM (Relive-style freemium): trail history / Past rides =====
+// ===== PREMIUM (Relive-style freemium): breadcrumbs (live + history) / Past rides =====
 // Easy knobs: set enabled=false to unlock everything for free. Product IDs must match App Store Connect.
 const PREMIUM = {
   enabled: true, // master switch
@@ -578,27 +581,51 @@ function isPremium(){
   return !!premiumActive;
 }
 function canPersistTrails(){ return isPremium(); }
+function canUseBreadcrumbs(){ return isPremium(); } // free: no live trail either
 function updatePremiumUI(){
   const st = document.getElementById('stylePremiumStatus');
   const btn = document.getElementById('stylePremiumBtn');
   if (st) st.textContent = isPremium()
-    ? ('Trail history: Premium' + (premiumProductId ? ' · ' + premiumProductId.split('.').pop() : ''))
-    : 'Trail history: Free (live ride only)';
+    ? ('Breadcrumbs: Premium' + (premiumProductId ? ' · ' + premiumProductId.split('.').pop() : ''))
+    : 'Breadcrumbs: Premium (not unlocked)';
   if (btn) btn.textContent = isPremium() ? 'Manage Premium' : 'Unlock Premium';
+  const mapOn = document.getElementById('map') && document.getElementById('map').style.display !== 'none';
   const past = document.getElementById('pastBtn');
-  if (past) past.style.display = document.getElementById('map') && document.getElementById('map').style.display !== 'none' ? 'block' : past.style.display;
+  if (past) past.style.display = mapOn ? 'block' : past.style.display;
+  const cb = document.getElementById('crumbsBtn');
+  if (cb){
+    if (mapOn) cb.style.display = 'block';
+    if (isPremium()){
+      cb.textContent = trailOn ? 'Breadcrumbs on' : 'Breadcrumbs off';
+      cb.classList.toggle('on', !!trailOn);
+      cb.title = 'Tap to turn breadcrumbs on or off';
+    } else {
+      cb.textContent = 'Breadcrumbs (Premium)';
+      cb.classList.remove('on');
+      cb.title = 'Unlock Premium to draw and save ride breadcrumbs';
+    }
+  }
 }
 function setPremiumActive(on, productId){
   premiumActive = !!on;
   if (productId) premiumProductId = productId;
   if (!on) premiumProductId = '';
   savePremiumCache();
-  updatePremiumUI();
-  if (on){ try { showMyRecentTrails(); } catch(_){} }
-  else {
+  if (on){
+    trailOn = true;
+    try { localStorage.setItem('trackerTrail', '1'); } catch(_){}
+    try { showMyRecentTrails(); } catch(_){}
+    try { if (myLatLng && sharing){ if (!rideStartedAt) rideStartedAt = Date.now(); breadcrumb.push({lat:myLatLng[0],lon:myLatLng[1],t:Date.now()}); pruneLiveTrail(); if (!isHidden()) updateMyTrailLine(); } } catch(_){}
+    try { status('Premium unlocked — breadcrumbs on'); } catch(_){}
+  } else {
+    trailOn = false;
+    try { localStorage.setItem('trackerTrail', '0'); } catch(_){}
+    clearLiveTrailBuffer();
     try { if (myPastLayer) myPastLayer.clearLayers(); } catch(_){}
     try { clearPastOverlay(true); } catch(_){}
+    try { wsSend({type:'trail', points:[]}); } catch(_){}
   }
+  updatePremiumUI();
 }
 window.__WT_SET_PREMIUM__ = function(v){ // Playwright / QA override
   try { localStorage.setItem('wtDevPremium', v ? '1' : '0'); } catch(_){}
@@ -678,7 +705,7 @@ async function purchasePremium(kind){
     });
     setPremiumActive(true, (tx && tx.productIdentifier) || id);
     closePaywall();
-    status('Premium unlocked — trail history on');
+    status('Premium unlocked — breadcrumbs on');
   } catch(e){
     const msg = (e && (e.message || e.errorMessage)) || '';
     if (/cancel/i.test(msg)) return;
@@ -706,14 +733,21 @@ function onPastRidesTap(){
   if (isPremium()) openPastRides();
   else openPaywall();
 }
+function onBreadcrumbsTap(){
+  if (!isPremium()){ openPaywall(); return; }
+  // Premium: toggle breadcrumbs on/off
+  if (trailOn) setTrailOn(false);
+  else setTrailOn(true);
+  updatePremiumUI();
+}
 loadPremiumCache();
 // Refresh entitlement on launch (native StoreKit); safe no-op on web
 setTimeout(() => { refreshPremiumFromStore(); }, 400);
 
-// Trail logging (trial): live ride buffer + IndexedDB archives (kept 24 h, ~50 MB cap) + gray dashed Garmin-style line
-// Trail button removed: trail logging is always on.
-let trailOn = true;
-localStorage.setItem('trackerTrail', '1');
+// Trail / breadcrumbs: Premium only (live draw + 24 h archive). Free users see none.
+let trailOn = false;
+try { localStorage.setItem('trackerTrail', canUseBreadcrumbs() ? '1' : '0'); } catch(_){}
+if (canUseBreadcrumbs()) trailOn = true;
 let breadcrumb = []; // current ride: {lat, lon, t}
 let breadcrumbLine = null;
 let breadcrumbPending = [];
@@ -799,7 +833,7 @@ function trailDrawLatLngs(){
   return ll;
 }
 function updateMyTrailLine(){
-  if (!trailOn){
+  if (!trailOn || !canUseBreadcrumbs()){
     clearMyTrailLine();
     return;
   }
@@ -830,7 +864,7 @@ const RIDE_DRAFT_KEY = 'trackerRideDraft';
 let currentRideId = null;
 function rideId(){ return currentRideId || (currentRideId = 'ride-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8)); }
 function saveRideDraft(){
-  if (!canPersistTrails()) return; // free: live trail only, no draft
+  if (!canPersistTrails()) return; // free: no breadcrumbs / no draft
   try {
     const all = breadcrumb.concat(breadcrumbPending);
     if (all.length < 2) return;
@@ -1330,7 +1364,7 @@ function flushPos(){
   const f = pendingFix; pendingFix = null;
   lastSent = {lat: f.lat, lon: f.lon, t: Date.now()};
   const payload = {type:'pos', lat:f.lat, lon:f.lon, ts:f.ts};
-  if (trailOn && breadcrumb.length){
+  if (trailOn && canUseBreadcrumbs() && breadcrumb.length){
     // Best-effort group share: thinned recent segment (tight payload)
     payload.trail = thinTrail(breadcrumb, TRAIL_SHARE_MAX);
   }
@@ -1585,7 +1619,7 @@ function updateMyMarker(lat, lon){
   myLatLng = [lat, lon];
   lastSeen[me] = Date.now();
   positions[me] = {lat, lon, name: myName};
-  if (trailOn && sharing){
+  if (trailOn && sharing && canUseBreadcrumbs()){
     if (!rideStartedAt) rideStartedAt = Date.now();
     breadcrumbPending.push({lat, lon, t: Date.now()});
     while (breadcrumbPending.length > LIVE_TRAIL_MAX_POINTS) breadcrumbPending.shift();
@@ -1597,13 +1631,14 @@ function updateMyMarker(lat, lon){
 function renderMe(){
   if (!myLatLng) return;
   // Trail: merge pending fixes (incl. while hidden), size-cap, draw gray dashed line
-  if (trailOn && sharing){
+  if (trailOn && sharing && canUseBreadcrumbs()){
     breadcrumbPending.forEach(p => breadcrumb.push(p));
     breadcrumbPending = [];
     pruneLiveTrail();
     updateMyTrailLine();
-  } else if (breadcrumbPending.length){
-    breadcrumbPending = [];
+  } else {
+    if (breadcrumbPending.length) breadcrumbPending = [];
+    if (!canUseBreadcrumbs()) clearMyTrailLine();
   }
 
   // SOS overrides motion icons; still = circle; moving = fixed-length arrow
@@ -2148,7 +2183,7 @@ let wakeLock = null;
 // (no ghost rider, no false 'gone quiet'). Hiding/app-switching/screen lock is NOT a leave.
 let leftPage = false;
 function leaveOnClose(){
-  // Premium: draft + archive. Free: drop the live trail (no history kept).
+  // Premium: draft + archive. Free: no breadcrumbs to keep.
   try {
     if (canPersistTrails()){
       try { saveRideDraft(); } catch(e){}
@@ -2272,6 +2307,7 @@ function confirmTrailDisclosure(){
   setTrailOn(true);
 }
 function setTrailOn(on){
+  if (on && !canUseBreadcrumbs()){ openPaywall(); return; }
   const next = !!on;
   if (!next && trailOn){
     // Turning off: archive current ride, clear live path, tell group
@@ -2284,14 +2320,17 @@ function setTrailOn(on){
   trailOn = next;
   localStorage.setItem('trackerTrail', trailOn ? '1' : '0');
   if (trailOn){
-    status('Trail on — auto-saves each ride (kept 24 h)');
+    status('Breadcrumbs on — auto-saves each ride (kept 24 h)');
     if (myLatLng && sharing){
       if (!rideStartedAt) rideStartedAt = Date.now();
       breadcrumb.push({lat: myLatLng[0], lon: myLatLng[1], t: Date.now()});
       pruneLiveTrail();
       if (!isHidden()) updateMyTrailLine();
     }
+  } else {
+    status('Breadcrumbs off');
   }
+  updatePremiumUI();
 }
 function requestWakeLock(){
   if (!leader || !isNativeApp() || !('wakeLock' in navigator) || !sharing) return;
@@ -2316,8 +2355,11 @@ function fixMapLayout(){
     mapDiv.style.top = top + 'px';
     // Float map buttons just below the header (and SOS bar when visible)
     const hb = document.getElementById('headingBtn'), rb = document.getElementById('recenterBtn');
+    const pb = document.getElementById('pastBtn'), cb = document.getElementById('crumbsBtn');
     if (hb) hb.style.top = (top + 12) + 'px';
-    if (rb) rb.style.top = (top + 70) + 'px';
+    if (pb) pb.style.top = (top + 70) + 'px';
+    if (cb) cb.style.top = (top + 128) + 'px';
+    if (rb) rb.style.top = (top + 186) + 'px';
     const banner = document.getElementById('banner');
     if (banner) banner.style.top = (top + 10) + 'px';
   }
@@ -2509,6 +2551,10 @@ function startApp(){
   document.getElementById('status').style.display = 'block';
   document.getElementById('headingBtn').style.display = 'block';
   const _pb = document.getElementById('pastBtn'); if (_pb) _pb.style.display = 'block';
+  const _cb = document.getElementById('crumbsBtn'); if (_cb) _cb.style.display = 'block';
+  // Free: no breadcrumbs. Premium: on.
+  trailOn = canUseBreadcrumbs();
+  try { localStorage.setItem('trackerTrail', trailOn ? '1' : '0'); } catch(_){}
   updateHeadingBtn();
   updatePremiumUI();
   setFollow(true);
@@ -2523,7 +2569,7 @@ function startApp(){
   roughFirstFix(); // circle in ~1s instead of waiting on cold GPS
   connect();
   if (canPersistTrails()) showMyRecentTrails(); // premium: restore 24 h trail history
-  else clearLiveTrailBuffer(); // free: start with a clean live trail
+  else clearLiveTrailBuffer(); // free: no breadcrumbs at all
   requestWakeLock();
 
   // Prefer native background geolocation when running inside Capacitor
