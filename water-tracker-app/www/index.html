@@ -516,7 +516,36 @@ let premiumActive = false;
 let premiumProductId = '';
 let premiumPrices = {}; // id -> priceString from StoreKit when available
 
+// Dev/QA premium overrides are honored ONLY on local/test builds:
+//  - native (iOS): only when the Xcode DEBUG build injected window.__WT_DEBUG_BUILD__ (never in Release/Archive);
+//    Android native: always ignored. capacitor://localhost alone is NOT enough.
+//  - web: only on localhost / 127.x / private LAN IPs (10.x, 172.16-31.x, 192.168.x), never on the production host.
+function devOverrideHostAllowed(host){
+  host = String(host || '').toLowerCase().replace(/^\[|\]$/g, '');
+  if (host === 'localhost' || host.endsWith('.localhost') || host === '::1') return true;
+  const m = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (!m) return false;
+  const a = +m[1], b = +m[2];
+  return a === 127 || a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
+}
+function devOverridesAllowed(opts){
+  opts = opts || {};
+  const native = 'native' in opts ? opts.native : isNativeApp();
+  if (native) return (('debug' in opts) ? opts.debug : window.__WT_DEBUG_BUILD__) === true;
+  return devOverrideHostAllowed('host' in opts ? opts.host : location.hostname);
+}
+let devOverrideScrubbed = false;
+function scrubDevOverrides(){ // production: drop any stale override so it can't leak
+  if (devOverrideScrubbed) return; devOverrideScrubbed = true;
+  try { delete window.__WT_PREMIUM__; } catch(_){ window.__WT_PREMIUM__ = undefined; }
+  try { localStorage.removeItem('wtDevPremium'); } catch(_){}
+  try {
+    const raw = JSON.parse(localStorage.getItem(PREMIUM.cacheKey) || 'null');
+    if (raw && raw.productId === 'dev-override') localStorage.removeItem(PREMIUM.cacheKey);
+  } catch(_){}
+}
 function premiumDevOverride(){
+  if (!devOverridesAllowed()){ scrubDevOverrides(); return null; }
   try {
     if (typeof window.__WT_PREMIUM__ === 'boolean') return window.__WT_PREMIUM__;
     const q = new URLSearchParams(location.search).get('premium');
@@ -532,6 +561,7 @@ function loadPremiumCache(){
   try {
     const raw = JSON.parse(localStorage.getItem(PREMIUM.cacheKey) || 'null');
     if (!raw) return;
+    if (raw.productId === 'dev-override' && !devOverridesAllowed()){ scrubDevOverrides(); return; }
     premiumActive = !!raw.active;
     premiumProductId = raw.productId || '';
   } catch(_){}
@@ -592,7 +622,8 @@ function setPremiumActive(on, productId){
   }
   updatePremiumUI();
 }
-window.__WT_SET_PREMIUM__ = function(v){ // Playwright / QA override
+window.__WT_SET_PREMIUM__ = function(v){ // Playwright / QA override (local/test builds only)
+  if (!devOverridesAllowed()){ scrubDevOverrides(); return isPremium(); }
   try { localStorage.setItem('wtDevPremium', v ? '1' : '0'); } catch(_){}
   window.__WT_PREMIUM__ = !!v;
   setPremiumActive(!!v, v ? 'dev-override' : '');
