@@ -11,4 +11,13 @@ def test_ramps_json_served():
 def test_privacy_page_served():
     r = asyncio.run(main.privacy_page())
     assert r.media_type == "text/html"
-    assert "Privacy Policy" in open(r.path).read()
+    body = open(r.path).read()
+    assert "Privacy Policy" in body
+    assert "October 27, 2026" in body
+    assert "50 miles" in body
+    assert "IndexedDB" in body
+    assert "Delete my trails" in body
+    assert "does not currently send push notifications" in body
+    assert "PLACEHOLDER" in body  # contact / legal name still need owner input
+    assert "display-only" in body
+    assert "Premium" in body

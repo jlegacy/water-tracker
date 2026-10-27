@@ -6,16 +6,19 @@ h2{color:#0B1D51;font-size:19px;margin-top:28px}a{color:#0D9488}
 table{border-collapse:collapse;width:100%;font-size:14px;display:block;overflow-x:auto}
 th{background:#0B1D51;color:#fff;text-align:left}th,td{border:1px solid #cbd5e1;padding:6px 8px;vertical-align:top}
 tr:nth-child(even) td{background:#f0f9f8}</style></head><body><main><h1>Water Tracker Privacy Policy</h1>
-<p><strong>Effective date:</strong> October 25, 2026 (<strong>TODO</strong>: confirm)
-<strong>Provider:</strong> <strong>TODO</strong>: legal name of the person or entity publishing Water Tracker
-<strong>Contact:</strong> <strong>TODO</strong>: confirm contact email (suggested: jlegacy007@gmail.com)</p>
+<p><strong>Last updated:</strong> October 27, 2026<br />
+<strong>Effective date:</strong> October 27, 2026<br />
+<strong>Provider:</strong> <strong>[PLACEHOLDER — legal name of the person or entity publishing Water Tracker]</strong><br />
+<strong>Contact:</strong> <strong>[PLACEHOLDER — privacy contact email]</strong> (suggested in project notes: jlegacy007@gmail.com — not confirmed)</p>
 <p>Water Tracker is a live map that lets people on boats, jet skis and kayaks see each other on the water. This policy explains what the app uses, who can see it, and how long it is kept.</p>
 <h2>The short version</h2>
 <ul>
 <li><strong>No accounts.</strong> No sign-up, email, phone number or password.</li>
-<li><strong>No tracking, ads or analytics.</strong> We don't sell data or share it with advertisers or data brokers.</li>
-<li><strong>Live positions live in server memory only</strong>, and are dropped when you leave or after 30 minutes of silence.</li>
-<li><strong>Ride breadcrumbs stay on your phone</strong> when you have Premium (kept about 24 hours). Free users do not get a breadcrumb trail.</li>
+<li><strong>No tracking, ads or analytics.</strong> We don’t sell your data or share it with advertisers or data brokers.</li>
+<li><strong>Everyone within about 50 miles sees everyone else</strong> while they are sharing. The map ring is display-only (pinch to zoom the view); it does not hide you or change who can see you.</li>
+<li><strong>Live positions live in server memory only</strong>, and are dropped when you leave or after about 30 minutes of silence.</li>
+<li><strong>Breadcrumbs are Premium only</strong>, stored only on your device (IndexedDB) for about 24 hours. Free users record and draw no trail.</li>
+<li><strong>App Store subscriptions</strong> are processed by Apple. We never receive your payment card details; the app only caches whether Premium is active.</li>
 </ul>
 <h2>What the app uses</h2>
 <table>
@@ -31,44 +34,44 @@ tr:nth-child(even) td{background:#f0f9f8}</style></head><body><main><h1>Water Tr
 <tr>
 <td>Display name you type</td>
 <td>Shown to nearby riders</td>
-<td>Our server (memory), nearby riders</td>
-<td>Until you leave or 30 min of silence</td>
+<td>Our server (memory only); riders within ~50 miles</td>
+<td>Until you leave, or ~30 minutes of silence</td>
 </tr>
 <tr>
-<td>Precise location (foreground and background)</td>
-<td>Show you to riders within 50 miles; SOS and "gone quiet" alerts</td>
-<td>Our server (memory), riders within 50 miles of you</td>
-<td>Until you leave or 30 min of silence</td>
+<td>Precise location (while sharing, including background if you allow Always)</td>
+<td>Show you on the map to nearby riders; SOS and “gone quiet” alerts</td>
+<td>Our server (memory only); riders within ~50 miles</td>
+<td>Until you leave, or ~30 minutes of silence</td>
 </tr>
 <tr>
 <td>Leader badge and SOS status</td>
-<td>Shown to riders within 50 miles</td>
-<td>Our server (memory), riders within 50 miles</td>
+<td>Shown to nearby riders</td>
+<td>Our server (memory only); riders within ~50 miles</td>
 <td>Same as above</td>
 </tr>
 <tr>
 <td>Messages you send</td>
-<td>Delivered to the rider you pick, or to riders within 50 miles for a broadcast</td>
-<td>Relayed by our server; not stored</td>
-<td>Not stored after delivery</td>
+<td>Delivered to the rider you pick, or to nearby riders for a broadcast</td>
+<td>Relayed by our server; not stored after delivery</td>
+<td>Not kept after delivery</td>
 </tr>
 <tr>
-<td>Random rider ID</td>
-<td>Lets a reconnect resume the same rider</td>
-<td>Your device (local storage), our server (memory)</td>
-<td>On device until you clear app data</td>
+<td>Rider ID (a random <strong>User ID</strong> created on your device)</td>
+<td>Lets a reconnect resume the same rider session</td>
+<td>Your device (local storage); our server (memory only while you are present)</td>
+<td>On device until you clear app data; on the server only while your session is live (then purged as above)</td>
 </tr>
 <tr>
-<td>Ride trail / breadcrumbs (GPS points and times)</td>
-<td>Draw your path; let you view past rides (Premium)</td>
-<td>Your device (IndexedDB). A thinned recent segment is shared live with riders within 50 miles while Breadcrumbs is on</td>
-<td><strong>Premium:</strong> deleted 24 h after saving (~50 MB cap). <strong>Free:</strong> no breadcrumbs collected or drawn</td>
+<td>Breadcrumbs / ride trail (GPS points and times) — <strong>Premium only</strong></td>
+<td>Draw your path and open Past rides</td>
+<td><strong>Your device only</strong> (IndexedDB). While Breadcrumbs is on, a thinned recent segment is also shared live with riders within ~50 miles</td>
+<td>Auto-deleted about <strong>24 hours</strong> after saving (~50 MB cap, oldest first). Free users: <strong>not collected or drawn</strong></td>
 </tr>
 <tr>
-<td>Premium subscription status (App Store)</td>
-<td>Unlock trail history / Past rides</td>
-<td>Apple processes the purchase; the app caches entitlement on your device</td>
-<td>Until you cancel or the subscription expires</td>
+<td>Premium subscription entitlement</td>
+<td>Unlock breadcrumbs and Past rides</td>
+<td>Apple (App Store / StoreKit) processes the purchase and billing. The app caches an entitlement flag on your device</td>
+<td>Until you cancel or the subscription expires; clear app data to remove the local cache</td>
 </tr>
 <tr>
 <td>Name and marker preference</td>
@@ -78,34 +81,62 @@ tr:nth-child(even) td{background:#f0f9f8}</style></head><body><main><h1>Water Tr
 </tr>
 </tbody>
 </table>
+<h3>What the server keeps (and does not)</h3>
+<ul>
+<li>The server keeps <strong>in memory only</strong>: your rider ID, display name, latest position, Leader/SOS flags, and connection state for nearby sharing.</li>
+<li>There is <strong>no database</strong> of positions or location history on the server.</li>
+<li>A rider is removed when they leave, or after about <strong>30 minutes</strong> with no updates (<code>PURGE_SECS</code>).</li>
+<li>“Gone quiet” / stale alerts are sent over the live WebSocket to riders within ~50 miles; they are not stored as a history.</li>
+</ul>
 <h2>Who can see you</h2>
 <ul>
-<li>There are no groups and no range setting. Every rider sees everyone within <strong>50 miles</strong>; zooming the map only changes the view.</li>
-<li>While you are sharing, any rider within about <strong>50 miles</strong> sees your name, position, Leader badge, SOS status and, if Breadcrumbs (Premium) is on, your recent trail.</li>
-<li>A rider stops seeing you a little past 50 miles (at 52 miles).</li>
-<li>SOS and "gone quiet" alerts go to riders within 50 miles. Direct messages go only to the rider you pick.</li>
+<li>There are <strong>no groups</strong> and no privacy range setting. While you are sharing, <strong>every rider within about 50 miles</strong> can see your name, position, Leader badge and SOS status.</li>
+<li>The on-map <strong>radius ring and mi readout are display-only</strong> (they follow pinch-to-zoom). They do not limit visibility; you still appear to everyone within ~50 miles.</li>
+<li>If Breadcrumbs (Premium) is on, nearby riders also see a thinned recent path.</li>
+<li>A rider stops seeing you a little past 50 miles (about 52 miles).</li>
+<li>SOS and “gone quiet” alerts go to riders within ~50 miles. Direct messages go only to the rider you pick.</li>
+</ul>
+<h2>Breadcrumbs (Premium)</h2>
+<ul>
+<li><strong>Free users:</strong> the app does <strong>not</strong> record or draw a breadcrumb trail.</li>
+<li><strong>Subscribers:</strong> the live trail is drawn on your map, auto-saved on the device, kept about 24 hours, and listed under Past rides.</li>
+<li>Use <strong>Delete my trails</strong> (in the marker / Look panel) to wipe saved rides, the draft and the live trail on this phone. Nothing is sent to the server for that wipe.</li>
+<li>Discover Premium with the <strong>Breadcrumbs (Premium)</strong> map button (opens the paywall). Safety features stay free.</li>
+</ul>
+<h2>App Store subscriptions and payments</h2>
+<ul>
+<li>Premium is an optional auto-renewing subscription sold through the <strong>Apple App Store</strong> (StoreKit). Monthly and yearly product IDs are listed in <code>docs/SUBSCRIPTIONS.md</code>.</li>
+<li><strong>Apple</strong> handles payment, receipts and billing. Water Tracker <strong>does not receive</strong> your Apple ID password, card number or other payment details.</li>
+<li>The app reads StoreKit purchase / entitlement state and <strong>caches</strong> whether Premium is active on your device (local storage), and refreshes it when you launch the app. You can Restore Purchases from the paywall.</li>
+<li>Manage or cancel in iOS Settings → Apple ID → Subscriptions.</li>
 </ul>
 <h2>Background location</h2>
-<p>If you allow "Always" location, the app keeps sharing your position while it is in the background, so other riders can still find you with your phone in a pocket or dry bag. Sharing stops when you leave the session or turn off location for Water Tracker in Settings.</p>
+<p>If you allow <strong>Always</strong> location, the app keeps sharing your position while it is in the background (for example with the phone in a pocket or dry bag), so nearby riders can still find you and SOS / “gone quiet” alerts stay meaningful. Sharing runs only while you have joined a session. It stops when you leave the session or turn off location for Water Tracker in Settings. Continued use of GPS in the background can decrease battery life.</p>
+<h2>Push notifications</h2>
+<p>Water Tracker <strong>does not currently send push notifications</strong> (APNs / FCM). Safety alerts (SOS and “gone quiet”) are delivered over the live WebSocket while the app has a connection. A phone whose app is fully suspended may not see an alert until the app is opened again. If push is added later, this policy will be updated before it ships.</p>
 <h2>Third parties</h2>
 <ul>
-<li><strong>Map tiles</strong> are loaded from OpenStreetMap's tile servers (tile.openstreetmap.org). Those servers receive your IP address and the map area being viewed, under the <a href="https://osmfoundation.org/wiki/Privacy_Policy">OSMF privacy policy</a>.</li>
-<li><strong>Boat ramps and marinas</strong> come from OpenStreetMap data bundled with the app. If the bundled file can't load, the app asks our server for ramps near the map center.</li>
+<li><strong>Map tiles</strong> are loaded from OpenStreetMap’s tile servers (tile.openstreetmap.org). Those servers receive your IP address and the map area being viewed, under the <a href="https://osmfoundation.org/wiki/Privacy_Policy">OSMF privacy policy</a>.</li>
+<li><strong>Boat ramps and marinas</strong> come from OpenStreetMap data bundled with the app. If the bundled file can’t load, the app asks our server for ramps near the map center.</li>
 <li><strong>Hosting:</strong> our server runs on Render (render.com), which may keep standard request logs such as IP addresses.</li>
-<li>We use no advertising, analytics or crash-reporting SDKs.</li>
+<li><strong>Apple:</strong> App Store purchases and StoreKit entitlement checks go through Apple.</li>
+<li>We use <strong>no</strong> advertising, analytics or crash-reporting SDKs.</li>
 </ul>
+<h2>No selling or sharing for ads</h2>
+<p>We do <strong>not</strong> sell your personal information. We do <strong>not</strong> share it with advertisers, data brokers or other companies for their marketing. Live sharing with nearby riders (as described above) is the product’s safety function, not advertising.</p>
 <h2>Security</h2>
 <p>All traffic uses HTTPS and secure WebSockets (WSS). We keep no database of positions or location history.</p>
 <h2>Your choices</h2>
 <ul>
-<li><strong>Premium</strong> is an optional auto‑renewing App Store subscription that unlocks breadcrumbs (live trail + 24 h history) and Past rides. Manage or cancel in iOS Settings → Apple ID → Subscriptions. Purchases use Apple's payment system; we do not receive your card details.</li>
-<li>Leave a session at any time to stop sharing and be removed from other riders' maps.</li>
-<li>Deny or limit location access in iOS Settings; the app can't show you to others without it.</li>
-<li>Delete the app or clear its data to remove saved trails, the rider ID and preferences from your device.</li>
+<li>Leave a session at any time to stop sharing and be removed from other riders’ maps.</li>
+<li>Deny or limit location access in system Settings; the app can’t show you to others without it.</li>
+<li><strong>Delete my trails</strong> removes on-device breadcrumbs. Deleting the app or clearing its data also removes the rider ID, preferences and cached Premium entitlement from the device.</li>
+<li>Manage Premium in Apple Subscriptions settings.</li>
 </ul>
 <h2>Children</h2>
-<p>Water Tracker is not directed at children under 13, and we don't knowingly collect personal information from them.</p>
+<p>Water Tracker is not directed at children under 13, and we don’t knowingly collect personal information from them. If you believe a child under 13 has provided information through the app, contact us using the placeholder contact above once a contact email is published, and we will delete what we can control (server memory sessions clear on leave / purge; on-device data is under the device owner’s control).</p>
 <h2>Changes</h2>
-<p>If this policy changes, we'll update the effective date above and post the new version at https://water-tracker-yz68.onrender.com/privacy.</p>
+<p>If this policy changes, we’ll update the <strong>Last updated</strong> date above and post the new version at https://water-tracker-yz68.onrender.com/privacy.</p>
 <h2>Contact</h2>
-<p><strong>TODO</strong>: confirm contact email (suggested: jlegacy007@gmail.com). Source code: github.com/jlegacy/water-tracker.</p></main></body></html>
+<p><strong>[PLACEHOLDER — privacy contact email]</strong> — replace before App Store submission.<br />
+Source code: https://github.com/jlegacy/water-tracker</p></main></body></html>

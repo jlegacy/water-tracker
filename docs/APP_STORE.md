@@ -1,6 +1,6 @@
 # Water Tracker — App Store Submission Docs
 
-Matches the app as of #92 (commit 5427167). Bundle ID `com.encsr.watertracker`, version 1.0. Lines marked **TODO** need the owner's input before submission.
+Matches the app as of Premium freemium (#115–#116) and privacy refresh Oct 27, 2026. Bundle ID `com.encsr.watertracker`, version 1.0. Lines marked **TODO** need the owner's input before submission.
 
 ---
 
@@ -61,15 +61,21 @@ Matches the app as of #92 (commit 5427167). Bundle ID `com.encsr.watertracker`, 
 |---|---|---|---|---|
 | Precise Location | Yes | No | No | App Functionality |
 | User Content → Other (display name, messages) | Yes | No | No | App Functionality |
-| Contact info, Health, Financial, Contacts, Browsing, Search, Identifiers, Purchases, Usage Data, Diagnostics | No | — | — | — |
+| Identifiers → User ID | Yes (random rider ID on device) | No | No | App Functionality |
+| Purchases | Yes (Premium subscription / entitlement via StoreKit; Apple processes payment) | No | No | App Functionality |
+| Contact info, Health, Financial (card details), Contacts, Browsing, Search, Usage Data, Diagnostics | No | — | — | — |
 
-Notes:
-- No accounts, emails, phone numbers or device IDs. A random rider ID is generated on the device and kept in local storage so a reconnect resumes the same rider. It is not tied to any person or device identifier.
-- The server keeps live positions **in memory only**. They are dropped when the rider leaves or after 30 minutes of silence. There is no database and nothing is sold.
-- Ride trails are stored **on the device** (IndexedDB) and expire **24 hours** after saving, with a ~50 MB cap. While Trail is on, a thinned recent segment is shared with riders within 50 miles.
-- Ramps/marinas come from a file bundled with the app, so the map lookup sends no location query. If that file fails to load, the app falls back to the app's own `/api/ramps` endpoint with the map center.
-- Map tiles are fetched from tile.openstreetmap.org, which receives the tile coordinates and IP address. The privacy policy discloses this.
+Notes (keep aligned with `PRIVACY.md`, last updated October 27, 2026):
+- No accounts, emails or phone numbers. A random **rider ID (User ID)** is generated on the device and kept in local storage so a reconnect resumes the same rider. It is not tied to a person or hardware identifier.
+- Everyone within ~**50 miles** sees each other while sharing. The map **ring is display-only** (pinch-to-zoom); it does not change visibility.
+- The server keeps live positions **in memory only**. They are dropped when the rider leaves or after about **30 minutes** of silence. There is no database. Nothing is sold or shared with advertisers.
+- **Breadcrumbs are Premium only**, stored **on the device** (IndexedDB) for about **24 hours** (~50 MB cap). Free users record no trail. **Delete my trails** wipes on-device trails. While Breadcrumbs is on, a thinned recent segment is shared with riders within 50 miles.
+- Premium: Apple App Store / StoreKit processes payment; the app caches entitlement locally and never receives card details.
+- **Push notifications are not currently used**; SOS / gone-quiet alerts go over the WebSocket while connected.
+- Ramps/marinas come from a file bundled with the app. If that file fails to load, the app falls back to `/api/ramps` with the map center.
+- Map tiles are fetched from tile.openstreetmap.org (tile coordinates + IP). Disclosed in the privacy policy.
 - All traffic uses HTTPS/WSS.
+- Privacy URL: https://water-tracker-yz68.onrender.com/privacy
 
 ---
 
@@ -85,7 +91,7 @@ Notes:
 5. Tap Leader to show the leader badge on your marker for other riders.
 6. Tap SOS. Every rider within 50 miles receives the alert. Tap again to cancel.
 7. Tap Ramps to show nearby boat ramps/marinas. A toast shows the count ("N ramps/marinas nearby").
-8. Turn on Trail and move. A gray dashed trail is drawn and saved on the device for 24 h ("Past" lists saved rides).
+8. Premium / StoreKit testing: unlock breadcrumbs (sandbox or StoreKit config), move, confirm a gray dashed trail and Past rides (24 h on device). Free users see no trail; **Breadcrumbs (Premium)** opens the paywall.
 9. Turn on Airplane Mode. The map locks with "No internet connection / Map locked until connection returns" and unlocks when back online.
 
 Reviewers in areas without other riders will see only themselves. That is expected.
@@ -117,7 +123,7 @@ Trails exist so a rider can see where they've been during the current day on the
 1. Price tier
 2. Support URL
 3. Marketing URL (optional)
-4. Privacy policy: confirm contact email (suggested jlegacy007@gmail.com), effective date and legal entity
+4. Privacy policy: last updated Oct 27, 2026 on /privacy — still need confirmed contact email and legal entity name (placeholders in PRIVACY.md)
 5. Copyright holder name
 6. In-app report/block for user content (Guideline 1.2)
 7. Final age rating confirmation
