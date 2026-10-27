@@ -1,6 +1,9 @@
 apply plugin: 'com.android.application'
 
 android {
+    buildFeatures {
+        buildConfig true // AGP 8+: needed for BuildConfig.DEBUG (DebugBuildPlugin)
+    }
     namespace = "com.encsr.watertracker"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
