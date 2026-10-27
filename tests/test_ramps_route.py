@@ -18,6 +18,8 @@ def test_privacy_page_served():
     assert "IndexedDB" in body
     assert "Delete my trails" in body
     assert "does not currently send push notifications" in body
-    assert "PLACEHOLDER" in body  # contact / legal name still need owner input
+    assert "Joseph Legacy" in body
+    assert "jlegacy007@gmail.com" in body
+    assert "PLACEHOLDER" not in body
     assert "display-only" in body
     assert "Premium" in body

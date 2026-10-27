@@ -2,8 +2,8 @@
 
 **Last updated:** October 27, 2026  
 **Effective date:** October 27, 2026  
-**Provider:** **[PLACEHOLDER — legal name of the person or entity publishing Water Tracker]**  
-**Contact:** **[PLACEHOLDER — privacy contact email]** (suggested in project notes: jlegacy007@gmail.com — not confirmed)
+**Provider:** Joseph Legacy  
+**Contact:** jlegacy007@gmail.com
 
 Water Tracker is a live map that lets people on boats, jet skis and kayaks see each other on the water. This policy explains what the app uses, who can see it, and how long it is kept.
 
@@ -79,11 +79,11 @@ All traffic uses HTTPS and secure WebSockets (WSS). We keep no database of posit
 - Manage Premium in Apple Subscriptions settings.
 
 ## Children
-Water Tracker is not directed at children under 13, and we don’t knowingly collect personal information from them. If you believe a child under 13 has provided information through the app, contact us using the placeholder contact above once a contact email is published, and we will delete what we can control (server memory sessions clear on leave / purge; on-device data is under the device owner’s control).
+Water Tracker is not directed at children under 13, and we don’t knowingly collect personal information from them. If you believe a child under 13 has provided information through the app, contact jlegacy007@gmail.com and we will delete what we can control (server memory sessions clear on leave / purge; on-device data is under the device owner’s control).
 
 ## Changes
 If this policy changes, we’ll update the **Last updated** date above and post the new version at https://water-tracker-yz68.onrender.com/privacy.
 
 ## Contact
-**[PLACEHOLDER — privacy contact email]** — replace before App Store submission.  
+Questions about this policy: **jlegacy007@gmail.com**  
 Source code: https://github.com/jlegacy/water-tracker
