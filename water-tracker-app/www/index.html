@@ -612,7 +612,7 @@ function setPremiumActive(on, productId){
     trailOn = true;
     try { localStorage.setItem('trackerTrail', '1'); } catch(_){}
     try { showMyRecentTrails(); } catch(_){}
-    try { if (myLatLng && sharing){ if (!rideStartedAt) rideStartedAt = Date.now(); breadcrumb.push({lat:myLatLng[0],lon:myLatLng[1],t:Date.now()}); pruneLiveTrail(); if (!isHidden()) updateMyTrailLine(); } } catch(_){}
+    // no point from myLatLng here (it may be the rough/saved spot); the next accurate fix starts the trail
     try { status('Premium unlocked — breadcrumbs on'); } catch(_){}
   } else {
     trailOn = false;
@@ -753,8 +753,8 @@ const TRAIL_DB_NAME = 'water-tracker-trails';
 const TRAIL_DB_STORE = 'rides';
 const remoteTrails = {}; // rider id -> L.polyline
 // High-contrast breadcrumb: bright teal line over a dark casing (readable on blue water and light tiles)
-const TRAIL_STYLE = { color: '#00E5D4', weight: 5, opacity: 1, lineCap: 'round', lineJoin: 'round' };
-const TRAIL_CASING_STYLE = { color: '#111111', weight: 9, opacity: 0.9, lineCap: 'round', lineJoin: 'round', interactive: false };
+const TRAIL_STYLE = { color: '#00E5D4', weight: 3, opacity: 1, lineCap: 'round', lineJoin: 'round' };
+const TRAIL_CASING_STYLE = { color: '#111111', weight: 5, opacity: 0.9, lineCap: 'round', lineJoin: 'round', interactive: false };
 // Canvas path redraws with the map during zoom; SVG trails can detach/snap vs the marker
 const trailRenderer = (typeof L !== 'undefined' && L.canvas) ? L.canvas({ padding: 0.5 }) : undefined;
 function trailPolyOpts(){
@@ -897,6 +897,7 @@ function clearLiveTrailBuffer(){
   try { localStorage.removeItem(RIDE_DRAFT_KEY); } catch(_){}
   breadcrumb = [];
   breadcrumbPending = [];
+  trailCandidate = null;
   rideStartedAt = null;
   clearMyTrailLine();
 }
@@ -1282,7 +1283,7 @@ function firstFixArrived(){
   firstFixPending = false; hideLocBar();
   if (myLatLng){ saveLastPos(myLatLng[0], myLatLng[1]); drawRangeCircle(); fitRangeCircle(); } // center + fit once on the real spot
 }
-function onFix(lat, lon, heading, speed){
+function onFix(lat, lon, heading, speed, accuracy, fixTime){
   if (!preciseFixSeen && document.getElementById('status').textContent === WAITING_TEXT) status(joined ? sharingText() : '');
   preciseFixSeen = true;
   if (myApprox){ myApprox = false; if (riders[me]) riders[me].setOpacity(1); }
@@ -1293,7 +1294,7 @@ function onFix(lat, lon, heading, speed){
   lastFixAt = fixNow; // shared GPS clock for all paths (native + web) so watchdogs see stalls
   updateMotion(lat, lon, speed);
   if (!isHidden()) updateHeading(lat, lon, heading, speed);
-  updateMyMarker(lat, lon);
+  updateMyMarker(lat, lon, accuracy, fixTime);
   if (firstFixPending){ myLatLng = [lat, lon]; firstFixArrived(); }
   else if (fixNow - lastPosSavedAt > 60000){ lastPosSavedAt = fixNow; saveLastPos(lat, lon); }
   if (!isHidden()) applyBearing();
@@ -1565,14 +1566,38 @@ document.addEventListener('click', () => document.querySelectorAll('.cmenu.open'
 window.addEventListener('DOMContentLoaded', () => { recoverRideDraft().finally(() => purgeExpiredRides());
  });
 
-function updateMyMarker(lat, lon){
+// Breadcrumb gate: the trail only uses fresh, accurate GPS fixes. Never the saved last position, the rough
+// first fix, or a cached/coarse OS fix (iOS often hands back a stale or cell/Wi-Fi fix ~0.5 mi off when you join).
+const TRAIL_MAX_ACC_M = 50;       // skip fixes reporting worse than 50 m accuracy
+const TRAIL_MAX_AGE_MS = 30000;   // skip fixes timestamped > 30 s ago (cached/queued)
+const TRAIL_START_JUMP_M = 60;    // trail start needs 2 agreeing fixes: within 60 m + 120 m/s of travel (drops teleports)
+let trailCandidate = null;        // first good fix of a new trail, held until the next one confirms it
+function trailPointFromFix(lat, lon, accuracy, fixTime){
+  const now = Date.now();
+  if (accuracy != null && isFinite(accuracy) && accuracy > TRAIL_MAX_ACC_M) return null;
+  if (fixTime != null && isFinite(fixTime) && fixTime > 0 && now - fixTime > TRAIL_MAX_AGE_MS) return null;
+  const pt = {lat, lon, t: now};
+  const last = breadcrumbPending.length ? breadcrumbPending[breadcrumbPending.length - 1] : (breadcrumb.length ? breadcrumb[breadcrumb.length - 1] : null);
+  if (last && now - last.t < 10 * 60000) return pt; // trail already running: keep real riding intact
+  // Starting a trail: hold the first good fix until a second one agrees (drops an implausible first jump)
+  if (!trailCandidate){ trailCandidate = pt; return null; }
+  const dt = Math.max(0, (now - trailCandidate.t) / 1000);
+  const d = haversine(trailCandidate.lat, trailCandidate.lon, lat, lon);
+  if (d > TRAIL_START_JUMP_M + 120 * dt || now - trailCandidate.t > 60000){ trailCandidate = pt; return null; }
+  breadcrumbPending.push(trailCandidate); trailCandidate = null;
+  return pt;
+}
+function updateMyMarker(lat, lon, accuracy, fixTime){
   myLatLng = [lat, lon];
   lastSeen[me] = Date.now();
   positions[me] = {lat, lon, name: myName};
   if (trailOn && sharing && canUseBreadcrumbs()){
-    if (!rideStartedAt) rideStartedAt = Date.now();
-    breadcrumbPending.push({lat, lon, t: Date.now()});
-    while (breadcrumbPending.length > LIVE_TRAIL_MAX_POINTS) breadcrumbPending.shift();
+    const pt = trailPointFromFix(lat, lon, accuracy, fixTime);
+    if (pt){
+      if (!rideStartedAt) rideStartedAt = Date.now();
+      breadcrumbPending.push(pt);
+      while (breadcrumbPending.length > LIVE_TRAIL_MAX_POINTS) breadcrumbPending.shift();
+    }
   }
   if (isHidden()) return; // background: no drawing at all
   renderMe();
@@ -2068,7 +2093,7 @@ function showLocError(e){
 }
 function webFix(p){
   lastFixAt = Date.now();
-  onFix(p.coords.latitude, p.coords.longitude, p.coords.heading, p.coords.speed); // throttled send happens in onFix
+  onFix(p.coords.latitude, p.coords.longitude, p.coords.heading, p.coords.speed, p.coords.accuracy, p.timestamp); // throttled send happens in onFix
 }
 function startWebWatch(){
   if (!navigator.geolocation) return; // also used on native as a fallback when the plugin is missing/failing
@@ -2268,12 +2293,7 @@ function setTrailOn(on){
   localStorage.setItem('trackerTrail', trailOn ? '1' : '0');
   if (trailOn){
     status('Breadcrumbs on — auto-saves each ride (kept 24 h)');
-    if (myLatLng && sharing){
-      if (!rideStartedAt) rideStartedAt = Date.now();
-      breadcrumb.push({lat: myLatLng[0], lon: myLatLng[1], t: Date.now()});
-      pruneLiveTrail();
-      if (!isHidden()) updateMyTrailLine();
-    }
+    // trail starts from the next accurate GPS fix (never myLatLng, which may be rough or restored)
   } else {
     status('Breadcrumbs off');
   }
@@ -2539,7 +2559,7 @@ function startApp(){
         }
         const lat = location.latitude;
         const lon = location.longitude;
-        onFix(lat, lon, location.bearing, location.speed); // throttled send happens in onFix
+        onFix(lat, lon, location.bearing, location.speed, location.accuracy, location.time); // throttled send happens in onFix
       }
     ).then(function(id){
       watchId = id;
@@ -2680,7 +2700,7 @@ window.addEventListener('resize',u);u();})();
 async function tempDeleteTrails(){
   if (!confirm('Delete all your saved trails on this phone?')) return;
   try { localStorage.removeItem(RIDE_DRAFT_KEY); } catch(_){}
-  breadcrumb = []; breadcrumbPending = []; currentRideId = null; rideStartedAt = null;
+  breadcrumb = []; breadcrumbPending = []; currentRideId = null; rideStartedAt = null; trailCandidate = null;
   try { clearMyTrailLine(); } catch(_){}
   try { if (myPastLayer) myPastLayer.clearLayers(); } catch(_){}
   try {

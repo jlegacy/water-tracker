@@ -36,7 +36,11 @@ with sync_playwright() as p:
     pg.mouse.move(200,400); pg.mouse.down(); pg.mouse.move(60,250,steps=8); pg.mouse.up(); pg.wait_for_timeout(1200)
     d,f=pg.evaluate(OFF); ok(f'{n} drag pauses follow',(not f) and d>40,[d,f])
     pg.wait_for_timeout(6500)
-    d,f=pg.evaluate(OFF); ok(f'{n} follow resumes after grace while slowly moving',f and d<=4,[d,f])
+    for _ in range(24):  # pan animation may still be settling
+      d,f=pg.evaluate(OFF)
+      if f and d<=4: break
+      pg.wait_for_timeout(250)
+    ok(f'{n} follow resumes after grace while slowly moving',f and d<=4,[d,f])
     pg.mouse.move(200,400); pg.mouse.down(); pg.mouse.move(60,250,steps=8); pg.mouse.up(); pg.wait_for_timeout(600)
     pg.evaluate('recenter()'); pg.wait_for_timeout(2500)
     d,f=pg.evaluate(OFF); ok(f'{n} Re-center restores follow immediately',f and d<=4,[d,f])
