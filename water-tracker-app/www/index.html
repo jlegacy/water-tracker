@@ -1262,10 +1262,45 @@ function updateHeading(lat, lon, heading, speed){
 // Quick rough first fix: shows YOUR circle at once while precise GPS warms up.
 // Display only: never sent, never a breadcrumb, never touches motion/heading.
 let preciseFixSeen = false, myApprox = false, lastPosSavedAt = 0;
-function roughFirstFix(){
+// --- Location source: native plugin inside the Capacitor app (native permission prompt only),
+// navigator.geolocation on the plain web. Never touch navigator.geolocation when isNativeApp(). ---
+function nativeGeo(){ return isNativeApp() ? ((window.Capacitor.Plugins || {}).Geolocation || null) : null; }
+function geoAvailable(){ return isNativeApp() ? !!nativeGeo() : !!navigator.geolocation; }
+function geoOpts(o){ const r = Object.assign({}, o); if (r.maximumAge === Infinity) r.maximumAge = 86400000; return r; }
+function geoErr(e){ if (e && typeof e.code === 'number') return e; const m = String((e && e.message) || e || ''); return {code: /denied|permission/i.test(m) ? 1 : 2, message: m}; }
+function geoPos(p){ return {coords: p.coords, timestamp: p.timestamp || Date.now()}; }
+function geoGet(ok, err, opts){
+  if (isNativeApp()){
+    const G = nativeGeo(); if (!G){ err && err(geoErr('Geolocation plugin unavailable')); return; }
+    try { G.getCurrentPosition(geoOpts(opts)).then(p => ok(geoPos(p)), e => err && err(geoErr(e))); } catch(e){ err && err(geoErr(e)); }
+    return;
+  }
   if (!navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition(ok, err, opts);
+}
+function geoWatch(ok, err, opts){ // returns a token for geoClear
+  const t = {native: isNativeApp(), id: null, cleared: false};
+  if (t.native){
+    const G = nativeGeo(); if (!G) return null;
+    Promise.resolve(G.watchPosition(geoOpts(opts), (p, e) => {
+      if (t.cleared) return;
+      if (e || !p) err && err(geoErr(e)); else ok(geoPos(p));
+    })).then(id => { t.id = id; if (t.cleared) try { G.clearWatch({id}); } catch(_){} }, e => err && err(geoErr(e)));
+    return t;
+  }
+  if (!navigator.geolocation) return null;
+  t.id = navigator.geolocation.watchPosition(ok, err, opts);
+  return t;
+}
+function geoClear(t){
+  if (!t) return; t.cleared = true;
+  if (t.native){ const G = nativeGeo(); if (G && t.id != null) try { G.clearWatch({id: t.id}); } catch(_){} }
+  else if (navigator.geolocation && t.id != null) try { navigator.geolocation.clearWatch(t.id); } catch(_){}
+}
+function roughFirstFix(){
+  if (!geoAvailable()) return;
   try {
-    navigator.geolocation.getCurrentPosition(p => {
+    geoGet(p => {
       if (preciseFixSeen || !sharing) return; // a precise fix already won
       myApprox = true;
       myLatLng = [p.coords.latitude, p.coords.longitude];
@@ -2125,11 +2160,11 @@ function webFix(p){
   onFix(p.coords.latitude, p.coords.longitude, p.coords.heading, p.coords.speed, p.coords.accuracy, p.timestamp); // throttled send happens in onFix
 }
 function startWebWatch(){
-  if (!navigator.geolocation) return; // also used on native as a fallback when the plugin is missing/failing
-  if (webWatchId !== null){ try { navigator.geolocation.clearWatch(webWatchId); } catch(_){} }
+  if (!geoAvailable()) return; // also used on native (via the Geolocation plugin) as a fallback when BackgroundGeolocation fails
+  if (webWatchId !== null){ geoClear(webWatchId); webWatchId = null; }
   lastWebRestart = Date.now();
   lastFixAt = Date.now(); // grace period before the watchdog fires again
-  webWatchId = navigator.geolocation.watchPosition(webFix, e => {
+  webWatchId = geoWatch(webFix, e => {
     showLocError(e);
     if (e.code === 2 || e.code === 3) scheduleWebRestart();
   }, {enableHighAccuracy:true, maximumAge:10000, timeout:20000});
@@ -2146,9 +2181,9 @@ setInterval(() => {
 // (no second continuous watch, to avoid doubling battery use).
 let nativeOneShotBusy = false;
 function nativeOneShot(){
-  if (nativeOneShotBusy || !navigator.geolocation) return;
+  if (nativeOneShotBusy || !geoAvailable()) return;
   nativeOneShotBusy = true;
-  navigator.geolocation.getCurrentPosition(p => { nativeOneShotBusy = false; webFix(p); },
+  geoGet(p => { nativeOneShotBusy = false; webFix(p); },
     e => { nativeOneShotBusy = false; showLocError(e); },
     {enableHighAccuracy:true, maximumAge:5000, timeout:15000});
 }
@@ -2173,7 +2208,7 @@ document.addEventListener('visibilitychange', () => {
     requestWakeLock();
     if (!isNativeApp() && navigator.geolocation){
       startWebWatch();
-      navigator.geolocation.getCurrentPosition(webFix, () => {}, {enableHighAccuracy:true, maximumAge:0, timeout:15000});
+      geoGet(webFix, () => {}, {enableHighAccuracy:true, maximumAge:0, timeout:15000});
     }
   }
 });
