@@ -13,7 +13,7 @@ positions['c']={lat:35.85,lon:-60.0,name:'Quiet',stale:true};lastSeen['c']=n-4*6
 positions['d']={lat:36.0,lon:-60.0,name:'Help',sos:true,stale:true};lastSeen['d']=n-2*60000;
 lastListKey=null;updateRiderList();renderRiderPicker();
 return [...document.querySelectorAll('#riderMenu div')].slice(1).map(d=>[d.querySelector('.lbl').textContent,(d.querySelector('.rtag')||{}).textContent||'',(d.querySelector('.rseen')||{}).textContent||'']).concat([[...document.getElementById('riderList').options].slice(1).map(o=>o.textContent)]);}"""
-CH="()=>[...document.querySelectorAll('#riderMenu nav.rfbar button')].map(b=>[b.dataset.f,b.querySelector('b').textContent,b.classList.contains('on'),b.classList.contains('zero')])"
+CH="()=>[...document.querySelectorAll('#rfBar button')].map(b=>[b.dataset.f,b.querySelector('b').textContent,b.classList.contains('on'),b.classList.contains('zero')])"
 ROWS="()=>[...document.querySelectorAll('#riderMenu > div')].slice(1).map(d=>d.querySelector('.lbl').textContent.split(' (')[0])"
 with sync_playwright() as p:
   for n in sys.argv[2:] or ['chromium','webkit']:
@@ -26,22 +26,27 @@ positions['a']={lat:35.808,lon:-60.0,name:'Near'};lastSeen['a']=n-3000;
 positions['b']={lat:35.9,lon:-60.0,name:'Far'};lastSeen['b']=n-12000;
 positions['c']={lat:35.85,lon:-60.0,name:'Quiet',stale:true};lastSeen['c']=n-4*60000;
 lastListKey=null;updateRiderList();}""")
-    pg.click('#riderBtn'); ch=pg.evaluate(CH)
+    pg.wait_for_function("()=>document.querySelectorAll('#rfBar button').length===4")
+    ok(f'{n} no chips inside menu',pg.evaluate("()=>!document.querySelector('#riderMenu nav, #riderMenu .rfbar')"))
+    pg.wait_for_timeout(400)
+    bv=pg.evaluate("()=>{const b=document.getElementById('rfBar').getBoundingClientRect(),m=document.getElementById('msgBox').getBoundingClientRect(),mm=document.getElementById('map').getBoundingClientRect();return [b.height>0&&b.height<=30&&b.top>=m.bottom-1&&b.bottom<=mm.top+1&&!document.getElementById('riderMenu').classList.contains('open'),b.top,b.bottom,m.bottom,mm.top]}")
+    ok(f'{n} bar visible below msg row with menu closed, compact',bv[0],bv)
+    ch=pg.evaluate(CH)
     ok(f'{n} counts All3 Moving2 Quiet1 SOS0',[x[1] for x in ch]==['3','2','1','0'],ch)
     ok(f'{n} All active, SOS dimmed',ch[0][2] and ch[3][3] and not ch[1][3],ch)
-    pg.click('#riderMenu nav.rfbar button[data-f=moving]'); r=pg.evaluate(ROWS)
+    pg.click('#rfBar button[data-f=moving]'); r=pg.evaluate(ROWS)
     ok(f'{n} Moving filter',r==['Near','Far'] and pg.evaluate("()=>document.getElementById('riderMenu').classList.contains('open')"),r)
     ok(f'{n} Moving chip active',pg.evaluate(CH)[1][2])
-    pg.click('#riderMenu nav.rfbar button[data-f=moving]'); r=pg.evaluate(ROWS)
+    pg.click('#rfBar button[data-f=moving]'); r=pg.evaluate(ROWS)
     ok(f'{n} tap again resets',r==['Quiet','Near','Far'] and pg.evaluate(CH)[0][2],r)
-    pg.click('#riderMenu nav.rfbar button[data-f=quiet]'); ok(f'{n} Quiet filter',pg.evaluate(ROWS)==['Quiet'])
+    pg.click('#rfBar button[data-f=quiet]'); ok(f'{n} Quiet filter',pg.evaluate(ROWS)==['Quiet'])
     pg.evaluate("()=>{positions['d']={lat:36.0,lon:-60.0,name:'Help',sos:true,stale:true};lastSeen['d']=Date.now()-60000;updateRiderList();}")
     ch=pg.evaluate(CH); ok(f'{n} counts live-update on rider change',[x[1] for x in ch]==['4','2','1','1'] and not ch[3][3],ch)
-    pg.click('#riderMenu nav.rfbar button[data-f=sos]'); ok(f'{n} SOS filter',pg.evaluate(ROWS)==['Help'])
-    pg.click('#riderMenu nav.rfbar button[data-f=all]'); ok(f'{n} All resets',pg.evaluate(ROWS)==['Help','Quiet','Near','Far'])
-    w=pg.evaluate("()=>{const r=document.querySelector('#riderMenu nav.rfbar').getBoundingClientRect();return r.right<=innerWidth+1}")
+    pg.click('#rfBar button[data-f=sos]'); ok(f'{n} SOS filter',pg.evaluate(ROWS)==['Help'])
+    pg.click('#rfBar button[data-f=all]'); ok(f'{n} All resets',pg.evaluate(ROWS)==['Help','Quiet','Near','Far'])
+    w=pg.evaluate("()=>{const r=document.querySelector('#rfBar').getBoundingClientRect();return r.right<=innerWidth+1}")
     ok(f'{n} fits 375px width',w)
-    pg.click('#riderMenu nav.rfbar button[data-f=quiet]'); pg.click('#riderMenu > div:nth-of-type(2)')
+    pg.click('#rfBar button[data-f=quiet]'); pg.click('#riderMenu > div:nth-of-type(2)')
     ok(f'{n} selecting filtered row selects rider',pg.evaluate("()=>document.getElementById('riderList').value")=='c')
     ok(f'{n} native select keeps all riders',pg.evaluate("()=>document.getElementById('riderList').options.length")==5)
     ok(f'{n} no page errors',not errs,errs); b.close()

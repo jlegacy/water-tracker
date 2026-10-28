@@ -101,14 +101,14 @@ function wsUrl(path) {
   #riderMenu div{display:flex;align-items:center;gap:6px;padding:9px 8px;font-size:13px;color:#e8eef7;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #riderMenu div.sel{background:#1e3a5f}
   #riderMenu div.sos{color:#f87171;font-weight:700}
-  #riderMenu nav.rfbar{display:flex;gap:4px;padding:6px;position:sticky;top:0;background:#0f2238;border-bottom:1px solid #2a4a6f;z-index:1}
-  #riderMenu nav.rfbar button{flex:1 1 0;min-width:0;display:flex;align-items:center;justify-content:center;gap:4px;padding:6px 2px;margin:0;font-size:11px;font-weight:600;border-radius:999px;border:1px solid #2a4a6f;background:#132a45;color:#cbd5e1;cursor:pointer;white-space:nowrap}
-  #riderMenu nav.rfbar button b{min-width:16px;padding:1px 5px;border-radius:999px;font-size:11px;color:#fff;background:#64748b}
-  #riderMenu nav.rfbar button[data-f=moving] b{background:#22c55e}
-  #riderMenu nav.rfbar button[data-f=sos] b{background:#ef4444}
-  #riderMenu nav.rfbar button[data-f=sos]{color:#fca5a5}
-  #riderMenu nav.rfbar button.on{background:#1e3a5f;border-color:#60a5fa;color:#fff}
-  #riderMenu nav.rfbar button.zero{opacity:.4}
+  #rfBar{display:flex;gap:4px;padding:0;margin:4px 0 0}
+  #bar #rfBar button{flex:1 1 0;min-width:0;display:flex;align-items:center;justify-content:center;gap:4px;padding:2px;margin:0;line-height:16px;font-size:11px;font-weight:600;border-radius:999px;border:1px solid #2a4a6f;background:#132a45;color:#cbd5e1;cursor:pointer;white-space:nowrap}
+  #bar #rfBar button b{min-width:16px;padding:0 5px;line-height:15px;border-radius:999px;font-size:11px;color:#fff;background:#64748b}
+  #bar #rfBar button[data-f=moving] b{background:#22c55e}
+  #bar #rfBar button[data-f=sos] b{background:#ef4444}
+  #bar #rfBar button[data-f=sos]{color:#fca5a5}
+  #bar #rfBar button.on{background:#1e3a5f;border-color:#60a5fa;color:#fff}
+  #bar #rfBar button.zero{opacity:.4}
   .cpick{position:relative;min-width:0}
   #bar .cpick.g{flex:1 1 0;min-width:90px}
   #nameScreen .cpick{width:100%;max-width:320px}
@@ -309,6 +309,7 @@ function wsUrl(path) {
     <button id="lookBtn" class="lookBtn" onclick="openStylePanel()" aria-label="Marker color" title="Marker color">🎨</button>
     <button id="rampsBtn" class="ramps" onclick="toggleRamps()">Ramps</button>
   </div>
+  <nav id="rfBar" class="rfbar" aria-label="Rider status filter"></nav>
 </div>
 <div id="stylePanel" role="dialog" aria-label="Marker color" onclick="if(event.target===this)closeStylePanel()"><div class="box">
   <h3><span id="stylePrev"></span>Your marker</h3>
@@ -1599,16 +1600,22 @@ function renderRiderPicker(){
   const riders = [...sel.options].filter(o => o.value);
   const cnt = {all: riders.length, moving: 0, quiet: 0, sos: 0};
   riders.forEach(o => { cnt[riderStatusOf(o)]++; });
-  const bar = document.createElement('nav'); bar.className = 'rfbar';
-  [['all','All'],['moving','Moving'],['quiet','Quiet'],['sos','SOS']].forEach(([f, t]) => {
-    const b = document.createElement('button'); b.type = 'button'; b.dataset.f = f;
-    b.innerHTML = t + ' <b>' + cnt[f] + '</b>';
-    if (riderFilter === f) b.classList.add('on');
-    if (!cnt[f]) b.classList.add('zero');
-    b.onclick = (e) => { e.stopPropagation(); riderFilter = (f === 'all' || riderFilter === f) ? 'all' : f; renderRiderPicker(); };
-    bar.appendChild(b);
-  });
-  menu.appendChild(bar);
+  const bar = document.getElementById('rfBar');
+  if (bar){
+    bar.innerHTML = '';
+    [['all','All'],['moving','Moving'],['quiet','Quiet'],['sos','SOS']].forEach(([f, t]) => {
+      const b = document.createElement('button'); b.type = 'button'; b.dataset.f = f;
+      b.innerHTML = t + ' <b>' + cnt[f] + '</b>';
+      if (riderFilter === f) b.classList.add('on');
+      if (!cnt[f]) b.classList.add('zero');
+      b.onclick = (e) => { e.stopPropagation(); riderFilter = (f === 'all' || riderFilter === f) ? 'all' : f; renderRiderPicker();
+        // open the rider list showing the filtered roster
+        if (!document.getElementById('riderBtn').disabled){ document.querySelectorAll('.cmenu.open').forEach(m => m.classList.remove('open')); menu.classList.add('open');
+          // drop the list below the chip bar so chips stay tappable (tap again / All resets)
+          menu.style.marginTop = Math.max(4, Math.round(bar.getBoundingClientRect().bottom - document.getElementById('riderPick').getBoundingClientRect().bottom + 4)) + 'px'; } };
+      bar.appendChild(b);
+    });
+  }
   [...sel.options].forEach(o => {
     if (o.value && riderFilter !== 'all' && riderStatusOf(o) !== riderFilter) return;
     const d = document.createElement('div');
@@ -1632,6 +1639,7 @@ function toggleRiderMenu(e){
   renderRiderPicker();
   const rm = document.getElementById('riderMenu'), wasOpen = rm.classList.contains('open');
   document.querySelectorAll('.cmenu.open').forEach(m => m.classList.remove('open'));
+  rm.style.marginTop = '';
   rm.classList.toggle('open', !wasOpen);
 }
 document.addEventListener('click', () => { const m = document.getElementById('riderMenu'); if (m) m.classList.remove('open'); });
@@ -2450,6 +2458,8 @@ function scheduleMapLayout(){
 window.addEventListener('resize', scheduleMapLayout);
 window.addEventListener('orientationchange', scheduleMapLayout);
 if (window.visualViewport) window.visualViewport.addEventListener('resize', scheduleMapLayout);
+// header grows when the status chip bar fills in: keep the map just below it
+if (window.ResizeObserver){ const hb = document.getElementById('bar'); if (hb) new ResizeObserver(scheduleMapLayout).observe(hb); }
 // Header height changes (message row shown/hidden, group switch): keep the map right under it
 if (window.ResizeObserver) new ResizeObserver(scheduleMapLayout).observe(document.getElementById('bar'));
 
