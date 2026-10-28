@@ -1,11 +1,11 @@
-# Water Tracker Privacy Policy
+# Ride Radar Privacy Policy
 
 **Last updated:** October 27, 2026  
 **Effective date:** October 27, 2026  
 **Provider:** Joseph Legacy  
 **Contact:** jlegacy007@gmail.com
 
-Water Tracker is a live map that lets people on boats, jet skis and kayaks see each other on the water. This policy explains what the app uses, who can see it, and how long it is kept.
+Ride Radar is a live map that lets people on boats, jet skis and kayaks see each other on the water. This policy explains what the app uses, who can see it, and how long it is kept.
 
 ## The short version
 - **No accounts.** No sign-up, email, phone number or password.
@@ -49,15 +49,15 @@ Water Tracker is a live map that lets people on boats, jet skis and kayaks see e
 
 ## App Store subscriptions and payments
 - Premium is an optional auto-renewing subscription sold through the **Apple App Store** (StoreKit). Monthly and yearly product IDs are listed in `docs/SUBSCRIPTIONS.md`.
-- **Apple** handles payment, receipts and billing. Water Tracker **does not receive** your Apple ID password, card number or other payment details.
+- **Apple** handles payment, receipts and billing. Ride Radar **does not receive** your Apple ID password, card number or other payment details.
 - The app reads StoreKit purchase / entitlement state and **caches** whether Premium is active on your device (local storage), and refreshes it when you launch the app. You can Restore Purchases from the paywall.
 - Manage or cancel in iOS Settings → Apple ID → Subscriptions.
 
 ## Background location
-If you allow **Always** location, the app keeps sharing your position while it is in the background (for example with the phone in a pocket or dry bag), so nearby riders can still find you and SOS / “gone quiet” alerts stay meaningful. Sharing runs only while you have joined a session. It stops when you leave the session or turn off location for Water Tracker in Settings. Continued use of GPS in the background can decrease battery life.
+If you allow **Always** location, the app keeps sharing your position while it is in the background (for example with the phone in a pocket or dry bag), so nearby riders can still find you and SOS / “gone quiet” alerts stay meaningful. Sharing runs only while you have joined a session. It stops when you leave the session or turn off location for Ride Radar in Settings. Continued use of GPS in the background can decrease battery life.
 
 ## Push notifications
-Water Tracker **does not currently send push notifications** (APNs / FCM). Safety alerts (SOS and “gone quiet”) are delivered over the live WebSocket while the app has a connection. A phone whose app is fully suspended may not see an alert until the app is opened again. If push is added later, this policy will be updated before it ships.
+Ride Radar **does not currently send push notifications** (APNs / FCM). Safety alerts (SOS and “gone quiet”) are delivered over the live WebSocket while the app has a connection. A phone whose app is fully suspended may not see an alert until the app is opened again. If push is added later, this policy will be updated before it ships.
 
 ## Third parties
 - **Map tiles** are loaded from OpenStreetMap’s tile servers (tile.openstreetmap.org). Those servers receive your IP address and the map area being viewed, under the [OSMF privacy policy](https://osmfoundation.org/wiki/Privacy_Policy).
@@ -79,7 +79,7 @@ All traffic uses HTTPS and secure WebSockets (WSS). We keep no database of posit
 - Manage Premium in Apple Subscriptions settings.
 
 ## Children
-Water Tracker is not directed at children under 13, and we don’t knowingly collect personal information from them. If you believe a child under 13 has provided information through the app, contact jlegacy007@gmail.com and we will delete what we can control (server memory sessions clear on leave / purge; on-device data is under the device owner’s control).
+Ride Radar is not directed at children under 13, and we don’t knowingly collect personal information from them. If you believe a child under 13 has provided information through the app, contact jlegacy007@gmail.com and we will delete what we can control (server memory sessions clear on leave / purge; on-device data is under the device owner’s control).
 
 ## Changes
 If this policy changes, we’ll update the **Last updated** date above and post the new version at https://www.encsr.com/privacy-policy (a copy also remains at https://water-tracker-yz68.onrender.com/privacy as a fallback).

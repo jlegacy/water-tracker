@@ -1,6 +1,6 @@
 {
   "appId": "com.encsr.watertracker",
-  "appName": "Water Tracker",
+  "appName": "Ride Radar",
   "webDir": "www",
   "server": {
     "url": "https://water-tracker-yz68.onrender.com"

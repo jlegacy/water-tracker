@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Water Tracker</title>
+<title>Ride Radar</title>
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icon-192.png">
@@ -266,7 +266,7 @@ function wsUrl(path) {
 </head>
 <body>
 <div id="nameScreen">
-  <h1>Water Tracker</h1>
+  <h1>Ride Radar</h1>
   <div class="groupLabel">Your Name</div>
   <input id="startName" placeholder="Enter your name" autocomplete="off" autocorrect="off">
   <button type="button" class="styleOpen" id="styleOpenJoin" onclick="openStylePanel()"><span id="styleJoinPrev"></span>Marker color</button>
@@ -317,7 +317,7 @@ function wsUrl(path) {
 <div id="trailDisclosure" role="dialog" aria-modal="true" aria-labelledby="trailDiscTitle">
   <div class="box">
     <h2 id="trailDiscTitle">Save trail?</h2>
-    <p>Water Tracker collects location data to save your ride trail even when the app is closed or not in use. Each ride is auto-saved on your device (IndexedDB). Saved rides are kept for about 1 day (24 hours) and then deleted automatically (with a ~50&nbsp;MB safety cap that removes the oldest rides first). Your trail is visible only to you; it is never sent to other riders.</p>
+    <p>Ride Radar collects location data to save your ride trail even when the app is closed or not in use. Each ride is auto-saved on your device (IndexedDB). Saved rides are kept for about 1 day (24 hours) and then deleted automatically (with a ~50&nbsp;MB safety cap that removes the oldest rides first). Your trail is visible only to you; it is never sent to other riders.</p>
     <div class="actions">
       <button type="button" class="cancel" onclick="cancelTrailDisclosure()">Cancel</button>
       <button type="button" class="ok" onclick="confirmTrailDisclosure()">Continue</button>
@@ -334,9 +334,9 @@ function wsUrl(path) {
 
 <div id="paywall" role="dialog" aria-modal="true" aria-labelledby="paywallTitle">
   <div class="box">
-    <h2 id="paywallTitle">Water Tracker Premium</h2>
+    <h2 id="paywallTitle">Ride Radar Premium</h2>
     <p class="sub">Draw your ride breadcrumbs and keep them on the map for 24 hours. Live map, SOS, Leader and nearby riders stay free.</p>
-    <div id="paywallWebOnly" class="webOnly" style="display:none">Subscriptions are available in the iPhone app. Open Water Tracker on your iPhone to subscribe or restore purchases.</div>
+    <div id="paywallWebOnly" class="webOnly" style="display:none">Subscriptions are available in the iPhone app. Open Ride Radar on your iPhone to subscribe or restore purchases.</div>
     <div class="plans">
       <button type="button" class="plan" id="payMonthly" onclick="purchasePremium('monthly')">
         <span>Monthly</span>
@@ -2573,7 +2573,7 @@ function startApp(){
     BackgroundGeolocation.addWatcher(
       {
         backgroundMessage: "Sharing your location with nearby riders (up to 50 miles)",
-        backgroundTitle: "Water Tracker",
+        backgroundTitle: "Ride Radar",
         requestPermissions: true,
         stale: false,
         distanceFilter: 15  // ~15 m; no significant-change mode (too coarse for riders)

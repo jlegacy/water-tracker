@@ -10,5 +10,5 @@ table{border-collapse:collapse;width:100%;font-size:14px;display:block;overflow-
 th{background:#0B1D51;color:#fff;text-align:left}th,td{border:1px solid #cbd5e1;padding:6px 8px;vertical-align:top}
 tr:nth-child(even) td{background:#f0f9f8}"""
 html = f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Water Tracker Privacy Policy</title><style>{css}</style></head><body><main>{body}</main></body></html>"""
+<title>Ride Radar Privacy Policy</title><style>{css}</style></head><body><main>{body}</main></body></html>"""
 (root / "water-tracker-app/www/privacy.html").write_text(html)
