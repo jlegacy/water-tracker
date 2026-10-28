@@ -1,4 +1,4 @@
-# Water Tracker Premium — App Store Connect setup
+# Ride Radar Premium — App Store Connect setup
 
 Premium unlocks **breadcrumbs** — the live ride trail and keeping those trails on the map for about 24 hours. Free users see **no** breadcrumb trail at all. Live map, SOS, Leader, messaging, and riders within 50 mi stay free.
 
@@ -22,7 +22,7 @@ Plugin: `@capgo/native-purchases` (StoreKit 2). No RevenueCat / server API keys 
 
 ## 2. Subscription group + products
 
-1. Open the **Water Tracker** app (`com.encsr.watertracker`).
+1. Open the **Ride Radar** app (`com.encsr.watertracker`).
 2. **Subscriptions** → create group named **Water Tracker Premium**.
 3. Add two Auto‑Renewable Subscriptions in that group:
 
@@ -40,7 +40,7 @@ Plugin: `@capgo/native-purchases` (StoreKit 2). No RevenueCat / server API keys 
 - Suggested price: **$19.99 / year** (about 2 months free vs monthly)
 - Localization (English U.S.): Display name `Premium Yearly`, description `Save ride breadcrumbs on the map for 24 hours. Best value.`
 
-4. Add a **Review screenshot** of the in‑app paywall (Past button → Water Tracker Premium sheet) for each product or for the group, per App Store Connect prompts.
+4. Add a **Review screenshot** of the in‑app paywall (Past button → Ride Radar Premium sheet) for each product or for the group, per App Store Connect prompts.
 5. Submit the subscriptions for review with the next app binary (or as a subscription update if the app is already live).
 
 ## 3. Xcode capability + StoreKit config
@@ -78,8 +78,8 @@ Overrides: `window.__WT_SET_PREMIUM__(true|false)`, `window.__WT_PREMIUM__`, `?p
 
 **Testing Premium on iPhone:**
 
-- **Xcode Debug run:** plug in the phone and Run (⌘R) from Xcode with the default Debug configuration. On the Mac, open Safari → Develop → *your iPhone* → the Water Tracker page. In the console, run `__WT_SET_PREMIUM__(true)`, or `localStorage.setItem('wtDevPremium','1'); location.reload()`. To undo, use `__WT_SET_PREMIUM__(false)` or `localStorage.removeItem('wtDevPremium')`. (Settings → Apps → Safari → Advanced → Web Inspector must be on.)
-**Testing Premium on Android:** `cd water-tracker-app && npx cap sync android`, open `android/` in Android Studio, Run the **debug** variant on the phone/emulator (USB debugging on), open `chrome://inspect` in desktop Chrome → inspect the Water Tracker WebView, run `__WT_SET_PREMIUM__(true)` (undo with `__WT_SET_PREMIUM__(false)`).
+- **Xcode Debug run:** plug in the phone and Run (⌘R) from Xcode with the default Debug configuration. On the Mac, open Safari → Develop → *your iPhone* → the Ride Radar page. In the console, run `__WT_SET_PREMIUM__(true)`, or `localStorage.setItem('wtDevPremium','1'); location.reload()`. To undo, use `__WT_SET_PREMIUM__(false)` or `localStorage.removeItem('wtDevPremium')`. (Settings → Apps → Safari → Advanced → Web Inspector must be on.)
+**Testing Premium on Android:** `cd water-tracker-app && npx cap sync android`, open `android/` in Android Studio, Run the **debug** variant on the phone/emulator (USB debugging on), open `chrome://inspect` in desktop Chrome → inspect the Ride Radar WebView, run `__WT_SET_PREMIUM__(true)` (undo with `__WT_SET_PREMIUM__(false)`).
 
 - **Real purchase flow:** use a StoreKit Configuration file (Product → Scheme → Edit Scheme → Run → Options → StoreKit Configuration), or a Sandbox tester on TestFlight.
 - Master kill switch: set `PREMIUM.enabled = false` in `index.html` to unlock trail history for everyone without a store.

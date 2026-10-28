@@ -1,6 +1,6 @@
-# Water Tracker (Capacitor)
+# Ride Radar (Capacitor)
 
-Native iOS/Android shell for Water Tracker. **Production builds load the UI from local `www/`** (no remote WebView wrapper) and talk to the live API/WebSocket on Render.
+Native iOS/Android shell for Ride Radar. **Production builds load the UI from local `www/`** (no remote WebView wrapper) and talk to the live API/WebSocket on Render.
 
 Live API: `https://water-tracker-yz68.onrender.com`
 

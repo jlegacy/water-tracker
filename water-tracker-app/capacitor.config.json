@@ -1,6 +1,6 @@
 {
   "appId": "com.encsr.watertracker",
-  "appName": "Water Tracker",
+  "appName": "Ride Radar",
   "webDir": "www",
   "ios": {
     "contentInset": "automatic"

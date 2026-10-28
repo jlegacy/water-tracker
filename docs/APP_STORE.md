@@ -1,4 +1,4 @@
-# Water Tracker — App Store Submission Docs
+# Ride Radar — App Store Submission Docs
 
 Matches the app as of Premium freemium (#115–#116) and privacy refresh Oct 27, 2026. Bundle ID `com.encsr.watertracker`, version 1.0. Lines marked **TODO** need the owner's input before submission.
 
@@ -8,7 +8,7 @@ Matches the app as of Premium freemium (#115–#116) and privacy refresh Oct 27,
 
 | Field | Value |
 |---|---|
-| App name (≤30) | Water Tracker |
+| App name (≤30) | Ride Radar |
 | Subtitle (≤30) | Live map for riders on the water |
 | Primary category | Navigation |
 | Secondary category | Sports |
@@ -24,7 +24,7 @@ Matches the app as of Premium freemium (#115–#116) and privacy refresh Oct 27,
 > See every rider within 50 miles on the water, mark the leader, and send an SOS to everyone around you. No account needed.
 
 **Description**
-> Water Tracker puts you and the riders around you on one live map, so a day on the river or lake stays together.
+> Ride Radar puts you and the riders around you on one live map, so a day on the river or lake stays together.
 >
 > - No sign-up. Enter a display name and you're on the map.
 > - Everyone nearby. You automatically see every rider within 50 miles; pinch to zoom the view.
@@ -35,7 +35,7 @@ Matches the app as of Premium freemium (#115–#116) and privacy refresh Oct 27,
 > - Ramps and marinas. Show nearby boat ramps and marinas from bundled OpenStreetMap data.
 > - Offline-safe. When the connection drops, the map locks with a clear "No internet connection" notice and resumes when you're back.
 >
-> Water Tracker keeps sharing your position in the background while you ride, so others can still find you with your phone in a pocket. Continued use of GPS in the background can decrease battery life.
+> Ride Radar keeps sharing your position in the background while you ride, so others can still find you with your phone in a pocket. Continued use of GPS in the background can decrease battery life.
 >
 > Map data © OpenStreetMap contributors.
 
@@ -97,14 +97,14 @@ Notes (keep aligned with `PRIVACY.md`, last updated October 27, 2026):
 Reviewers in areas without other riders will see only themselves. That is expected.
 
 **Background location justification (Guideline 5.1.1 / 2.5.4)**
-Water Tracker is a live group-safety map for people on boats, jet skis and kayaks. Riders keep the phone in a dry bag or pocket, with the screen off. Background location keeps the rider visible to nearby riders and keeps SOS and "gone quiet" alerts meaningful. Without it, a rider would vanish from everyone's map the moment the screen locks, which defeats the safety purpose. Location is used only while the rider has joined and is sharing. Leaving or stopping sharing ends updates. Updates are throttled to save battery.
+Ride Radar is a live group-safety map for people on boats, jet skis and kayaks. Riders keep the phone in a dry bag or pocket, with the screen off. Background location keeps the rider visible to nearby riders and keeps SOS and "gone quiet" alerts meaningful. Without it, a rider would vanish from everyone's map the moment the screen locks, which defeats the safety purpose. Location is used only while the rider has joined and is sharing. Leaving or stopping sharing ends updates. Updates are throttled to save battery.
 
 **24-hour trail retention rationale**
 Trails exist so a rider can see where they've been during the current day on the water, for example to retrace a route back to the ramp. They are kept only on the device and expire 24 h after saving, with a ~50 MB cap that deletes the oldest first. No server-side location history is kept. This is disclosed in the in-app notice and in the privacy policy.
 
 **Info.plist purpose strings (current)**
-- `NSLocationWhenInUseUsageDescription`: "Water Tracker uses your location to show you and nearby riders (up to 50 miles) on the map."
-- `NSLocationAlwaysAndWhenInUseUsageDescription`: "Water Tracker keeps sharing your position with nearby riders (up to 50 miles) while the app is in the background, so riders can find each other on the water."
+- `NSLocationWhenInUseUsageDescription`: "Ride Radar uses your location to show you and nearby riders (up to 50 miles) on the map."
+- `NSLocationAlwaysAndWhenInUseUsageDescription`: "Ride Radar keeps sharing your position with nearby riders (up to 50 miles) while the app is in the background, so riders can find each other on the water."
 - `UIBackgroundModes`: `location`, `fetch`. **TODO**: confirm `fetch` (Background App Refresh) is actually used, or remove it. Apple may ask for a justification.
 
 **Third-party content:** Map tiles and ramp/marina data © OpenStreetMap contributors (ODbL), with attribution shown in-app.

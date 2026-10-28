@@ -1,4 +1,4 @@
-# Play Console — Data safety language (Water Tracker)
+# Play Console — Data safety language (Ride Radar)
 
 Paste/adapt the following when filling out Google Play **Data safety**. This file does **not** mean the Console form was submitted — it is copy for Joseph to declare. Keep aligned with `PRIVACY.md` (last updated October 27, 2026).
 
