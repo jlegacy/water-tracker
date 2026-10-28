@@ -89,11 +89,7 @@ function wsUrl(path) {
   #bar .cpick.rng{flex:0 0 auto;margin-left:auto;width:84px}
   #bar .cpick.rng .cmenu{left:auto;right:0;min-width:100%}
   #nameScreen select{font-size:16px;padding:10px;border-radius:8px;border:1px solid #2a4a6f;background:#132a45;color:#e8eef7}
-  #riderPick{position:relative;flex:1 1 auto;min-width:0;width:100%}
-  #bar #riderBtn{width:100%;font-weight:400;display:flex;align-items:center;gap:6px;text-align:left;font-size:13px;padding:8px 6px;border-radius:8px;border:1px solid #2a4a6f;background:#132a45;color:#e8eef7;cursor:pointer}
-  #bar #riderBtn .lbl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  #riderBtn .car{opacity:.7;font-size:10px}
-  #bar #riderBtn:disabled{opacity:.45;cursor:not-allowed}
+  #riderPick{position:relative;width:100%;height:0}
   #riderMenu{display:none;position:absolute;left:0;right:0;top:100%;margin-top:4px;max-height:50vh;overflow-y:auto;background:#132a45;border:1px solid #2a4a6f;border-radius:8px;z-index:2000;box-shadow:0 4px 14px rgba(0,0,0,.4)}
   #riderMenu.open{display:block}
   /* open dropdowns must sit above the map buttons (North Up / Re-center, z 1000, later in DOM) */
@@ -109,6 +105,7 @@ function wsUrl(path) {
   #bar #rfBar button[data-f=sos]{color:#fca5a5}
   #bar #rfBar button.on{background:#1e3a5f;border-color:#60a5fa;color:#fff}
   #bar #rfBar button.zero{opacity:.4}
+  #bar #rfBar.off button{opacity:.45}
   .cpick{position:relative;min-width:0}
   #bar .cpick.g{flex:1 1 0;min-width:90px}
   #nameScreen .cpick{width:100%;max-width:320px}
@@ -125,7 +122,6 @@ function wsUrl(path) {
   .rtag{flex:0 0 auto;font-size:10px;font-weight:700;padding:1px 5px;border-radius:4px}
   .rtag.s{background:#dc2626;color:#fff}.rtag.q{background:#475569;color:#e2e8f0}
   .rseen{flex:0 0 auto;margin-left:auto;font-size:11px;color:#8aa0b8;font-weight:400}
-  #riderBtn .rseen{display:none}
   .rdot{flex:0 0 auto;width:8px;height:8px;border-radius:50%;display:inline-block}
   .rdot.on{background:#3b82f6}.rdot.q{background:#cbd5e1}.rdot.s{background:#dc2626}
   #bar select#riderList{flex:1 1 auto;width:100%;min-width:0;font-size:13px;padding:8px 6px;text-overflow:ellipsis}
@@ -293,15 +289,6 @@ function wsUrl(path) {
     <button id="sosBtn" class="sos" onclick="toggleSos()">SOS</button>
     <div class="cpick rng"><div class="cbtn" id="rangeSel" role="status" aria-label="Viewing radius" title="View radius (pinch to zoom). You see every rider within 50 mi" style="justify-content:center;cursor:default;box-sizing:border-box"><span class="lbl" id="rangeVal" style="text-align:center">5 mi</span></div></div>
   </div>
-  <div class="row" id="riderRow">
-    <select id="riderList" onchange="onRiderSelect()" aria-label="Riders" style="display:none">
-      <option value="">-- Riders --</option>
-    </select>
-    <div id="riderPick">
-      <button type="button" id="riderBtn" disabled aria-disabled="true" onclick="toggleRiderMenu(event)" aria-haspopup="listbox" aria-label="Riders"><span class="lbl">-- Riders --</span><span class="car">▼</span></button>
-      <div id="riderMenu" role="listbox"></div>
-    </div>
-  </div>
   <div class="row" id="msgBox">
     <input id="msgText" placeholder="Message everyone" style="display:none">
     <button id="sendBtn" class="msg" onclick="sendMessage()" style="display:none" disabled>Send</button>
@@ -310,6 +297,10 @@ function wsUrl(path) {
     <button id="rampsBtn" class="ramps" onclick="toggleRamps()">Ramps</button>
   </div>
   <nav id="rfBar" class="rfbar" aria-label="Rider status filter"></nav>
+  <select id="riderList" onchange="onRiderSelect()" aria-label="Riders" style="display:none">
+    <option value="">-- Riders --</option>
+  </select>
+  <div id="riderPick"><div id="riderMenu" role="listbox"></div></div>
 </div>
 <div id="stylePanel" role="dialog" aria-label="Marker color" onclick="if(event.target===this)closeStylePanel()"><div class="box">
   <h3><span id="stylePrev"></span>Your marker</h3>
@@ -1590,11 +1581,8 @@ let riderFilter = 'all';
 function riderStatusOf(o){ return o.dataset.st === 's' ? 'sos' : (o.dataset.st === 'q' ? 'quiet' : 'moving'); }
 function renderRiderPicker(){
   const sel = document.getElementById('riderList');
-  const btn = document.getElementById('riderBtn'), menu = document.getElementById('riderMenu');
-  if (!sel || !btn || !menu) return;
-  const cur = sel.options[sel.selectedIndex] || sel.options[0];
-  btn.innerHTML = riderRowHtml(cur) + '<span class="car">▼</span>';
-  btn.classList.toggle('sos', cur && cur.dataset.st === 's');
+  const menu = document.getElementById('riderMenu');
+  if (!sel || !menu) return;
   menu.innerHTML = '';
   // Status filter chips (leader-dashboard mockup): All / Moving / Quiet / SOS with live counts
   const riders = [...sel.options].filter(o => o.value);
@@ -1610,9 +1598,8 @@ function renderRiderPicker(){
       if (!cnt[f]) b.classList.add('zero');
       b.onclick = (e) => { e.stopPropagation(); riderFilter = (f === 'all' || riderFilter === f) ? 'all' : f; renderRiderPicker();
         // open the rider list showing the filtered roster
-        if (!document.getElementById('riderBtn').disabled){ document.querySelectorAll('.cmenu.open').forEach(m => m.classList.remove('open')); menu.classList.add('open');
-          // drop the list below the chip bar so chips stay tappable (tap again / All resets)
-          menu.style.marginTop = Math.max(4, Math.round(bar.getBoundingClientRect().bottom - document.getElementById('riderPick').getBoundingClientRect().bottom + 4)) + 'px'; } };
+        // (list sits directly under the chip bar, so chips stay tappable; tap again / All resets)
+        if (!sel.disabled){ document.querySelectorAll('.cmenu.open').forEach(m => m.classList.remove('open')); menu.classList.add('open'); } };
       bar.appendChild(b);
     });
   }
@@ -1628,18 +1615,17 @@ function renderRiderPicker(){
   });
 }
 function setRiderPickEnabled(on){
-  const sel = document.getElementById('riderList'), btn = document.getElementById('riderBtn');
+  const sel = document.getElementById('riderList');
   if (sel) sel.disabled = !on;
-  if (btn){ btn.disabled = !on; btn.setAttribute('aria-disabled', on ? 'false' : 'true'); }
+  const bar = document.getElementById('rfBar'); if (bar) bar.classList.toggle('off', !on);
   if (!on){ const m = document.getElementById('riderMenu'); if (m) m.classList.remove('open'); }
 }
 function toggleRiderMenu(e){
   if (e) e.stopPropagation();
-  if (document.getElementById('riderBtn').disabled) return; // no riders: nothing to pick
+  if (document.getElementById('riderList').disabled) return; // no riders: nothing to pick
   renderRiderPicker();
   const rm = document.getElementById('riderMenu'), wasOpen = rm.classList.contains('open');
   document.querySelectorAll('.cmenu.open').forEach(m => m.classList.remove('open'));
-  rm.style.marginTop = '';
   rm.classList.toggle('open', !wasOpen);
 }
 document.addEventListener('click', () => { const m = document.getElementById('riderMenu'); if (m) m.classList.remove('open'); });

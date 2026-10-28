@@ -6,13 +6,13 @@ def geo(lat,lon): return """(()=>{window.__ll=[%f,%f];const mk=()=>({coords:{lat
 const g={getCurrentPosition(ok){setTimeout(()=>ok(mk()),200)},watchPosition(ok){setTimeout(()=>ok(mk()),200);return 1},clearWatch(){}};
 Object.defineProperty(navigator,'geolocation',{get:()=>g});})()"""%(lat,lon)
 def ok(k,v,d=''): R.append((k,bool(v))); print(k,'PASS' if v else 'FAIL',d)
-DIS="()=>[document.getElementById('riderBtn').disabled,document.getElementById('riderList').disabled,document.getElementById('riderMenu').classList.contains('open')]"
+DIS="()=>[document.getElementById('riderList').disabled,document.getElementById('riderList').disabled,document.getElementById('riderMenu').classList.contains('open')]"
 def join(b,kw,name,lat,lon,errs):
   c=b.new_context(**kw); c.route('**/*onrender.com*/**',lambda r:r.abort()); c.add_init_script(geo(lat,lon))
   pg=c.new_page(); pg.on('pageerror',lambda e:errs.append(str(e))); pg.goto(URL); pg.fill('#startName',name); pg.evaluate('startApp()')
   pg.wait_for_function("()=>ws&&ws.readyState===1&&myLatLng",timeout=15000); return c,pg
 def wait_state(pg,want,ms=8000):
-  try: pg.wait_for_function(f"()=>document.getElementById('riderBtn').disabled==={'true' if want else 'false'}",timeout=ms)
+  try: pg.wait_for_function(f"()=>document.getElementById('riderList').disabled==={'true' if want else 'false'}",timeout=ms)
   except Exception: pass
   return pg.evaluate(DIS)
 with sync_playwright() as p:

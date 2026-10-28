@@ -21,12 +21,16 @@ with sync_playwright() as p:
     errs=[]; pg=c.new_page(); pg.on('pageerror',lambda e:errs.append(str(e))); pg.goto(URL); pg.fill('#startName','Lead '+n); pg.evaluate('startApp()')
     pg.wait_for_function("()=>ws&&ws.readyState===1&&myLatLng",timeout=15000)
     pg.evaluate("()=>{ws.onmessage=null;return 1}")
+    # isolate from riders left on the shared test server by earlier runs (snapshot may land before onmessage=null)
+    pg.wait_for_timeout(500)
+    pg.evaluate("()=>{const purge=()=>{let ch=false;for(const k in positions) if(k!==me&&!'abcd'.includes(k)){delete positions[k];ch=true;} if(ch){lastListKey=null;updateRiderList();}};purge();setInterval(purge,50);}")
     pg.evaluate("""()=>{const n=Date.now();
 positions['a']={lat:35.808,lon:-60.0,name:'Near'};lastSeen['a']=n-3000;
 positions['b']={lat:35.9,lon:-60.0,name:'Far'};lastSeen['b']=n-12000;
 positions['c']={lat:35.85,lon:-60.0,name:'Quiet',stale:true};lastSeen['c']=n-4*60000;
 lastListKey=null;updateRiderList();}""")
     pg.wait_for_function("()=>document.querySelectorAll('#rfBar button').length===4")
+    ok(f'{n} old Riders dropdown button removed',pg.evaluate("()=>!document.getElementById('riderBtn')&&!document.getElementById('riderRow')"))
     ok(f'{n} no chips inside menu',pg.evaluate("()=>!document.querySelector('#riderMenu nav, #riderMenu .rfbar')"))
     pg.wait_for_timeout(400)
     bv=pg.evaluate("()=>{const b=document.getElementById('rfBar').getBoundingClientRect(),m=document.getElementById('msgBox').getBoundingClientRect(),mm=document.getElementById('map').getBoundingClientRect();return [b.height>0&&b.height<=30&&b.top>=m.bottom-1&&b.bottom<=mm.top+1&&!document.getElementById('riderMenu').classList.contains('open'),b.top,b.bottom,m.bottom,mm.top]}")

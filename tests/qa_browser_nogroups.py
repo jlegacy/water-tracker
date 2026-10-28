@@ -47,7 +47,7 @@ async def run(p,n):
   lst=await pg.evaluate(L); ids=await pg.evaluate("()=>Object.keys(positions).filter(k=>k!==me).sort()")
   ok(n,'riders <=50mi listed (outside 5 mi ring)',sorted(ids)==sorted([f'{n}-A24',f'{n}-L2']),[ids,lst])
   ok(n,'two leaders badged ★',sum('★' in x and 'Leader' in x for x in lst)==2,lst)
-  en=await pg.evaluate("()=>[document.getElementById('riderBtn').disabled,document.getElementById('riderList').disabled]")
+  en=await pg.evaluate("()=>[document.getElementById('riderList').disabled,document.getElementById('riderList').disabled]")
   ok(n,'dropdown enabled with riders',en==[False,False],en)
   await a.move(51.5); await pg.wait_for_timeout(1500); ids=await pg.evaluate("()=>Object.keys(positions)")
   ok(n,'hysteresis: 51.5mi still shown',f'{n}-A24' in ids,ids)
