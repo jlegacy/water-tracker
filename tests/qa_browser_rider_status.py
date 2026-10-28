@@ -12,7 +12,7 @@ positions['b']={lat:35.9,lon:-60.0,name:'Far'};lastSeen['b']=n-12000;
 positions['c']={lat:35.85,lon:-60.0,name:'Quiet',stale:true};lastSeen['c']=n-4*60000;
 positions['d']={lat:36.0,lon:-60.0,name:'Help',sos:true,stale:true};lastSeen['d']=n-2*60000;
 lastListKey=null;updateRiderList();renderRiderPicker();
-return [...document.querySelectorAll('#riderMenu div')].slice(1).map(d=>[d.querySelector('.lbl').textContent,(d.querySelector('.rtag')||{}).textContent||'',(d.querySelector('.rseen')||{}).textContent||'']).concat([[...document.getElementById('riderList').options].slice(1).map(o=>o.textContent)]);}"""
+return [...document.querySelectorAll('#riderMenu > div')].slice(1).map(d=>[d.querySelector('.lbl').textContent,(d.querySelector('.rtag')||{}).textContent||'',(d.querySelector('.rseen')||{}).textContent||'']).concat([[...document.getElementById('riderList').options].slice(1).map(o=>o.textContent)]);}"""
 with sync_playwright() as p:
   for n in sys.argv[2:] or ['chromium','webkit']:
     b=getattr(p,n).launch(); c=b.new_context(); c.route('**/*onrender.com*/**',lambda r:r.abort()); c.add_init_script(GEO)
