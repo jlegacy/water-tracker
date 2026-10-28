@@ -114,6 +114,10 @@ function wsUrl(path) {
   #nameScreen .cpick .cmenu div{font-size:16px;padding:11px 12px}
   .cpick .cmenu div.sel{background:#1e3a5f}
   .cpick .cmenu div.dis{opacity:.5;cursor:default}
+  .rtag{flex:0 0 auto;font-size:10px;font-weight:700;padding:1px 5px;border-radius:4px}
+  .rtag.s{background:#dc2626;color:#fff}.rtag.q{background:#475569;color:#e2e8f0}
+  .rseen{flex:0 0 auto;margin-left:auto;font-size:11px;color:#8aa0b8;font-weight:400}
+  #riderBtn .rseen{display:none}
   .rdot{flex:0 0 auto;width:8px;height:8px;border-radius:50%;display:inline-block}
   .rdot.on{background:#3b82f6}.rdot.q{background:#cbd5e1}.rdot.s{background:#dc2626}
   #bar select#riderList{flex:1 1 auto;width:100%;min-width:0;font-size:13px;padding:8px 6px;text-overflow:ellipsis}
@@ -1512,6 +1516,12 @@ function haversine(lat1, lon1, lat2, lon2){
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
+function fmtAgo(ms){
+  if (ms == null) return '';
+  if (ms < 10000) return 'now';
+  if (ms < 60000) return Math.round(ms / 1000) + 's';
+  return Math.round(ms / 60000) + 'm ago';
+}
 function updateRiderList(){
   const sel = document.getElementById('riderList');
   const others = [];
@@ -1519,10 +1529,14 @@ function updateRiderList(){
     if (id === me) continue;
     const p = positions[id];
     const dist = myLatLng ? haversine(myLatLng[0], myLatLng[1], p.lat, p.lon) : null;
-    others.push({id, name: p.leader ? '★ ' + p.name + ' (Leader)' : p.name, dist, stale: !!p.stale, sos: !!p.sos, color: p.color, icon: p.leader ? '' : p.icon});
+    const ago = lastSeen[id] != null ? Math.max(0, Date.now() - lastSeen[id]) : null;
+    others.push({id, name: p.leader ? '★ ' + p.name + ' (Leader)' : p.name, dist, stale: !!p.stale, sos: !!p.sos, color: p.color, icon: p.leader ? '' : p.icon, ago});
   }
-  others.sort((a,b) => (a.dist == null || b.dist == null) ? a.name.localeCompare(b.name) : a.dist - b.dist);
-  const key = (leader ? 'L|' : '') + others.map(o => o.id + ':' + o.name + ':' + (o.dist == null ? '-' : Math.round(o.dist)) + (o.stale ? ':q' : '') + (o.sos ? ':s' : '') + ':' + o.color + ':' + o.icon).join('|');
+  // SOS first, then gone-quiet, then distance (name fallback without GPS)
+  const rank = o => o.sos ? 0 : (o.stale ? 1 : 2);
+  others.sort((a,b) => (rank(a) - rank(b)) || ((a.dist == null || b.dist == null) ? a.name.localeCompare(b.name) : a.dist - b.dist));
+  others.forEach(o => { o.seen = fmtAgo(o.ago); });
+  const key = (leader ? 'L|' : '') + others.map(o => o.id + ':' + o.name + ':' + (o.dist == null ? '-' : Math.round(o.dist)) + (o.stale ? ':q' : '') + (o.sos ? ':s' : '') + ':' + o.color + ':' + o.icon + ':' + o.seen).join('|');
   setRiderPickEnabled(others.length > 0);
   if (key === lastListKey){ updateSosBar(); return; }
   lastListKey = key;
@@ -1537,7 +1551,12 @@ function updateRiderList(){
     opt.dataset.st = o.sos ? 's' : (o.stale ? 'q' : 'on');
     if (!o.sos && !o.stale && STYLE_COLORS[o.color]) opt.dataset.c = STYLE_COLORS[o.color];
     if (!o.sos && styleEmoji(o.icon)) opt.dataset.i = styleEmoji(o.icon, 18);
-    opt.textContent = o.dist == null ? label : `${label} (${(o.dist / 1609.34).toFixed(2)} mi)`;
+    const base = o.dist == null ? label : `${label} (${(o.dist / 1609.34).toFixed(2)} mi)`;
+    const mins = Math.max(1, Math.round((o.ago || 0) / 60000));
+    opt.dataset.tag = o.sos ? 'SOS' : (o.stale ? 'Quiet ' + mins + 'm' : '');
+    opt.dataset.seen = o.seen;
+    opt.textContent = (opt.dataset.tag ? opt.dataset.tag + ' · ' : '') + base;
+    opt.dataset.base = base;
     sel.appendChild(opt);
   });
   if (current && positions[current]) sel.value = current;
@@ -1553,8 +1572,10 @@ function riderRowHtml(opt){
   const st = opt.dataset.st;
   const dot = (st ? '<span class="rdot ' + st + '"' + (opt.dataset.c ? ' style="background:' + opt.dataset.c + '"' : '') + '></span>' : '')
     + (opt.dataset.i ? '<span class="rico">' + opt.dataset.i + '</span>' : '');
-  const t = document.createElement('span'); t.textContent = opt.textContent;
-  return dot + '<span class="lbl">' + t.innerHTML + '</span>';
+  const esc = v => { const t = document.createElement('span'); t.textContent = v; return t.innerHTML; };
+  const tag = opt.dataset.tag ? '<span class="rtag ' + (opt.dataset.st === 's' ? 's' : 'q') + '">' + esc(opt.dataset.tag) + '</span>' : '';
+  const seen = opt.dataset.seen ? '<span class="rseen">' + esc(opt.dataset.seen) + '</span>' : '';
+  return dot + tag + '<span class="lbl">' + esc(opt.dataset.base != null ? opt.dataset.base : opt.textContent) + '</span>' + seen;
 }
 function renderRiderPicker(){
   const sel = document.getElementById('riderList');
