@@ -101,6 +101,14 @@ function wsUrl(path) {
   #riderMenu div{display:flex;align-items:center;gap:6px;padding:9px 8px;font-size:13px;color:#e8eef7;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #riderMenu div.sel{background:#1e3a5f}
   #riderMenu div.sos{color:#f87171;font-weight:700}
+  #riderMenu nav.rfbar{display:flex;gap:4px;padding:6px;position:sticky;top:0;background:#0f2238;border-bottom:1px solid #2a4a6f;z-index:1}
+  #riderMenu nav.rfbar button{flex:1 1 0;min-width:0;display:flex;align-items:center;justify-content:center;gap:4px;padding:6px 2px;margin:0;font-size:11px;font-weight:600;border-radius:999px;border:1px solid #2a4a6f;background:#132a45;color:#cbd5e1;cursor:pointer;white-space:nowrap}
+  #riderMenu nav.rfbar button b{min-width:16px;padding:1px 5px;border-radius:999px;font-size:11px;color:#fff;background:#64748b}
+  #riderMenu nav.rfbar button[data-f=moving] b{background:#22c55e}
+  #riderMenu nav.rfbar button[data-f=sos] b{background:#ef4444}
+  #riderMenu nav.rfbar button[data-f=sos]{color:#fca5a5}
+  #riderMenu nav.rfbar button.on{background:#1e3a5f;border-color:#60a5fa;color:#fff}
+  #riderMenu nav.rfbar button.zero{opacity:.4}
   .cpick{position:relative;min-width:0}
   #bar .cpick.g{flex:1 1 0;min-width:90px}
   #nameScreen .cpick{width:100%;max-width:320px}
@@ -1577,6 +1585,8 @@ function riderRowHtml(opt){
   const seen = opt.dataset.seen ? '<span class="rseen">' + esc(opt.dataset.seen) + '</span>' : '';
   return dot + tag + '<span class="lbl">' + esc(opt.dataset.base != null ? opt.dataset.base : opt.textContent) + '</span>' + seen;
 }
+let riderFilter = 'all';
+function riderStatusOf(o){ return o.dataset.st === 's' ? 'sos' : (o.dataset.st === 'q' ? 'quiet' : 'moving'); }
 function renderRiderPicker(){
   const sel = document.getElementById('riderList');
   const btn = document.getElementById('riderBtn'), menu = document.getElementById('riderMenu');
@@ -1585,7 +1595,22 @@ function renderRiderPicker(){
   btn.innerHTML = riderRowHtml(cur) + '<span class="car">▼</span>';
   btn.classList.toggle('sos', cur && cur.dataset.st === 's');
   menu.innerHTML = '';
+  // Status filter chips (leader-dashboard mockup): All / Moving / Quiet / SOS with live counts
+  const riders = [...sel.options].filter(o => o.value);
+  const cnt = {all: riders.length, moving: 0, quiet: 0, sos: 0};
+  riders.forEach(o => { cnt[riderStatusOf(o)]++; });
+  const bar = document.createElement('nav'); bar.className = 'rfbar';
+  [['all','All'],['moving','Moving'],['quiet','Quiet'],['sos','SOS']].forEach(([f, t]) => {
+    const b = document.createElement('button'); b.type = 'button'; b.dataset.f = f;
+    b.innerHTML = t + ' <b>' + cnt[f] + '</b>';
+    if (riderFilter === f) b.classList.add('on');
+    if (!cnt[f]) b.classList.add('zero');
+    b.onclick = (e) => { e.stopPropagation(); riderFilter = (f === 'all' || riderFilter === f) ? 'all' : f; renderRiderPicker(); };
+    bar.appendChild(b);
+  });
+  menu.appendChild(bar);
   [...sel.options].forEach(o => {
+    if (o.value && riderFilter !== 'all' && riderStatusOf(o) !== riderFilter) return;
     const d = document.createElement('div');
     d.setAttribute('role','option');
     d.innerHTML = riderRowHtml(o);

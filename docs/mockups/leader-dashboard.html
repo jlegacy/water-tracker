@@ -1,0 +1,51 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{width:430px;height:932px;background:#0f2038;font-family:-apple-system,Helvetica,Arial,sans-serif;color:#e8eef7;overflow:hidden}
+.status{height:44px;display:flex;justify-content:space-between;align-items:center;padding:0 24px;font-size:14px;font-weight:600;background:#0f1f33}
+header{background:#0f1f33;padding:6px 18px 12px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #2a4a6f}
+header h1{font-size:20px}header h1 span{color:#0ea5e9}
+.pill{font-size:12px;background:#132a45;border:1px solid #2a4a6f;padding:4px 10px;border-radius:12px;color:#9fb3c8}
+.map{height:340px;position:relative}
+.sum{display:flex;gap:8px;padding:10px 14px;font-size:12px}
+.sum div{flex:1;background:#132a45;border-radius:8px;padding:6px;text-align:center;color:#9fb3c8}.sum b{display:block;font-size:16px;color:#e8eef7}
+.row{display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid #1e3554}
+.dot{width:12px;height:12px;border-radius:50%;flex:none}
+.g{background:#22c55e}.q{background:#94a3b8}.r{background:#dc2626;box-shadow:0 0 0 4px rgba(220,38,38,.3)}
+.info{flex:1}.nm{font-weight:600;font-size:15px}.sub{font-size:12px;color:#9fb3c8;margin-top:2px}
+.bat{font-size:11px;color:#9fb3c8;width:38px;text-align:right}
+.call{width:32px;height:32px;border-radius:50%;border:1px solid #2a4a6f;display:flex;align-items:center;justify-content:center;font-size:14px}
+.alert{background:rgba(220,38,38,.18);border-left:4px solid #dc2626}
+.tag{display:inline-block;background:#dc2626;color:#fff;font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;margin-top:3px}
+.bigcall{background:#22c55e;color:#06210f;font-weight:700;font-size:14px;padding:9px 14px;border-radius:20px}
+.legend{display:flex;gap:14px;justify-content:center;font-size:11px;color:#9fb3c8;padding:8px}.legend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:4px}
+footer{text-align:center;font-size:11px;color:#64748b;font-style:italic}
+</style></head><body>
+<div class="status"><span>9:41</span><span>▮▮▮ 82%</span></div>
+<header><h1>Ride Radar <span>·</span> Leader</h1><span class="pill">Group: Lake Crew</span></header>
+<div class="map"><svg width="430" height="340" font-family="Helvetica" font-size="11" font-weight="700">
+<rect width="430" height="340" fill="#1d4e7a"/>
+<path d="M0 0H430V60C360 90 300 40 240 70S120 50 60 90 0 80 0 80Z" fill="#3f5f3a"/>
+<path d="M300 340C320 280 380 270 430 240V340Z" fill="#3f5f3a"/>
+<path d="M0 260C40 250 70 300 60 340H0Z" fill="#3f5f3a"/>
+<circle cx="200" cy="190" r="90" fill="none" stroke="#0ea5e9" stroke-dasharray="4 5" opacity=".5"/>
+<path d="M140 250Q170 200 200 190" stroke="#22c55e" stroke-width="2" fill="none" stroke-dasharray="2 4"/>
+<g><circle cx="200" cy="190" r="14" fill="#3b82f6" stroke="#fff" stroke-width="3"/><text x="200" y="215" fill="#fff" text-anchor="middle">YOU</text></g>
+<g fill="#fff" text-anchor="middle">
+<circle cx="140" cy="250" r="9" fill="#22c55e" stroke="#fff" stroke-width="2"/><text x="140" y="272">Mike</text>
+<circle cx="260" cy="150" r="9" fill="#22c55e" stroke="#fff" stroke-width="2"/><text x="260" y="138">Sarah</text>
+<circle cx="230" cy="245" r="9" fill="#22c55e" stroke="#fff" stroke-width="2"/><text x="230" y="267">Chris</text>
+<circle cx="110" cy="140" r="9" fill="#94a3b8" stroke="#fff" stroke-width="2"/><text x="110" y="128">Tina</text>
+<circle cx="290" cy="215" r="9" fill="#22c55e" stroke="#fff" stroke-width="2"/><text x="310" y="235">Jen</text>
+<circle cx="360" cy="110" r="18" fill="#dc2626" opacity=".3"/><circle cx="360" cy="110" r="10" fill="#dc2626" stroke="#fff" stroke-width="2"/><text x="360" y="140">Dave ⚠</text></g>
+<g transform="translate(395,300)"><rect x="-14" y="-14" width="28" height="28" rx="6" fill="#0f1f33"/><text y="5" fill="#fff" text-anchor="middle" font-size="14">◎</text></g>
+</svg></div>
+<div class="sum"><div><b>6</b>Riders</div><div><b>4</b>Moving</div><div><b>1</b>Quiet</div><div style="color:#fca5a5"><b style="color:#fca5a5">1</b>Alert</div></div>
+<div class="row alert"><span class="dot r"></span><div class="info"><div class="nm">Dave</div><div class="sub">Last seen 9:35 · 1.8 mi NE · 🔋 6%</div><span class="tag">Gone quiet · 6 min</span></div><span class="bigcall">📞 Call</span></div>
+<div class="row"><span class="dot g"></span><div class="info"><div class="nm">Mike</div><div class="sub">Moving · just now · 0.4 mi SW</div></div><span class="bat">🔋 78%</span><span class="call">📞</span></div>
+<div class="row"><span class="dot g"></span><div class="info"><div class="nm">Sarah</div><div class="sub">Moving · just now · 0.5 mi NE</div></div><span class="bat">🔋 64%</span><span class="call">📞</span></div>
+<div class="row"><span class="dot g"></span><div class="info"><div class="nm">Chris</div><div class="sub">Moving · 10 s ago · 0.3 mi S</div></div><span class="bat">🔋 91%</span><span class="call">📞</span></div>
+<div class="row"><span class="dot g"></span><div class="info"><div class="nm">Jen</div><div class="sub">Moving · 20 s ago · 0.6 mi SE</div></div><span class="bat">🔋 45%</span><span class="call">📞</span></div>
+<div class="row"><span class="dot q"></span><div class="info"><div class="nm">Tina</div><div class="sub">Quiet · 2 min ago · 0.7 mi NW</div></div><span class="bat">🔋 33%</span><span class="call">📞</span></div>
+<div class="legend"><span><i class="g"></i>Moving</span><span><i class="q"></i>Quiet</span><span><i class="r" style="box-shadow:none"></i>Gone quiet / alert</span><span><i style="background:#3b82f6"></i>You</span></div>
+<footer>Example data — mockup</footer>
+</body></html>
