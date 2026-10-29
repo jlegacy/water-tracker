@@ -34,9 +34,22 @@ public class MainActivity extends BridgeActivity {
         // background. Paint them the app's dark navy (#0b1d33, same as the web body)
         // and use light (white) system icons so the nav buttons aren't white-on-white.
         container.setBackgroundColor(0xFF0B1D33);
+        applyLightSystemBarIcons();
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        // Capacitor/theme can reset the bar icon colors after onCreate, so re-apply
+        // now and once more after the first layout pass.
+        applyLightSystemBarIcons();
+        getWindow().getDecorView().post(this::applyLightSystemBarIcons);
+    }
+
+    private void applyLightSystemBarIcons() {
         WindowInsetsControllerCompat bars =
             WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
-        bars.setAppearanceLightStatusBars(false);
-        bars.setAppearanceLightNavigationBars(false);
+        bars.setAppearanceLightStatusBars(false);   // white clock/battery icons
+        bars.setAppearanceLightNavigationBars(false); // white nav buttons
     }
 }
