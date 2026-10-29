@@ -4,7 +4,9 @@ import android.os.Bundle;
 import android.view.View;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
@@ -27,5 +29,14 @@ public class MainActivity extends BridgeActivity {
             return WindowInsetsCompat.CONSUMED;
         });
         ViewCompat.requestApplyInsets(container);
+
+        // The padded strips behind the status bar and nav bar show the container's
+        // background. Paint them the app's dark navy (#0b1d33, same as the web body)
+        // and use light (white) system icons so the nav buttons aren't white-on-white.
+        container.setBackgroundColor(0xFF0B1D33);
+        WindowInsetsControllerCompat bars =
+            WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+        bars.setAppearanceLightStatusBars(false);
+        bars.setAppearanceLightNavigationBars(false);
     }
 }
