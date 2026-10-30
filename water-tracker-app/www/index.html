@@ -386,13 +386,65 @@ const map = L.map('map', {
   bounceAtZoomLimits: false,
   maxZoom: 21      // allow pinching well past the 1 mi fit (tiles upscale above 19)
 }).setView([35.5,-77.0], 12);
-L.tileLayer(
-  'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+const OSM_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+const baseTiles = L.tileLayer(OSM_URL,
   {
     maxZoom: 21, maxNativeZoom: 19, // overzoom native z19 tiles instead of capping the map
+    keepBuffer: 4,                  // keep more panned-past tiles before pruning
+    edgeBufferTiles: 1,             // load 1 extra ring of tiles off-screen (Leaflet.EdgeBuffer equivalent)
     attribution: '&copy; OpenStreetMap contributors'
   }
-).addTo(map);
+);
+// Edge buffer: pad the tiled pixel bounds by N tiles. Wraps whatever
+// _getTiledPixelBounds is current (leaflet-rotate's rotated bounds), not the stock one.
+(function(){
+  const inner = L.GridLayer.prototype._getTiledPixelBounds;
+  baseTiles._getTiledPixelBounds = function(center){
+    const b = inner.call(this, center);
+    const n = this.options.edgeBufferTiles || 0;
+    if (!n) return b;
+    const pad = this.getTileSize().multiplyBy(n);
+    return new L.Bounds(b.min.subtract(pad), b.max.add(pad));
+  };
+})();
+baseTiles.addTo(map);
+
+// Look-ahead prefetch: every ~5 s while moving, warm the browser cache with the
+// few tiles around where the rider will be in ~45 s. Light by design (<=4 tiles/tick).
+const tilePrefetch = { last: null, seen: new Set(), t: 0 };
+function prefetchAhead(lat, lon){
+  const now = Date.now(), prev = tilePrefetch.last;
+  if (!prev || now - prev.t > 30000){ tilePrefetch.last = {lat, lon, t: now}; return; }
+  if (now - tilePrefetch.t < 5000) return;
+  if (document.hidden || navigator.onLine === false) return;
+  const dt = (now - prev.t) / 1000;
+  if (dt < 2) return;
+  tilePrefetch.last = {lat, lon, t: now}; tilePrefetch.t = now;
+  // Velocity from the last two fixes (degrees/s), projected 45 s, capped at ~1.5 km
+  const mLat = 111320, mLon = 111320 * Math.cos(lat * Math.PI / 180);
+  let vx = (lon - prev.lon) * mLon / dt, vy = (lat - prev.lat) * mLat / dt; // m/s
+  const v = Math.hypot(vx, vy);
+  if (v < 2 || v > 60) return; // stopped/drifting, or a GPS jump
+  const dist = Math.min(v * 45, 1500);
+  const pLat = lat + (vy / v) * dist / mLat, pLon = lon + (vx / v) * dist / mLon;
+  const z = Math.max(0, Math.min(19, Math.round(map.getZoom())));
+  const n = Math.pow(2, z);
+  const fx = (pLon + 180) / 360 * n;
+  const r = pLat * Math.PI / 180;
+  const fy = (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * n;
+  // Predicted tile plus the nearest neighbor in x, y and diagonal (2x2 around the point)
+  const x0 = Math.floor(fx), y0 = Math.floor(fy);
+  const dx = (fx - x0) < 0.5 ? -1 : 1, dy = (fy - y0) < 0.5 ? -1 : 1;
+  [[0,0],[dx,0],[0,dy],[dx,dy]].forEach(([ox, oy]) => {
+    const x = ((x0 + ox) % n + n) % n, y = y0 + oy;
+    if (y < 0 || y >= n) return;
+    const url = L.Util.template(OSM_URL, {s: 'abc'[(x + y) % 3], z, x, y});
+    if (tilePrefetch.seen.has(url)) return;
+    tilePrefetch.seen.add(url);
+    if (tilePrefetch.seen.size > 200) tilePrefetch.seen.delete(tilePrefetch.seen.values().next().value);
+    const img = new Image(); img.src = url;
+  });
+}
 // One-time: drop leftover on-demand tile cache DB (removed in #80)
 try {
   if (window.indexedDB) {
@@ -1693,6 +1745,7 @@ function trailPointFromFix(lat, lon, accuracy, fixTime){
 }
 function updateMyMarker(lat, lon, accuracy, fixTime){
   myLatLng = [lat, lon];
+  try { prefetchAhead(lat, lon); } catch (e) {}
   lastSeen[me] = Date.now();
   positions[me] = {lat, lon, name: myName};
   if (trailOn && sharing && canUseBreadcrumbs()){
