@@ -2168,6 +2168,27 @@ setInterval(() => {
   updateRiderList();
 }, 1000);
 
+// Visual smoothing for other riders: glide the marker from where it's drawn to the
+// new fix over ~the gap between fixes. Display only; distance/alert logic reads positions[].
+const markerGlide = {};
+function glideMarker(id, mk, lat, lon){
+  const now = performance.now(), g = markerGlide[id] || (markerGlide[id] = {});
+  if (g.raf) cancelAnimationFrame(g.raf);
+  g.raf = 0;
+  const from = mk.getLatLng(); // current displayed spot (mid-glide if one was running)
+  const gap = g.lastFix ? now - g.lastFix : 0;
+  g.lastFix = now;
+  const jump = from.distanceTo([lat, lon]);
+  if (!gap || gap > 15000 || jump > 500 || jump < 0.5 || document.hidden){ mk.setLatLng([lat, lon]); return; }
+  const dur = Math.max(500, Math.min(4000, gap));
+  const step = t => {
+    const k = Math.min(1, (t - now) / dur);
+    mk.setLatLng([from.lat + (lat - from.lat) * k, from.lng + (lon - from.lng) * k]);
+    g.raf = k < 1 ? requestAnimationFrame(step) : 0;
+  };
+  g.raf = requestAnimationFrame(step);
+}
+
 function upsert(r){
   if (r.lat == null && r.lon == null) return;
   if (r.id === me) return; // my own marker comes from local GPS only
@@ -2188,7 +2209,7 @@ function upsert(r){
   const wantArrow = !!(mot.moving && mot.heading != null);
   positions[r.id] = {lat: r.lat, lon: r.lon, name, stale, leader: isLeader, sos: isSos, color: st.c, icon: st.i, _arrow: wantArrow};
   if (riders[r.id]){
-    riders[r.id].setLatLng([r.lat, r.lon]);
+    glideMarker(r.id, riders[r.id], r.lat, r.lon); // visual only; positions[] keeps the real fix
     if (wasStale !== stale || wasLeader !== isLeader || wasName !== name || wasArrow !== wantArrow || wasSos !== isSos || wasStyle !== st.c + '|' + st.i)
       riders[r.id].setIcon(riderIcon(stale, isLeader, name, mot.moving, mot.heading, isSos, st.c, st.i));
     riders[r.id].setPopupContent(riderPopup(r.id));
@@ -2212,6 +2233,7 @@ function remove(id){
   delete positions[id];
   delete pendingRiders[id];
   delete riderMotion[id];
+  if (markerGlide[id]){ cancelAnimationFrame(markerGlide[id].raf); delete markerGlide[id]; }
   clearRemoteTrail(id);
   if (findTarget === id) clearFindLine();
   lastListKey = null;
